@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import { randomBytes } from "node:crypto";
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders } from "@/constants";
@@ -7,6 +8,11 @@ import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import * as obsidian from "obsidian";
 
 jest.mock("@/logger");
+
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
 
 const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidian as unknown as {
@@ -30,7 +36,8 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function copilotModel(enableCors: boolean): CustomModel {
+function githubProviderModel(mobile: boolean): CustomModel {
+  Platform.isMobile = mobile;
   return {
     name: "synthetic-model",
     provider: ChatModelProviders.OPENAI_FORMAT,
@@ -39,7 +46,6 @@ function copilotModel(enableCors: boolean): CustomModel {
     baseUrl: "https://api.githubcopilot.com",
     apiKey: `github_pat_${randomBytes(16).toString("hex")}`,
     enabled: true,
-    enableCors,
   };
 }
 
@@ -61,7 +67,7 @@ function pausedNetwork() {
     }
     const text = token
       ? JSON.stringify({
-          token: "short-lived-scribe-token",
+          token: "short-lived-provider-token",
           expires_at: Math.floor(Date.now() / 1000) + 3600,
         })
       : completion;
@@ -91,19 +97,26 @@ function pausedNetwork() {
 }
 
 describe("providerTransport cancellation integration", () => {
+  beforeEach(() => {
+    Platform.isMobile = false;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   const originalFetch = window.fetch;
   afterEach(() => {
     window.fetch = originalFetch;
     setRequestUrlImpl(undefined);
   });
 
-  describe("createProviderFetch", () => {
+  describe("createProviderFetch()", () => {
     it.each([false, true])(
-      `does not send a cancelled note after shared authentication finishes with compatibility=%s (${issue})`,
-      async (enableCors) => {
+      `does not send a cancelled note after shared authentication finishes on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async (mobile) => {
         const network = pausedNetwork();
         const controller = new AbortController();
-        const fetcher = createProviderFetch(copilotModel(enableCors));
+        const fetcher = createProviderFetch(githubProviderModel(mobile));
         const result = fetcher("https://api.githubcopilot.com/chat/completions", {
           method: "POST",
           body: '{"messages":[{"role":"user","content":"Synthetic cancelled note"}]}',
@@ -127,7 +140,7 @@ describe("providerTransport cancellation integration", () => {
         body: '{"messages":[{"role":"user","content":"Synthetic Request note"}]}',
         signal: controller.signal,
       });
-      const result = createProviderFetch(copilotModel(true))(request);
+      const result = createProviderFetch(githubProviderModel(true))(request);
       await network.tokenStarted;
       controller.abort();
       network.releaseToken();
@@ -139,7 +152,7 @@ describe("providerTransport cancellation integration", () => {
       const network = pausedNetwork();
       const controller = new AbortController();
       controller.abort();
-      const result = createProviderFetch(copilotModel(true))(
+      const result = createProviderFetch(githubProviderModel(true))(
         "https://api.githubcopilot.com/chat/completions",
         {
           signal: controller.signal,
@@ -151,12 +164,12 @@ describe("providerTransport cancellation integration", () => {
     });
   });
 
-  describe("createProviderChatModel", () => {
+  describe("createProviderChatModel()", () => {
     it.each([false, true])(
-      `returns a stopped turn before token release and sends only its live sibling with compatibility=%s (${issue})`,
-      async (enableCors) => {
+      `returns a stopped turn before token release and sends only its live sibling through one shared token on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/61)`,
+      async (mobile) => {
         const network = pausedNetwork();
-        const model = await createProviderChatModel(copilotModel(enableCors));
+        const model = await createProviderChatModel(githubProviderModel(mobile));
         const controller = new AbortController();
         const first = collectText(model, "Synthetic cancelled note", {
           signal: controller.signal,
@@ -178,7 +191,7 @@ describe("providerTransport cancellation integration", () => {
         expect(
           inference.map((request) => (JSON.parse(request.body!) as { messages: unknown }).messages)
         ).toEqual([[{ role: "user", content: "Synthetic live note" }]]);
-        expect(inference[0].headers.get("authorization")).toBe("Bearer short-lived-scribe-token");
+        expect(inference[0].headers.get("authorization")).toBe("Bearer short-lived-provider-token");
       }
     );
   });

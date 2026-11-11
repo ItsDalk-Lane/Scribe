@@ -1,3 +1,4 @@
+import { SecretStore } from "@/services/secretStore";
 import { looksLikeEmbeddingModel } from "@/modelManagement/catalog/catalogTransform";
 import { listProviderModels } from "@/modelManagement/providers/adapters/listProviderModels";
 import type { ModelInfo, ProviderType } from "@/modelManagement/types/catalog";
@@ -14,10 +15,12 @@ export interface UseModelCandidatePoolArgs {
   existingModels: readonly ConfiguredModel[];
   catalogMetadata: Record<string, ModelInfo>;
   apiKey: string;
+  apiKeyRef?: string;
   extras: Record<string, unknown>;
   requiresApiKey: boolean;
   providerHydrated: boolean;
   autoDiscover?: boolean;
+  initialSelectedIds?: readonly string[];
 }
 
 export interface ModelCandidatePool {
@@ -32,6 +35,7 @@ export interface ModelCandidatePool {
   toggle: (wireId: string, next: boolean) => void;
   addId: (id: string) => void;
   removeId: (id: string) => void;
+  setSelection: (ids: readonly string[]) => void;
   fetchModels: () => Promise<void>;
 }
 
@@ -42,15 +46,19 @@ export function useModelCandidatePool({
   existingModels,
   catalogMetadata,
   apiKey,
+  apiKeyRef,
   extras,
   requiresApiKey,
   providerHydrated,
   autoDiscover,
+  initialSelectedIds,
 }: UseModelCandidatePoolArgs): ModelCandidatePool {
   const [selectedWireIds, setSelectedWireIds] = useState<Set<string>>(() =>
-    mode === "edit" ? new Set(existingModels.map((m) => m.info.id)) : new Set()
+    mode === "edit"
+      ? new Set(existingModels.map((m) => m.info.id))
+      : new Set(initialSelectedIds ?? [])
   );
-  const connectionKey = JSON.stringify([providerType, effectiveBaseUrl, apiKey, extras]);
+  const connectionKey = JSON.stringify([providerType, effectiveBaseUrl, apiKey, apiKeyRef, extras]);
   const currentConnectionKey = useRef(connectionKey);
   const requestNumber = useRef(0);
   if (currentConnectionKey.current !== connectionKey) {
@@ -65,7 +73,9 @@ export function useModelCandidatePool({
   }>(() => ({ connectionKey, ids: EMPTY_IDS, fetching: false, error: null }));
   const currentDiscovery = discovery.connectionKey === connectionKey ? discovery : EMPTY_DISCOVERY;
   const fetchedIds = currentDiscovery.ids;
-  const [manualIds, setManualIds] = useState<string[]>([]);
+  const [manualIds, setManualIds] = useState<string[]>(() =>
+    mode === "edit" ? [] : [...(initialSelectedIds ?? [])]
+  );
   const [removedExistingIds, setRemovedExistingIds] = useState<Set<string>>(() => new Set());
 
   const existingByWireId = useMemo(
@@ -139,10 +149,12 @@ export function useModelCandidatePool({
       error: null,
     }));
     try {
-      const result = await listProviderModels(providerType, effectiveBaseUrl, {
-        apiKey: apiKey || null,
-        extras,
-      });
+      const list = async (key: string | null) =>
+        listProviderModels(providerType, effectiveBaseUrl, { apiKey: key, extras });
+      const result =
+        apiKey || !apiKeyRef
+          ? await list(apiKey || null)
+          : await SecretStore.getInstance().withSecret(apiKeyRef, list);
       if (request !== requestNumber.current || currentConnectionKey.current !== connectionKey)
         return;
       setDiscovery((previous) => ({
@@ -160,7 +172,7 @@ export function useModelCandidatePool({
         error: err instanceof Error ? err.message : String(err),
       }));
     }
-  }, [providerType, effectiveBaseUrl, apiKey, extras, connectionKey]);
+  }, [providerType, effectiveBaseUrl, apiKey, apiKeyRef, extras, connectionKey]);
 
   const initialBaseUrlRef = useRef(effectiveBaseUrl);
 
@@ -168,7 +180,8 @@ export function useModelCandidatePool({
   useEffect(() => {
     if (mountFetchedRef.current) return;
     if (!providerType || !effectiveBaseUrl) return;
-    if (mode === "new" && !(autoDiscover ?? !!initialBaseUrlRef.current)) return;
+    if (!(autoDiscover ?? (mode === "new" && !!initialBaseUrlRef.current))) return;
+    if (apiKeyRef && !apiKey) return;
     if (!providerHydrated) return;
     if (mode === "new" && requiresApiKey && !apiKey) return;
     mountFetchedRef.current = true;
@@ -181,6 +194,7 @@ export function useModelCandidatePool({
     effectiveBaseUrl,
     requiresApiKey,
     apiKey,
+    apiKeyRef,
     fetchModels,
   ]);
 
@@ -228,6 +242,17 @@ export function useModelCandidatePool({
     [existingByWireId]
   );
 
+  const setSelection = useCallback((ids: readonly string[]): void => {
+    setManualIds((prev) => {
+      const next = [...prev];
+      for (const id of ids) {
+        if (!next.includes(id)) next.push(id);
+      }
+      return next;
+    });
+    setSelectedWireIds(new Set(ids));
+  }, []);
+
   const buildSelectedModelInfos = useCallback(
     (): ModelInfo[] => [...selectedWireIds].map((id) => resolveModelInfo(id)),
     [selectedWireIds, resolveModelInfo]
@@ -245,6 +270,7 @@ export function useModelCandidatePool({
     toggle,
     addId,
     removeId,
+    setSelection,
     fetchModels,
   };
 }

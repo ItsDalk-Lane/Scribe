@@ -1,3 +1,4 @@
+import { ProviderRequestError } from "@/LLMProviders/providerRequestFailure";
 import { t } from "@/lib/i18n";
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Notice } from "obsidian";
@@ -15,6 +16,7 @@ import { processCommandPrompt } from "@/commands/customCommandUtils";
 import { useApp } from "@/context";
 import { useResolvedChatBackendModel } from "@/hooks/useResolvedChatBackendModel";
 import { logError } from "@/logger";
+import { SecretStore } from "@/services/secretStore";
 import type { QuickAskMessage } from "./types";
 
 interface UseQuickAskSessionParams {
@@ -27,7 +29,7 @@ interface QuickAskSessionApi {
   hasModel: boolean;
   messages: QuickAskMessage[];
   isStreaming: boolean;
-  sendMessage: (inputText: string) => Promise<void>;
+  sendMessage: (inputText: string) => Promise<boolean>;
   stop: () => void;
   clear: () => void;
 }
@@ -56,6 +58,7 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
     stop: stopStreaming,
     reset,
   } = useStreamingChatSession({
+    app,
     model: resolvedModel,
     systemPrompt: QUICK_COMMAND_SYSTEM_PROMPT,
     excludeThinking: true,
@@ -65,13 +68,27 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
     },
     onNonAbortError: (error) => {
       logError("Error generating response:", error);
-      new Notice(t("Error generating response. Please try again."));
+      new Notice(
+        error instanceof ProviderRequestError && error.failure.kind === "context"
+          ? error.message
+          : t("Error generating response. Please try again.")
+      );
+    },
+    onTruncated: () => {
+      new Notice(
+        t("The answer reached the model's output limit and may be incomplete. Ask to continue.")
+      );
     },
   });
 
   const sendMessage = useCallback(
     async (input: string) => {
-      if (!input.trim()) return;
+      if (!input.trim()) return false;
+      if (resolvedModel?.credentialRef)
+        await SecretStore.getInstance(app).withSecret(
+          resolvedModel.credentialRef,
+          async () => undefined
+        );
 
       const userMessage: QuickAskMessage = {
         id: uuidv4(),
@@ -100,7 +117,7 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
       });
 
       if (!isMountedRef.current) {
-        return;
+        return false;
       }
 
       if (result) {
@@ -120,8 +137,9 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
           return prev;
         });
       }
+      return !!result;
     },
-    [app, includeNoteContext, runTurn, selectedText]
+    [app, includeNoteContext, runTurn, selectedText, resolvedModel]
   );
 
   const stop = useCallback(() => {

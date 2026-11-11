@@ -17,6 +17,27 @@ const meta = {
 export default meta;
 
 export const Running: StoryObj<TaskCardProps> = {};
+export const RunningCommand: StoryObj<TaskCardProps> = { args: { task: makeCommandTask() } };
+
+export const Queued: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ subagentStatus: "queued" }) },
+};
+
+export const WaitingForInput: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ subagentStatus: "awaiting_input" }) },
+};
+
+export const WaitingForApproval: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ subagentStatus: "awaiting_approval" }) },
+};
+
+export const Stopping: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ subagentStatus: "stopping" }) },
+};
+
+export const TaskRequestLimit: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ status: "stopped", stopReason: "max_task_requests" }) },
+};
 
 export const Starting: StoryObj<TaskCardProps> = {
   args: { task: makeTask({ taskId: undefined, description: "", subagentType: undefined }) },
@@ -32,6 +53,20 @@ export const Failed: StoryObj<TaskCardProps> = {
 
 export const Stopped: StoryObj<TaskCardProps> = {
   args: { task: makeCommandTask({ status: "stopped" }) },
+};
+
+export const StepLimitReached: StoryObj<TaskCardProps> = {
+  args: {
+    task: makeTask({
+      status: "failed",
+      stopReason: "max_turn_requests",
+      summary: "已读完部分笔记，达到步数限制后收尾。",
+    }),
+  },
+};
+
+export const QuotaExhausted: StoryObj<TaskCardProps> = {
+  args: { task: makeTask({ status: "failed", stopReason: "quota_exhausted" }) },
 };
 
 export const LongTitle: StoryObj<TaskCardProps> = {

@@ -76,6 +76,164 @@ describe("SessionHistoryReplay", () => {
     });
 
     describe("append", () => {
+      it("keeps the explicit thought end before delayed tool arguments and ignores a repeated end after reopening https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const { store, replay } = startReplay();
+        replay.append({ sessionUpdate: "agent_segment_started" }, 1000, 10);
+        replay.append(
+          {
+            sessionUpdate: "agent_thought_chunk",
+            segmentSeq: 10,
+            contentIndex: 0,
+            content: { type: "text", text: "Ready to search" },
+          },
+          1000,
+          11
+        );
+        const ended = {
+          sessionUpdate: "agent_thought_ended",
+          segmentSeq: 10,
+          contentIndex: 0,
+        } as SessionEvent["update"];
+        replay.append(ended, 3000, 12);
+        expect(store.getDisplayMessages()[0].parts?.[0]).toMatchObject({ durationMs: 2000 });
+        replay.append(ended, 8000, 13);
+        replay.append(
+          {
+            sessionUpdate: "agent_thought_chunk",
+            segmentSeq: 10,
+            contentIndex: 1,
+            content: { type: "text", text: "Another thought" },
+          },
+          9000,
+          14
+        );
+        replay.append(ended, 10000, 15);
+        expect(store.getDisplayMessages()[0].parts?.[0]).toMatchObject({ durationMs: 2000 });
+        expect(store.getDisplayMessages()[0].parts?.[1]).not.toHaveProperty("durationMs");
+        replay.append(
+          {
+            sessionUpdate: "tool_call",
+            toolCallId: "search",
+            title: "search",
+            kind: "search",
+            status: "in_progress",
+          },
+          12000,
+          16
+        );
+        expect(store.getDisplayMessages()[0].parts?.[1]).toMatchObject({ durationMs: 3000 });
+      });
+
+      it("restores the exact exhausted task generation without authorizing new model calls https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+        const { store, replay } = startReplay();
+        replay.append(replayText("user_message_chunk", "Question", "u1"), 100);
+        replay.append(
+          {
+            sessionUpdate: "turn_ended",
+            turnId: "t1",
+            stopReason: "max_task_requests",
+            taskGenerationId: "old-generation",
+          },
+          150
+        );
+        replay.end();
+        expect(store.getDisplayMessages().at(-1)).toMatchObject({
+          turnStopReason: "max_task_requests",
+          taskGenerationId: "old-generation",
+        });
+      });
+      it("freezes a normal reply's final thought at its recorded end time after a later replay", () => {
+        const clock = jest.spyOn(Date, "now").mockReturnValue(9_000_000);
+        try {
+          const { store, replay } = startReplay();
+          replay.append({ sessionUpdate: "turn_started", turnId: "request" }, 1000, 1);
+          replay.append(
+            { sessionUpdate: "message_delivered", promptId: "request", messageSeq: 0 },
+            2000,
+            2
+          );
+          replay.append(replayText("user_message_chunk", "Question", "request"), 3000, 3);
+          replay.append(replayText("agent_thought_chunk", "Thinking"), 4000, 4);
+          replay.append(
+            { sessionUpdate: "turn_ended", turnId: "request", stopReason: "end_turn" },
+            9000,
+            5
+          );
+          replay.end();
+          expect(store.getMessage("assistant:request")).toMatchObject({
+            seq: 2,
+            timestamp: { epoch: 2000 },
+            turnStopReason: "end_turn",
+            turnDurationMs: 7000,
+            parts: [{ kind: "thought", startedAtMs: 4000, durationMs: 5000 }],
+          });
+        } finally {
+          clock.mockRestore();
+        }
+      });
+      it("restores a persisted failure even when no assistant text arrived, without inventing a duration", () => {
+        const { store, replay } = startReplay();
+        replay.append(replayText("user_message_chunk", "Question", "u1"), undefined);
+        replay.append(
+          {
+            sessionUpdate: "turn_ended",
+            turnId: "t1",
+            stopReason: "end_turn",
+            error: new Error("connection failed"),
+          },
+          undefined
+        );
+        expect(store.getDisplayMessages()[1]).toMatchObject({
+          isErrorMessage: true,
+          errorText: "**Error:** connection failed",
+          message: "**Error:** connection failed",
+        });
+        expect(store.getDisplayMessages()[1].turnDurationMs).toBeUndefined();
+      });
+      it.each([
+        "quota_exhausted",
+        "authentication_error",
+        "context_limit",
+        "request_error",
+        "max_turn_requests",
+        "cancelled",
+      ] as const)(
+        "restores %s even without assistant text or a UI snapshot (https://github.com/ItsDalk-Lane/Scribe/issues/31)",
+        (stopReason) => {
+          const { store, replay } = startReplay();
+          replay.append(replayText("user_message_chunk", "Question", "u1"), 100);
+          replay.append({ sessionUpdate: "turn_ended", turnId: "t1", stopReason }, 150);
+          replay.end();
+          expect(store.getDisplayMessages()[1]).toMatchObject({
+            sender: AI_SENDER,
+            turnStopReason: stopReason,
+            turnDurationMs: 50,
+          });
+          expect(store.getDisplayMessages()[1].isErrorMessage).not.toBe(true);
+        }
+      );
+
+      it("restores an explicit stop ahead of an accompanying transport error", () => {
+        const { store, replay } = startReplay();
+        replay.append(replayText("user_message_chunk", "Question", "u1"), 100);
+        replay.append(replayText("agent_message_chunk", "Partial", "a1"), 120);
+        replay.append(
+          {
+            sessionUpdate: "turn_ended",
+            turnId: "t1",
+            stopReason: "cancelled",
+            error: new Error("request aborted"),
+          },
+          150
+        );
+        expect(store.getDisplayMessages()[1]).toMatchObject({
+          message: "Partial",
+          turnStopReason: "cancelled",
+          turnDurationMs: 50,
+        });
+        expect(store.getDisplayMessages()[1].isErrorMessage).not.toBe(true);
+      });
+
       it("turns replayed user and agent frames into one user bubble and one agent bubble", () => {
         const { store, replay } = startReplay();
 
@@ -245,6 +403,51 @@ describe("SessionHistoryReplay", () => {
         const parts = store.getDisplayMessages()[1].parts;
         expect(parts).toHaveLength(1);
         expect(parts?.[0]).toMatchObject({ kind: "compaction", status: "completed" });
+      });
+
+      it("restores a committed compression on its original card after the interrupted turn and newer replies https://github.com/ItsDalk-Lane/Scribe/issues/66", () => {
+        const { store, replay } = startReplay();
+        replay.append(replayText("user_message_chunk", "/compact", "u1"), 1000);
+        replay.append(
+          {
+            sessionUpdate: "compaction",
+            id: "committed",
+            status: "in_progress",
+            trigger: "manual",
+          },
+          1100
+        );
+        replay.append(
+          { sessionUpdate: "turn_ended", turnId: "u1", stopReason: "interrupted" },
+          1200
+        );
+        replay.append(replayText("user_message_chunk", "Continue reviewing", "u2"), 2000);
+        replay.append(replayText("agent_message_chunk", "Review complete", "a2"), 2100);
+        replay.append({ sessionUpdate: "turn_ended", turnId: "u2", stopReason: "end_turn" }, 2200);
+        replay.append(
+          {
+            sessionUpdate: "compaction",
+            id: "committed",
+            status: "completed",
+            trigger: "manual",
+            commitSeq: 12,
+            summary: "Prior goals and note references.",
+          },
+          3000
+        );
+        replay.end();
+
+        const messages = store.getDisplayMessages();
+        expect(messages).toHaveLength(4);
+        expect(messages[1].parts).toEqual([
+          expect.objectContaining({
+            kind: "compaction",
+            id: "committed",
+            status: "completed",
+            summary: "Prior goals and note references.",
+          }),
+        ]);
+        expect(messages[3].parts).toEqual([{ kind: "text", text: "Review complete" }]);
       });
 
       it("settles a replayed compaction that never reports an end as cancelled so no spinner shows", () => {

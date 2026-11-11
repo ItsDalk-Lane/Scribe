@@ -26,10 +26,10 @@ describe("openSettings", () => {
       } as unknown as Window;
       const app = { setting: { open, openTabById } } as unknown as App;
 
-      openScribeSettings(app, ownerWindow, "agents");
+      openScribeSettings(app, ownerWindow, "myCommands");
 
       expect(open).toHaveBeenCalledTimes(1);
-      expect(consumedTabs).toEqual(["agents"]);
+      expect(consumedTabs).toEqual(["myCommands"]);
 
       deferredHandoff?.(0);
 

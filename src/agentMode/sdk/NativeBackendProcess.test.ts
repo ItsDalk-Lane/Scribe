@@ -1,6 +1,14 @@
+import {
+  defineNativeTool,
+  getNativeToolPolicy,
+  type NativeToolPolicy,
+} from "@/agentMode/sdk/nativeToolDefinition";
+import type { Schema } from "@earendil-works/pi-schema";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { AssistantMessageEventStream, Context, JsonObject } from "@earendil-works/pi-ai";
+import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
+import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { createAssistantMessage } from "@/LLMProviders/piChatModel";
 import {
   NativeBackendProcess,
@@ -9,8 +17,14 @@ import {
   type NativeBackendProcessOptions,
   type NativeToolContext,
 } from "@/agentMode/sdk/NativeBackendProcess";
-import type { SessionEvent } from "@/agentMode/session/types";
+import type { SessionEvent, PermissionPrompt } from "@/agentMode/session/types";
 import type { ProviderChatModel, AgentStreamOptions } from "@/LLMProviders/piChatModel";
+import { App, FileSystemAdapter } from "obsidian";
+import { createNativeAdvancedTools } from "@/agentMode/sdk/nativeAdvancedTools";
+import { NodeNativeSessionStorage } from "@/agentMode/sdk/NativeSessionStorage";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const model = {
   id: "configured-model",
@@ -42,6 +56,64 @@ function response(
   return stream;
 }
 
+const FIXTURE_NATIVE_TOOL_KINDS: Readonly<Record<string, NativeToolPolicy["kind"]>> = {
+  read_note: "read",
+  list_directory: "read",
+  find_paths: "search",
+  search_content: "search",
+  write_note: "edit",
+  edit_note: "edit",
+  run_command: "execute",
+  propose_plan: "switch_mode",
+  update_todos: "think",
+  delegate_task: "think",
+  web_search: "fetch",
+  fetch_url: "fetch",
+  excalidraw_write: "edit",
+  excalidraw_read: "read",
+  excalidraw_render: "read",
+  ask_user: "think",
+  invoke_skill: "read",
+  tool_search: "read",
+  propose_skill: "think",
+  send_subagent_message: "think",
+  list_subagent_sessions: "read",
+  read_subagent_result: "read",
+  wait_subagents: "think",
+  stop_subagent: "think",
+  send_parent_message: "think",
+  wait_for_message: "think",
+};
+const FIXTURE_SKILL_AUTHORING_TOOLS = new Set([
+  "read_note",
+  "list_directory",
+  "find_paths",
+  "search_content",
+  "ask_user",
+  "invoke_skill",
+  "propose_skill",
+]);
+
+function withFixtureNativePolicy(tool: AgentTool): AgentTool {
+  const kind = FIXTURE_NATIVE_TOOL_KINDS[tool.name];
+  if (getNativeToolPolicy(tool) || !kind) return tool;
+  // 旧测试替身补齐显式内置归属；生产不再根据名称豁免未知工具。https://github.com/ItsDalk-Lane/Scribe/issues/70
+  return {
+    ...tool,
+    ...defineNativeTool(
+      tool.name,
+      tool.label,
+      tool.description,
+      tool.parameters as Schema,
+      tool.execute,
+      {
+        kind,
+        skillAuthoring: FIXTURE_SKILL_AUTHORING_TOOLS.has(tool.name),
+      }
+    ),
+  };
+}
+
 function fixture(
   streamFn: (
     _model: typeof model,
@@ -66,10 +138,6 @@ function fixture(
     createModel: async () => provider,
     getDefaultModelId: () => model.id,
     getSystemPrompt: async () => "Obsidian fixture assistant",
-    createTools: (context) => {
-      toolContexts.push(context);
-      return { tools };
-    },
     storage: {
       load: async (id) => records.get(id) ?? null,
       save: async (record) => {
@@ -79,8 +147,18 @@ function fixture(
       remove: async (id) => {
         records.delete(id);
       },
+      removeSubagent: async (id, subagentId) => {
+        const record = records.get(id);
+        if (record)
+          record.subagents = record.subagents?.filter((state) => state.snapshot.id !== subagentId);
+      },
     },
     ...overrides,
+    createTools: (context) => {
+      if (!overrides.createTools) toolContexts.push(context);
+      const runtimeTools = overrides.createTools?.(context) ?? { tools };
+      return { ...runtimeTools, tools: runtimeTools.tools.map(withFixtureNativePolicy) };
+    },
   });
   const open = async () => {
     const opened = await proc.newSession({ cwd: "/fixture/vault" });
@@ -95,6 +173,19 @@ function fixture(
 describe("NativeBackendProcess", () => {
   describe("NativeBackendProcess", () => {
     describe("newSession", () => {
+      it("rejects duplicate tool names before publishing a mismatched handler https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const tool = defineNativeTool(
+          "same",
+          "same",
+          "same",
+          { type: "object", properties: {} },
+          async () => ({ content: [], details: undefined }),
+          { kind: "read" }
+        );
+        const f = fixture(undefined, [tool, { ...tool }]);
+        await expect(f.open()).rejects.toThrow(/duplicate/i);
+      });
+
       it("uses the explicitly selected model before resolving an unusable saved default", async () => {
         const createModel = jest.fn(async (id: string) => {
           if (id !== model.id) throw new Error("Saved default has no credentials");
@@ -107,6 +198,54 @@ describe("NativeBackendProcess", () => {
         const opened = await f.proc.newSession({ cwd: "/fixture/vault", modelId: model.id });
         expect(createModel).toHaveBeenCalledWith(model.id);
         expect(f.records.get(opened.sessionId)?.modelId).toBe(model.id);
+      });
+
+      it("refuses an unknown purpose instead of silently granting ordinary-chat tools", async () => {
+        const f = fixture();
+        await expect(
+          f.proc.newSession({ cwd: "/fixture/vault", purpose: "unsupported" as never })
+        ).rejects.toThrow("purpose is not supported");
+        expect(f.records.size).toBe(0);
+      });
+
+      it("persists a skill-authoring purpose and registers only read and explicit-review tools even in auto mode", async () => {
+        const seen: string[][] = [];
+        const names = [
+          "read_note",
+          "list_directory",
+          "find_paths",
+          "search_content",
+          "ask_user",
+          "invoke_skill",
+          "propose_skill",
+          "write_note",
+          "edit_note",
+          "run_command",
+          "delegate_task",
+          "excalidraw_write",
+        ];
+        const tools = names.map((name) => ({
+          name,
+          label: name,
+          description: name,
+          parameters: { type: "object", properties: {} },
+          execute: jest.fn(async () => ({ content: [], details: undefined })),
+        })) as AgentTool[];
+        const f = fixture((_model, context) => {
+          seen.push(getCurrentTools(context.messages).map((tool) => tool.name));
+          return response("Draft ready");
+        }, tools);
+        const opened = await f.proc.newSession({
+          cwd: "/fixture/vault",
+          ...{ purpose: "skill-authoring" as const },
+        });
+        await f.proc.setSessionMode({ sessionId: opened.sessionId, modeId: "auto" });
+        await f.send(opened.sessionId);
+        expect(f.records.get(opened.sessionId)).toMatchObject({ purpose: "skill-authoring" });
+        expect(seen[0]).toEqual(names.slice(0, 7));
+        expect(tools.slice(7).every((tool) => !jest.mocked(tool.execute).mock.calls.length)).toBe(
+          true
+        );
       });
 
       it("creates a separate native identity and persists the configured model and working folder", async () => {
@@ -156,6 +295,1469 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("prompt", () => {
+      it("rejects dynamic tools outside the authoring contract and rejects duplicate registration https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const allowed = defineNativeTool(
+          "lookup",
+          "lookup",
+          "lookup",
+          { type: "object", properties: {} },
+          async () => ({ content: [], details: undefined }),
+          { kind: "read", skillAuthoring: true }
+        );
+        const unknown = { ...allowed, name: "extension" };
+        const f = fixture(undefined, [allowed]);
+        const id = await f.proc.newSession({ cwd: "/fixture/vault", purpose: "skill-authoring" });
+        expect(() => f.toolContexts[0].registerTool(allowed)).toThrow(/duplicate/i);
+        const untrusted = {
+          name: "read_note",
+          label: "extension",
+          description: "extension",
+          parameters: { type: "object" as const, properties: {} },
+          execute: unknown.execute,
+        };
+        expect(() => f.toolContexts[0].registerTool(untrusted)).toThrow(/allowed|限制|用途/);
+        await f.proc.closeSession({ sessionId: id.sessionId });
+      });
+
+      it("rechecks live capability after asynchronous admission before dispatch https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        let revision = "a";
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "must not run" }],
+          details: undefined,
+        }));
+        const tool = defineNativeTool(
+          "lookup",
+          "lookup",
+          "lookup",
+          { type: "object", properties: {} },
+          execute,
+          { kind: "read" }
+        );
+        let seq = 0;
+        const f = fixture(
+          (_model, context) =>
+            context.messages.some((m) => m.role === "toolResult")
+              ? response("Done")
+              : response("", [{ id: "late", name: tool.name, arguments: {} }]),
+          [tool],
+          {
+            getCapabilityRevision: () => revision,
+            storage: {
+              load: async () => null,
+              list: async () => [],
+              save: async () => {},
+              append: async (_id, kind, payload) => {
+                if (kind === "tool_admitted") revision = "b";
+                return {
+                  version: 2,
+                  seq: ++seq,
+                  kind,
+                  payload,
+                  occurredAt: Date.now(),
+                  origin: "observed",
+                };
+              },
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(execute).not.toHaveBeenCalled();
+      });
+
+      it("bounds model output while preserving original display and scoped continuation https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const original = "large-result-".repeat(4000);
+        const seen: string[] = [];
+        const tool = defineNativeTool(
+          "lookup",
+          "lookup",
+          "lookup",
+          { type: "object", properties: {} },
+          async () => ({
+            content: [{ type: "text" as const, text: original }],
+            details: undefined,
+          }),
+          { kind: "read" }
+        );
+        const f = fixture(
+          (_model, context) => {
+            const result = context.messages.find((m) => m.role === "toolResult");
+            if (result) {
+              seen.push(JSON.stringify(result.content));
+              return response("Done");
+            }
+            return response("", [{ id: "large", name: tool.name, arguments: {} }]);
+          },
+          [tool]
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(seen[0].length).toBeLessThan(original.length);
+        expect(seen[0]).toContain("read_tool_result");
+        const saved = f.records.get(id)!.messages.find((m) => m.role === "toolResult");
+        expect(JSON.stringify(saved)).toContain(original);
+        expect(JSON.stringify(f.events)).toContain(original);
+        const page = await f.toolContexts[0].readToolResult!({
+          toolCallId: "large",
+          maxCharacters: 2000,
+        });
+        expect(JSON.stringify(page)).toContain("large-result-");
+        await expect(f.toolContexts[0].readToolResult!({ toolCallId: "missing" })).rejects.toThrow(
+          /result|结果/
+        );
+      });
+
+      it("captures rules after asynchronous skill preparation so the step uses the same current configuration", async () => {
+        let rules = "Rules before skill preparation";
+        const seen: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            seen.push(context);
+            return response("Prepared");
+          },
+          [],
+          {
+            getSystemPrompt: async () => rules,
+            getManuallyInvokedSkill: (name) => ({ name, body: "Read selected source" }),
+            resolveSkillDependencies: async () => {
+              rules = "Rules after skill preparation";
+              return [];
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "selected", "/review Inspect");
+        expect(JSON.stringify(seen[0])).toContain("Rules after skill preparation");
+        expect(JSON.stringify(seen[0])).not.toContain("Rules before skill preparation");
+      });
+
+      it("declares a newly admitted manual skill tool in the same model request that carries its instructions", async () => {
+        const received: string[][] = [];
+        const registered: string[][] = [];
+        const f = fixture(
+          (_model, context) => {
+            received.push(getCurrentTools(context.messages).map((tool) => tool.name));
+            return response("Selected skill is ready");
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) => ({
+              name,
+              body: "Use invoke_skill to read the bundled template.",
+            }),
+            createTools: (context) => {
+              const tools: AgentTool[] = context.transferredSkills?.includes("manual-review")
+                ? [
+                    {
+                      name: "invoke_skill",
+                      label: "Use skill",
+                      description: "Read the selected skill template",
+                      parameters: { type: "object", properties: {} },
+                      execute: async () => ({ content: [], details: undefined }),
+                    },
+                  ]
+                : [];
+              registered.push(tools.map((tool) => tool.name));
+              return { tools };
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Prepare notes");
+        expect(registered[0]).toEqual([]);
+        expect(registered.at(-1)).toEqual(["invoke_skill"]);
+        expect(received).toEqual([["invoke_skill"]]);
+      });
+
+      it("records an empty tool set for the closing request that actually disables tools", async () => {
+        const snapshots: Array<{ tools: Array<{ name: string }> }> = [];
+        const received: string[][] = [];
+        let sequence = 0;
+        let request = 0;
+        const read: AgentTool = {
+          name: "read_note",
+          label: "Read",
+          description: "Read",
+          parameters: { type: "object", properties: {} },
+          execute: async () => ({ content: [], details: undefined }),
+        };
+        const f = fixture(
+          (_model, context, options) => {
+            received.push(getCurrentTools(context.messages).map((tool) => tool.name));
+            const current = ++request;
+            const stream = createAssistantMessageEventStream();
+            void (async () => {
+              try {
+                await options?.beforeRequest?.(`request-${current}`);
+                for await (const event of current === 1
+                  ? response("", [{ id: "read", name: "read_note", arguments: {} }])
+                  : response("Finished"))
+                  stream.push(event);
+              } catch (error) {
+                const message = createAssistantMessage(model);
+                message.stopReason = "error";
+                message.errorMessage = String(error);
+                stream.push({ type: "error", reason: "error", error: message });
+              } finally {
+                stream.end();
+              }
+            })();
+            return stream;
+          },
+          [read],
+          {
+            maxSteps: 1,
+            storage: {
+              load: async () => null,
+              list: async () => [],
+              save: async () => undefined,
+              append: async (_id, kind, payload, options) => {
+                if (kind === "request_context")
+                  snapshots.push(
+                    (payload as { snapshot: { tools: Array<{ name: string }> } }).snapshot
+                  );
+                return {
+                  version: 2,
+                  seq: ++sequence,
+                  kind,
+                  payload,
+                  occurredAt: Date.now(),
+                  origin: options?.origin ?? "observed",
+                };
+              },
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(received).toEqual([["read_note"], []]);
+        expect(snapshots.map((snapshot) => snapshot.tools.map((tool) => tool.name))).toEqual(
+          received
+        );
+      });
+
+      it("removes a cleared named rule before the next tool continuation", async () => {
+        let vaultRule: string | null = "Current vault rule";
+        const seen: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            seen.push(JSON.parse(JSON.stringify(context)));
+            return seen.length === 1
+              ? response("", [{ id: "clear", name: "read_note", arguments: {} }])
+              : response("Rule removed");
+          },
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async () => {
+                vaultRule = null;
+                return { content: [], details: undefined };
+              },
+            },
+          ],
+          {
+            getSystemPrompt: async () => ({
+              content: "Application defaults",
+              sections: { vault_instructions: vaultRule },
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(JSON.stringify(seen[0])).toContain("Current vault rule");
+        expect(JSON.stringify(seen[1])).not.toContain("Current vault rule");
+        expect(JSON.stringify(seen[1])).toContain("Application defaults");
+        expect(seen[1].messages.at(-1)?.content).toContain("<current_context_update>");
+      });
+
+      it("stops a tool continuation when the current rule file cannot be read", async () => {
+        let readable = true;
+        let dispatches = 0;
+        const request = jest.fn(() =>
+          ++dispatches === 1
+            ? response("", [{ id: "unreadable", name: "read_note", arguments: {} }])
+            : response("Continued incorrectly")
+        );
+        const f = fixture(
+          request,
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async () => {
+                readable = false;
+                return { content: [], details: undefined };
+              },
+            },
+          ],
+          {
+            getSystemPrompt: async () => {
+              if (!readable) throw new Error("Rule file unavailable");
+              return "Existing rules";
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(request).toHaveBeenCalledTimes(1);
+        expect(
+          f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+        ).toMatchObject({
+          stopReason: "request_error",
+          error: expect.objectContaining({ message: "Rule file unavailable" }),
+        });
+      });
+
+      it("refreshes rules and complete project sources before a tool continuation without changing the user message", async () => {
+        let rules = "Original vault rules";
+        let sources = "Current project sources: A";
+        const seen: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            seen.push(JSON.parse(JSON.stringify(context)));
+            return seen.length < 3
+              ? response("", [{ id: `refresh-${seen.length}`, name: "read_note", arguments: {} }])
+              : response("Current sources received");
+          },
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read a note",
+              parameters: { type: "object", properties: {} },
+              execute: async () => {
+                rules = "Updated vault rules";
+                sources = "Current project sources: B; replaces A";
+                return { content: [{ type: "text", text: "Read complete" }], details: undefined };
+              },
+            },
+          ],
+          { getSystemPrompt: async () => rules, getRequestContext: () => sources }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(JSON.stringify(seen[0])).toContain("Original vault rules");
+        expect(JSON.stringify(seen[1])).toContain("Updated vault rules");
+        expect(JSON.stringify(seen[1])).toContain("Current project sources: B; replaces A");
+        expect(JSON.stringify(seen[1])).not.toContain("Original vault rules");
+        expect(seen[0].messages.at(-1)?.content).not.toContain("<current_context_update>");
+        for (const continuation of seen.slice(1)) {
+          const update = continuation.messages.at(-1);
+          expect(update).toMatchObject({ role: "user", timestamp: 0 });
+          expect(update?.content).toContain("<current_context_update>");
+          expect(update?.content).toContain("Current project sources: B; replaces A");
+          expect(continuation.messages.at(-2)?.role).toBe("toolResult");
+        }
+        await f.send(id, "followup", "Continue with the current state");
+        expect(JSON.stringify(seen.at(-1)?.messages.at(-1))).toContain("<current_context_update>");
+        expect(
+          f.records.get(id)?.messages.find((message) => message.role === "user")?.content
+        ).toEqual([{ type: "text", text: "hi" }]);
+      });
+
+      it("rejects a larger rule set instead of trusting the earlier response's small usage", async () => {
+        let rules = "Short rules";
+        const request = jest.fn(() => {
+          const source = createAssistantMessageEventStream();
+          const message = createAssistantMessage(model);
+          message.content = [{ type: "text", text: "Earlier reply" }];
+          message.usage = { ...message.usage, input: 1000, totalTokens: 1000 };
+          message.stopReason = "stop";
+          source.push({ type: "done", reason: "stop", message });
+          return source;
+        });
+        const f = fixture(request, [], { getSystemPrompt: async () => rules });
+        const id = await f.open();
+        await f.send(id);
+        rules = "Long rules ".repeat(7000);
+        await f.send(id, "next", "Continue");
+        expect(
+          f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+        ).toMatchObject({ stopReason: "context_limit" });
+        expect(request).toHaveBeenCalledTimes(1);
+        expect(
+          f.records.get(id)?.messages.find((message) => message.role === "assistant")
+        ).toMatchObject({ usage: { input: 1000, totalTokens: 1000 } });
+      });
+
+      let skillTestDirectory: string | undefined;
+      afterEach(async () => {
+        if (skillTestDirectory) await rm(skillTestDirectory, { recursive: true, force: true });
+        skillTestDirectory = undefined;
+      });
+      it.each(["thinking_end", "text_start", "toolcall_start"] as const)(
+        "reports %s immediately while the response stream stays open for tool preparation https://github.com/ItsDalk-Lane/Scribe/issues/52",
+        async (boundary) => {
+          let now = 1000;
+          const clock = jest.spyOn(Date, "now").mockImplementation(() => now);
+          const source = createAssistantMessageEventStream();
+          const message = createAssistantMessage(model);
+          message.content = [{ type: "thinking", thinking: "Ready to search" }];
+          message.stopReason = "stop";
+          let streamReady!: () => void;
+          const ready = new Promise<void>((resolve) => {
+            streamReady = resolve;
+          });
+          let thoughtReady!: () => void;
+          const thought = new Promise<void>((resolve) => {
+            thoughtReady = resolve;
+          });
+          let endReady!: () => void;
+          const ended = new Promise<void>((resolve) => {
+            endReady = resolve;
+          });
+          const saved: unknown[] = [];
+          let sequence = 0;
+          const f = fixture(
+            () => {
+              streamReady();
+              return source;
+            },
+            [],
+            {
+              storage: {
+                load: async () => null,
+                list: async () => [],
+                save: async () => undefined,
+                append: async (_id, kind, payload, options) => {
+                  saved.push(payload);
+                  return {
+                    version: 2,
+                    seq: ++sequence,
+                    kind,
+                    payload,
+                    occurredAt: now,
+                    origin: options?.origin ?? "observed",
+                  };
+                },
+              },
+            }
+          );
+          try {
+            const id = await f.open();
+            f.proc.registerSessionHandler(id, (event) => {
+              f.events.push(event);
+              if (event.update.sessionUpdate === "agent_thought_chunk") thoughtReady();
+              if (event.update.sessionUpdate === "agent_thought_ended") endReady();
+            });
+            const sending = f.send(id);
+            await ready;
+            source.push({ type: "start", partial: message });
+            source.push({
+              type: "thinking_delta",
+              contentIndex: 0,
+              delta: "Ready to search",
+              partial: message,
+            });
+            await thought;
+            now = 3000;
+            source.push(
+              boundary === "thinking_end"
+                ? { type: boundary, contentIndex: 0, content: "Ready to search", partial: message }
+                : { type: boundary, contentIndex: 1, partial: message }
+            );
+            await ended;
+            const ending = f.events.find(
+              (event) => event.update.sessionUpdate === "agent_thought_ended"
+            );
+            expect(ending).toMatchObject({
+              occurredAt: 3000,
+              update: {
+                sessionUpdate: "agent_thought_ended",
+                segmentSeq: expect.any(Number),
+                ...(boundary === "thinking_end" ? { contentIndex: 0 } : {}),
+              },
+            });
+            now = 9000;
+            expect(
+              f.events.some((event) => event.update.sessionUpdate === "agent_segment_finalized")
+            ).toBe(false);
+            source.push({ type: "done", reason: "stop", message });
+            await sending;
+            expect(saved).toContainEqual(
+              expect.objectContaining({ update: ending?.update, occurredAt: 3000 })
+            );
+          } finally {
+            source.end(message);
+            clock.mockRestore();
+          }
+        }
+      );
+
+      it.each([
+        ["not selected", "ordinary request", true, "只能转交"],
+        ["disabled after selection", "/manual-review check", false, "已停用或不可用"],
+        ["selected and enabled", "/manual-review check", true, "找不到当前聊天所属的子会话"],
+      ])(
+        "checks the current user authorization before a resumed child receives skills when %s (https://github.com/ItsDalk-Lane/Scribe/issues/50)",
+        async (_label, prompt, enabledAtSend, expected) => {
+          let enabled = true;
+          let failure = "";
+          const f = fixture(
+            (_model, context) => {
+              if (context.messages.at(-1)?.role === "toolResult") return response("done");
+              return response("", [{ id: "send", name: "send_subagent_message", arguments: {} }]);
+            },
+            [],
+            {
+              getManuallyInvokedSkill: (name) =>
+                enabled && name === "manual-review" ? { name, body: "Instructions" } : null,
+              createTools: (context) => ({
+                tools: [
+                  {
+                    name: "send_subagent_message",
+                    label: "send",
+                    description: "send",
+                    parameters: { type: "object", properties: {} },
+                    execute: async () => {
+                      enabled = enabledAtSend;
+                      try {
+                        await context.sendSubagentMessage!({
+                          subagentId: "unknown",
+                          text: "continue",
+                          mode: "wake",
+                          skills: ["manual-review"],
+                        });
+                      } catch (error) {
+                        failure = String(error);
+                      }
+                      return { content: [{ type: "text", text: "done" }], details: undefined };
+                    },
+                  },
+                ] as AgentTool[],
+              }),
+            }
+          );
+          const id = await f.open();
+          await f.send(id, "authorization-test", prompt);
+          expect(failure).toContain(expected);
+        }
+      );
+      function transferredSkillFixture(overrides: Partial<NativeBackendProcessOptions>) {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            const last = context.messages.at(-1);
+            if (JSON.stringify(last).includes("Child task")) return response("Child done");
+            if (last?.role === "toolResult") return response("Parent done");
+            return response("", [
+              {
+                id: "delegate",
+                name: "delegate_task",
+                arguments: {
+                  prompt: "Child task",
+                  description: "Review",
+                  skills: ["manual-review"],
+                },
+              },
+            ]);
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) => ({ name, body: "Instructions" }),
+            createTools: (context) => ({
+              tools: context.executeSubagent
+                ? [
+                    {
+                      name: "delegate_task",
+                      label: "Delegate",
+                      description: "Delegate",
+                      parameters: { type: "object", properties: {} },
+                      execute: (id, args, signal) =>
+                        context.executeSubagent!(
+                          id,
+                          args as { prompt: string; description: string; skills: string[] },
+                          signal
+                        ),
+                    },
+                  ]
+                : [],
+            }),
+            ...overrides,
+          }
+        );
+        return { ...f, contexts };
+      }
+
+      it("does not send a child request when dependency resolution fails (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let calls = 0;
+        const f = transferredSkillFixture({
+          resolveSkillDependencies: async () => {
+            if (++calls === 2) throw new Error("Dependency check failed");
+            return [];
+          },
+        });
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        expect(
+          f.contexts.some((context) =>
+            JSON.stringify(context.messages.at(-1)).includes("Child task")
+          )
+        ).toBe(false);
+      });
+
+      it("does not send a child request when the skill is disabled during dependency resolution (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let enabled = true;
+        let calls = 0;
+        const f = transferredSkillFixture({
+          getManuallyInvokedSkill: (name) => (enabled ? { name, body: "Instructions" } : null),
+          resolveSkillDependencies: async () => {
+            if (++calls === 2) enabled = false;
+            return [];
+          },
+        });
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        expect(
+          f.contexts.some((context) =>
+            JSON.stringify(context.messages.at(-1)).includes("Child task")
+          )
+        ).toBe(false);
+      });
+
+      it("does not send a child request after cancellation during dependency resolution (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let calls = 0;
+        let started!: () => void;
+        let finish!: (readings: []) => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const pending = new Promise<[]>((resolve) => {
+          finish = resolve;
+        });
+        const f = transferredSkillFixture({
+          resolveSkillDependencies: async () => {
+            if (++calls === 2) {
+              started();
+              return pending;
+            }
+            return [];
+          },
+        });
+        const id = await f.open();
+        const turn = f.send(id, "manual", "/manual-review Check");
+        await ready;
+        const cancellation = f.proc.cancel({ sessionId: id });
+        finish([]);
+        await Promise.all([turn, cancellation]);
+        expect(
+          f.contexts.some((context) =>
+            JSON.stringify(context.messages.at(-1)).includes("Child task")
+          )
+        ).toBe(false);
+      });
+
+      it("bounds the combined transferred instruction and indicates truncation (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const f = transferredSkillFixture({
+          getManuallyInvokedSkill: (name) => ({ name, body: "X".repeat(30000) }),
+        });
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        const child = f.contexts.find((context) =>
+          JSON.stringify(context.messages.at(-1)).includes("Child task")
+        );
+        const text = (
+          child?.messages.find(
+            (message) =>
+              message.role === "user" &&
+              typeof message.content === "string" &&
+              message.content.startsWith("<runtime_context>")
+          )?.content as string
+        )
+          ?.split("</runtime_context>\n\n")
+          .at(-1);
+        expect(typeof text).toBe("string");
+        expect((text as string).length).toBeLessThanOrEqual(20200);
+        expect(text).toContain("[Output truncated]");
+      });
+
+      it("does not advertise an unavailable skill tool when transferred instructions are truncated https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const f = transferredSkillFixture({
+          getManuallyInvokedSkill: (name) => ({ name, body: "X".repeat(30000) }),
+        });
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        const child = f.contexts.find((context) =>
+          JSON.stringify(context.messages.at(-1)).includes("Child task")
+        );
+        const text = (
+          child?.messages.find(
+            (message) =>
+              message.role === "user" &&
+              typeof message.content === "string" &&
+              message.content.startsWith("<runtime_context>")
+          )?.content as string
+        )
+          ?.split("</runtime_context>\n\n")
+          .at(-1);
+        expect(text).toContain("[Output truncated]");
+        expect(text).not.toContain("invoke_skill");
+      });
+
+      it("fails a skill-inflated request with a context error instead of dispatching it past the window (https://github.com/ItsDalk-Lane/Scribe/issues/57)", async () => {
+        const dispatched: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            dispatched.push(context);
+            return response("Hello");
+          },
+          [],
+          { getManuallyInvokedSkill: (name) => ({ name, body: "X".repeat(20000) }) }
+        );
+        const id = await f.open();
+        // 约 7,700 token 的首条输入低于预算线，但注入技能后组装结果超过 10,000 token 的窗口。https://github.com/ItsDalk-Lane/Scribe/issues/57
+        await f.send(id, "oversized", `/big-skill Explain\n${"H".repeat(27000)}`);
+        expect(dispatched).toEqual([]);
+        expect(
+          f.events.some(
+            (event) =>
+              event.update.sessionUpdate === "turn_ended" &&
+              (event.update as { stopReason?: string }).stopReason === "context_limit"
+          )
+        ).toBe(true);
+      });
+
+      it("compacts the history with the injection reserved so an assembled skill request still fits (https://github.com/ItsDalk-Lane/Scribe/issues/57)", async () => {
+        const dispatched: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            dispatched.push(context);
+            const last = context.messages.at(-1);
+            const text =
+              typeof last?.content === "string"
+                ? last.content
+                : JSON.stringify(last?.content ?? "");
+            if (text.startsWith("Summarize this recorded Obsidian conversation"))
+              return response("Summary of earlier work");
+            return response("Reply");
+          },
+          [],
+          { getManuallyInvokedSkill: (name) => ({ name, body: "X".repeat(20000) }) }
+        );
+        const id = await f.open();
+        await f.send(id, "history-turn", "H".repeat(27000));
+        await f.send(id, "skill-turn", "/big-skill Explain");
+        const summarized = dispatched.filter((context) =>
+          JSON.stringify(context.messages).includes("Summarize this recorded Obsidian conversation")
+        );
+        expect(summarized.length).toBeGreaterThan(0);
+        const final = dispatched.at(-1);
+        expect(JSON.stringify(final?.messages)).toContain("The user explicitly selected skill");
+        expect(JSON.stringify(final?.messages)).toContain("Recorded conversation summary");
+      });
+
+      it.each(["disabled", "body changed", "directory changed"])(
+        "does not send stale manual skill instructions when the skill is %s during context preparation (https://github.com/ItsDalk-Lane/Scribe/issues/68)",
+        async (change) => {
+          const dispatched: Context[] = [];
+          const onManualSkillInvoked = jest.fn();
+          let skill: { name: string; body: string; dirPath: string } | null = {
+            name: "big-skill",
+            body: "X".repeat(20000),
+            dirPath: "/skills/original",
+          };
+          const f = fixture(
+            (_model, context) => {
+              dispatched.push(context);
+              if (
+                JSON.stringify(context.messages).includes(
+                  "Summarize this recorded Obsidian conversation"
+                )
+              ) {
+                if (change === "disabled") skill = null;
+                else if (change === "body changed") skill = { ...skill!, body: "New instructions" };
+                else skill = { ...skill!, dirPath: "/skills/new" };
+                return response("Summary of earlier work");
+              }
+              return response("Reply");
+            },
+            [],
+            { getManuallyInvokedSkill: () => skill, onManualSkillInvoked }
+          );
+          const id = await f.open();
+          await f.send(id, "history-turn", "H".repeat(27000));
+          await f.send(id, "skill-turn", "/big-skill Explain");
+          expect(
+            dispatched.some((context) =>
+              JSON.stringify(context.messages).includes(
+                "Summarize this recorded Obsidian conversation"
+              )
+            )
+          ).toBe(true);
+          expect(
+            dispatched.some((context) =>
+              JSON.stringify(context.messages).includes("The user explicitly selected skill")
+            )
+          ).toBe(false);
+          expect(onManualSkillInvoked).not.toHaveBeenCalled();
+          expect(f.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({
+                sessionUpdate: "turn_ended",
+                stopReason: "request_error",
+              }),
+            })
+          );
+        }
+      );
+
+      it("delivers transferred skills with dependency readiness and their support directory to the child (https://github.com/ItsDalk-Lane/Scribe/issues/46)", async () => {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            const last = context.messages.at(-1);
+            if (JSON.stringify(last).includes("Child task")) return response("Child done");
+            if (last?.role === "toolResult") return response("Parent done");
+            return response("", [
+              {
+                id: "delegate",
+                name: "delegate_task",
+                arguments: {
+                  prompt: "Child task",
+                  description: "Review",
+                  skills: ["manual-review"],
+                },
+              },
+            ]);
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) => ({
+              name,
+              body: "Review instructions",
+              dirPath: "/fixture/skills/manual-review",
+            }),
+            resolveSkillDependencies: async () => [
+              { type: "command", name: "example", ready: true, detail: "/usr/bin/example" },
+              { type: "python-package", name: "missing", ready: false, detail: "not installed" },
+            ],
+            createTools: (context) => ({
+              tools: context.executeSubagent
+                ? [
+                    {
+                      name: "delegate_task",
+                      label: "Delegate",
+                      description: "Delegate",
+                      parameters: { type: "object", properties: {} },
+                      execute: (id, args, signal) =>
+                        context.executeSubagent!(
+                          id,
+                          args as { prompt: string; description: string; skills: string[] },
+                          signal
+                        ),
+                    },
+                  ]
+                : [],
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        const child = contexts.find((context) =>
+          JSON.stringify(context.messages.at(-1)).includes("Child task")
+        );
+        expect(child).toBeDefined();
+        const text = JSON.stringify(child!.messages);
+        expect(text).toContain("Review instructions");
+        expect(text).toContain("/fixture/skills/manual-review");
+        expect(text).toContain("/usr/bin/example");
+        expect(text).toContain("not available on this computer");
+      });
+
+      it("identifies the skill tool and name when a manually selected skill is truncated https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Done");
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) => ({ name, body: "a".repeat(21000) }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        const message = JSON.stringify(contexts[0].messages);
+        expect(message).toContain("[Output truncated]");
+        expect(message).toContain('\\"tool\\":\\"invoke_skill\\"');
+        expect(message).toContain('\\"name\\":\\"manual-review\\"');
+      });
+
+      it("identifies a transferred skill when its instructions are truncated https://github.com/ItsDalk-Lane/Scribe/issues/68", async () => {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            const last = context.messages.at(-1);
+            if (JSON.stringify(last).includes("Child task")) return response("Child done");
+            if (last?.role === "toolResult") return response("Parent done");
+            return response("", [
+              {
+                id: "delegate",
+                name: "delegate_task",
+                arguments: {
+                  prompt: "Child task",
+                  description: "Review",
+                  skills: ["manual-review"],
+                },
+              },
+            ]);
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) => ({ name, body: "a".repeat(21000) }),
+            createTools: (context) => ({
+              tools: context.executeSubagent
+                ? [
+                    {
+                      name: "delegate_task",
+                      label: "Delegate",
+                      description: "Delegate",
+                      parameters: { type: "object", properties: {} },
+                      execute: (id, args, signal) =>
+                        context.executeSubagent!(
+                          id,
+                          args as { prompt: string; description: string; skills: string[] },
+                          signal
+                        ),
+                    },
+                  ]
+                : [
+                    {
+                      name: "invoke_skill",
+                      label: "Use skill",
+                      description: "Read a skill",
+                      parameters: { type: "object", properties: {} },
+                      execute: async () => ({ content: [], details: undefined }),
+                    },
+                  ],
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "manual", "/manual-review Check");
+        const child = contexts.find((context) =>
+          JSON.stringify(context.messages.at(-1)).includes("Child task")
+        );
+        const message = JSON.stringify(child?.messages);
+        expect(message).toContain("[Output truncated]");
+        expect(message).toContain('\\"tool\\":\\"invoke_skill\\"');
+        expect(message).toContain('\\"name\\":\\"manual-review\\"');
+      });
+
+      it("loads an explicitly named manual skill for this request without rewriting the original user message", async () => {
+        const contexts: Context[] = [];
+        const findSkill = jest.fn((name: string) =>
+          name === "manual-review"
+            ? {
+                name,
+                body: "Verify each quoted claim.",
+                dirPath: "/fixture/vault/.scribe/skills/manual-review",
+              }
+            : null
+        );
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Reviewed");
+          },
+          [],
+          { getManuallyInvokedSkill: findSkill }
+        );
+        const id = await f.open();
+        const original =
+          "<scribe-context>Attached note</scribe-context>\n<user-message>\n/manual-review Check this note\n</user-message>";
+        await f.send(id, "manual", original);
+        expect(JSON.stringify(contexts[0].messages)).toContain("Verify each quoted claim.");
+        expect(JSON.stringify(contexts[0].messages)).toContain(
+          "/fixture/vault/.scribe/skills/manual-review"
+        );
+        expect(
+          f.records.get(id)?.messages.find((message) => message.role === "user")?.content
+        ).toEqual([{ type: "text", text: original }]);
+        await f.send(id, "ordinary", "Continue");
+        expect(JSON.stringify(contexts[1].messages)).toContain("Verify each quoted claim.");
+      });
+
+      it("lets a manually selected skill read its support file only during that user turn (https://github.com/ItsDalk-Lane/Scribe/issues/41)", async () => {
+        const root = await mkdtemp(join(tmpdir(), "scribe-skill-support-"));
+        skillTestDirectory = root;
+        const adapter = new FileSystemAdapter();
+        adapter.getBasePath = () => root;
+        const calls: string[] = [];
+        let request = 0;
+        const f = fixture(
+          () => {
+            request++;
+            return request === 1 || request === 3
+              ? response("", [
+                  {
+                    id: "read",
+                    name: "invoke_skill",
+                    arguments: { name: "manual-review", file: "guide.md" },
+                  },
+                ])
+              : response("Done");
+          },
+          [],
+          {
+            getManuallyInvokedSkill: (name) =>
+              name === "manual-review" ? { name, body: "Read guide.md" } : null,
+            createTools: (context) => ({
+              tools: createNativeAdvancedTools({
+                ...context,
+                app: { vault: { adapter } } as unknown as App,
+                skills: () => [
+                  {
+                    name: "manual-review",
+                    description: "Review",
+                    body: "Read guide.md",
+                    status: "manual-only",
+                  },
+                ],
+                readSkillFile: async (_name, path) => {
+                  calls.push(path);
+                  return "support instructions";
+                },
+              }),
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        expect(calls).toEqual(["guide.md"]);
+        await f.send(id, "second", "Continue");
+        expect(calls).toEqual(["guide.md"]);
+      });
+
+      it("retains a successfully delivered manual skill for a follow-up and after reopening the chat (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        const contexts: Context[] = [];
+        skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Reviewed");
+          },
+          [],
+          {
+            storage: new NodeNativeSessionStorage(skillTestDirectory),
+            getManuallyInvokedSkill: (name) =>
+              name === "manual-review"
+                ? { name, body: "Verify the unique skill instructions." }
+                : null,
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        await f.send(id, "second", "Continue");
+        expect(JSON.stringify(contexts[1].messages)).toContain(
+          "Verify the unique skill instructions."
+        );
+        await f.proc.closeSession({ sessionId: id });
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await f.send(id, "third", "Continue again");
+        expect(JSON.stringify(contexts[2].messages)).toContain(
+          "Verify the unique skill instructions."
+        );
+      });
+
+      it.each(["disabled", "changed"])(
+        "does not restore a manual skill that was %s after reopening (https://github.com/ItsDalk-Lane/Scribe/issues/68)",
+        async (change) => {
+          const contexts: Context[] = [];
+          skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+          let skill: { name: string; body: string } | null = {
+            name: "manual-review",
+            body: "Original unique skill instructions.",
+          };
+          const f = fixture(
+            (_model, context) => {
+              contexts.push(context);
+              return response("Reviewed");
+            },
+            [],
+            {
+              storage: new NodeNativeSessionStorage(skillTestDirectory),
+              getManuallyInvokedSkill: () => skill,
+            }
+          );
+          const id = await f.open();
+          await f.send(id, "first", "/manual-review Check");
+          await f.proc.closeSession({ sessionId: id });
+          skill =
+            change === "disabled"
+              ? null
+              : { name: "manual-review", body: "Changed skill instructions." };
+          await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+          await f.send(id, "second", "Continue");
+          expect(
+            contexts
+              .slice(1)
+              .every(
+                (context) =>
+                  !JSON.stringify(context.messages).includes("Original unique skill instructions.")
+              )
+          ).toBe(true);
+        }
+      );
+
+      it("does not authorize transferring a historical manual selection after reopening (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        let requests = 0;
+        let failure = "";
+        skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+        const f = fixture(
+          () =>
+            ++requests === 2
+              ? response("", [{ id: "send", name: "send_subagent_message", arguments: {} }])
+              : response("Done"),
+          [],
+          {
+            storage: new NodeNativeSessionStorage(skillTestDirectory),
+            getManuallyInvokedSkill: (name) => ({ name, body: "Instructions" }),
+            createTools: (context) => ({
+              tools: [
+                {
+                  name: "send_subagent_message",
+                  label: "Send",
+                  description: "Send",
+                  parameters: { type: "object", properties: {} },
+                  execute: async () => {
+                    try {
+                      await context.sendSubagentMessage!({
+                        subagentId: "unknown",
+                        text: "continue",
+                        mode: "wake",
+                        skills: ["manual-review"],
+                      });
+                    } catch (error) {
+                      failure = String(error);
+                    }
+                    return { content: [{ type: "text", text: "done" }], details: undefined };
+                  },
+                },
+              ] as AgentTool[],
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        await f.proc.closeSession({ sessionId: id });
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await f.send(id, "second", "Continue");
+        expect(failure).toContain("只能转交");
+      });
+
+      it("does not restore a previous skill after the user starts an independent task, including after reopening (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+        const storage = new NodeNativeSessionStorage(skillTestDirectory);
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Done");
+          },
+          [],
+          {
+            storage,
+            getManuallyInvokedSkill: (name) => ({ name, body: "Previous skill instructions" }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        await f.proc.startIndependentTask({ sessionId: id });
+        await f.send(id, "second", "Start another task");
+        expect(JSON.stringify(contexts[1].messages)).not.toContain("Previous skill instructions");
+        await f.proc.closeSession({ sessionId: id });
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await f.send(id, "third", "Continue");
+        expect(JSON.stringify(contexts[2].messages)).not.toContain("Previous skill instructions");
+      });
+
+      it("retains a saved skill and reports a failed restoration check so a later retry can recover it (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+        const storage = new NodeNativeSessionStorage(skillTestDirectory);
+        const contexts: Context[] = [];
+        let failing = false;
+        const skill = { name: "manual-review", body: "Saved skill instructions" };
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Done");
+          },
+          [],
+          {
+            storage,
+            getManuallyInvokedSkill: () => skill,
+            getRestorableSkill: () => {
+              if (failing) throw new Error("Skill lookup failed");
+              return skill;
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        await f.proc.closeSession({ sessionId: id });
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        failing = true;
+        await f.send(id, "failed", "Continue");
+        expect(contexts).toHaveLength(1);
+        expect(f.events).toContainEqual(
+          expect.objectContaining({
+            update: expect.objectContaining({
+              sessionUpdate: "turn_ended",
+              stopReason: "request_error",
+            }),
+          })
+        );
+        expect(
+          (await storage.load(id))?.journalRecords?.some(
+            (fact) => fact.kind === "skill_delivery_revoked"
+          )
+        ).toBe(false);
+        failing = false;
+        await f.send(id, "retry", "Continue");
+        expect(JSON.stringify(contexts.at(-1)?.messages)).toContain("Saved skill instructions");
+      });
+
+      it.each(["changed", "failed"])(
+        "does not replay stale dependency information when the check %s, and recovers after a successful retry (https://github.com/ItsDalk-Lane/Scribe/issues/68)",
+        async (condition) => {
+          const contexts: Context[] = [];
+          let state = "ready";
+          const f = fixture(
+            (_model, context) => {
+              contexts.push(context);
+              return response("Done");
+            },
+            [],
+            {
+              getManuallyInvokedSkill: (name) => ({ name, body: "Check instructions" }),
+              resolveSkillDependencies: async () => {
+                if (state === "failed") throw new Error("Dependency check failed");
+                return [
+                  { type: "command", name: "fixture", ready: state === "ready", detail: state },
+                ];
+              },
+            }
+          );
+          const id = await f.open();
+          await f.send(id, "first", "/manual-review Check");
+          state = condition;
+          await f.send(id, "failed", "Continue");
+          expect(contexts).toHaveLength(1);
+          expect(f.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({
+                sessionUpdate: "turn_ended",
+                stopReason: "request_error",
+              }),
+            })
+          );
+          state = "ready";
+          await f.send(id, "retry", "Continue");
+          expect(JSON.stringify(contexts.at(-1)?.messages)).toContain("Check instructions");
+        }
+      );
+
+      it("preserves an unsupported skill delivery record and refuses a new request after reopening (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        skillTestDirectory = await mkdtemp(join(tmpdir(), "scribe-skill-recovery-"));
+        const storage = new NodeNativeSessionStorage(skillTestDirectory);
+        const request = jest.fn(() => response("Reviewed"));
+        const f = fixture(request, [], { storage });
+        const id = await f.open();
+        await f.proc.closeSession({ sessionId: id });
+        await storage.append(
+          id,
+          "skill_delivery",
+          { version: 99, name: "future", instruction: "Preserve this" },
+          { durable: true }
+        );
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await expect(f.send(id, "second", "Continue")).rejects.toThrow("uncertain record sequence");
+        expect(request).not.toHaveBeenCalled();
+        const saved = await storage.load(id);
+        expect(saved?.journalRecords).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              kind: "skill_delivery",
+              payload: { version: 99, name: "future", instruction: "Preserve this" },
+            }),
+          ])
+        );
+      });
+
+      it("counts one manual skill selection once across tool continuations and counts a new selection separately https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+        const onManualSkillInvoked = jest.fn();
+        let requests = 0;
+        const tool = {
+          name: "check",
+          label: "Check",
+          description: "Check",
+          parameters: { type: "object", properties: {} },
+          execute: jest.fn(async () => ({
+            content: [{ type: "text", text: "done" }],
+            details: undefined,
+          })),
+        } as AgentTool;
+        const f = fixture(
+          () =>
+            ++requests === 1
+              ? response("", [{ id: "call-1", name: "check", arguments: {} }])
+              : response("Done"),
+          [tool],
+          {
+            getManuallyInvokedSkill: (name) => ({ name, body: "Instructions" }),
+            onManualSkillInvoked,
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "first", "/manual-review Check");
+        expect(requests).toBe(2);
+        expect(onManualSkillInvoked).toHaveBeenCalledTimes(1);
+        await f.send(id, "second", "/manual-review Again");
+        expect(onManualSkillInvoked).toHaveBeenCalledTimes(2);
+      });
+
+      it("does not count a manual selection when preparing its dependencies fails https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+        const onManualSkillInvoked = jest.fn();
+        const request = jest.fn(() => response("unused"));
+        const f = fixture(request, [], {
+          getManuallyInvokedSkill: (name) => ({ name, body: "Instructions" }),
+          resolveSkillDependencies: async () => {
+            throw new Error("Dependency check failed");
+          },
+          onManualSkillInvoked,
+        });
+        const id = await f.open();
+        await f.send(id, "failed", "/manual-review Check");
+        expect(request).not.toHaveBeenCalled();
+        expect(onManualSkillInvoked).not.toHaveBeenCalled();
+      });
+
+      it.each(["disabled", "body changed", "directory changed"])(
+        "does not send stale manual skill instructions when the skill is %s during dependency checks (https://github.com/ItsDalk-Lane/Scribe/issues/68)",
+        async (change) => {
+          const request = jest.fn(() => response("unused"));
+          const onManualSkillInvoked = jest.fn();
+          let skill: { name: string; body: string; dirPath: string } | null = {
+            name: "manual-review",
+            body: "Original instructions",
+            dirPath: "/skills/original",
+          };
+          const f = fixture(request, [], {
+            getManuallyInvokedSkill: () => skill,
+            onManualSkillInvoked,
+            resolveSkillDependencies: async () => {
+              if (change === "disabled") skill = null;
+              else if (change === "body changed") skill = { ...skill!, body: "New instructions" };
+              else skill = { ...skill!, dirPath: "/skills/new" };
+              return [];
+            },
+          });
+          const id = await f.open();
+          await f.send(id, "manual", "/manual-review Check");
+          expect(request).not.toHaveBeenCalled();
+          expect(onManualSkillInvoked).not.toHaveBeenCalled();
+          expect(f.events).toContainEqual(
+            expect.objectContaining({
+              update: expect.objectContaining({
+                sessionUpdate: "turn_ended",
+                stopReason: "request_error",
+              }),
+            })
+          );
+        }
+      );
+
+      it("does not count a manual selection cancelled before the model request https://github.com/ItsDalk-Lane/Scribe/issues/48", async () => {
+        const onManualSkillInvoked = jest.fn();
+        const request = jest.fn(() => response("unused"));
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let finish!: (readings: []) => void;
+        const dependency = new Promise<[]>((resolve) => {
+          finish = resolve;
+        });
+        const f = fixture(request, [], {
+          getManuallyInvokedSkill: (name) => ({ name, body: "Instructions" }),
+          resolveSkillDependencies: () => {
+            started();
+            return dependency;
+          },
+          onManualSkillInvoked,
+        });
+        const id = await f.open();
+        const pending = f.send(id, "cancelled", "/manual-review Check");
+        await ready;
+        const cancelled = f.proc.cancel({ sessionId: id });
+        finish([]);
+        await Promise.all([pending, cancelled]);
+        expect(request).not.toHaveBeenCalled();
+        expect(onManualSkillInvoked).not.toHaveBeenCalled();
+      });
+
+      it("does not send a model request when the explicitly named skill disallows manual invocation", async () => {
+        const request = jest.fn(() => response("must not run"));
+        const f = fixture(request, [], {
+          getManuallyInvokedSkill: () => {
+            throw new Error("Manual use is disabled");
+          },
+        });
+        const id = await f.open();
+        await f.send(id, "manual", "/private-skill Check this");
+        expect(request).not.toHaveBeenCalled();
+        expect(f.events).toContainEqual(
+          expect.objectContaining({
+            update: expect.objectContaining({
+              sessionUpdate: "turn_ended",
+              stopReason: "request_error",
+            }),
+          })
+        );
+      });
+
+      it("rejects a model attempt to run a command in an authoring chat without executing it", async () => {
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "must not run" }],
+          details: undefined,
+        }));
+        const tool: AgentTool = {
+          name: "run_command",
+          label: "Run",
+          description: "Run",
+          parameters: { type: "object", properties: {} },
+          execute,
+        };
+        let requests = 0;
+        const f = fixture(
+          () =>
+            ++requests === 1
+              ? response("", [{ id: "forbidden-command", name: "run_command", arguments: {} }])
+              : response("Draft only"),
+          [tool]
+        );
+        const opened = await f.proc.newSession({
+          cwd: "/fixture/vault",
+          purpose: "skill-authoring",
+        });
+        await f.proc.setSessionMode({ sessionId: opened.sessionId, modeId: "auto" });
+        await f.send(opened.sessionId);
+        expect(execute).not.toHaveBeenCalled();
+        expect(f.records.get(opened.sessionId)?.messages).toContainEqual(
+          expect.objectContaining({ role: "toolResult", toolName: "run_command", isError: true })
+        );
+      });
+
       it.each([false, true])(
         "keeps a saving-phase message isolated from the ended agent when cancel=%s",
         async (cancel) => {
@@ -300,10 +1902,11 @@ describe("NativeBackendProcess", () => {
         const loading = new Promise<string>((resolve) => {
           finishLoading = resolve;
         });
-        let reads = 0;
+        let pauseInstructions = false;
         const f = fixture(undefined, [], {
           getSystemPrompt: async () => {
-            if (++reads === 3) {
+            if (pauseInstructions) {
+              pauseInstructions = false;
               startLoading();
               return loading;
             }
@@ -312,6 +1915,7 @@ describe("NativeBackendProcess", () => {
         });
         const id = await f.open();
         await f.send(id, "first", "Previous turn");
+        pauseInstructions = true;
         f.proc.refreshSessionConfiguration(id);
         const running = f.send(id, "second", "Main instruction");
         await loadingStarted;
@@ -349,7 +1953,13 @@ describe("NativeBackendProcess", () => {
         const summaryInput = JSON.stringify(contexts[1].messages);
         expect(summaryInput).toContain("Large previous answer");
         expect(summaryInput).not.toContain("Exact new authorization");
-        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("Preserved history summary");
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("Large previous answer");
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "compaction",
+            summary: "Preserved history summary",
+          })
+        );
         await f.send(id, "third", "Follow-up");
         expect(JSON.stringify(contexts[3].messages)).not.toContain("Large previous answer");
         expect(JSON.stringify(contexts[2].messages)).toContain("Exact new authorization");
@@ -443,7 +2053,114 @@ describe("NativeBackendProcess", () => {
         );
       });
 
-      it("ends a tool loop at the configured step limit before another model request", async () => {
+      it("summarizes the final tool result without tools when its explicit budget is spent (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        const contexts: Context[] = [];
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "changed actual note" }],
+          details: undefined,
+        }));
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(JSON.parse(JSON.stringify(context)));
+            return contexts.length === 1
+              ? response("", [{ id: "edit", name: "write_note", arguments: {} }])
+              : response("Completed the note edit; more work remains.");
+          },
+          [
+            {
+              name: "write_note",
+              label: "Edit",
+              description: "Edit",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ],
+          { maxSteps: 1 }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(contexts).toHaveLength(2);
+        expect(JSON.stringify(contexts[1])).toContain("changed actual note");
+        expect(getCurrentTools(contexts[1].messages)).toEqual([]);
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(f.events.map((e) => e.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "max_turn_requests" })
+        );
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("Completed the note edit");
+      });
+
+      it("stops at the configured request limit when tool arguments repeatedly hit the output limit without executing them (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        let requests = 0;
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "must not run" }],
+          details: undefined,
+        }));
+        const f = fixture(
+          () => {
+            if (++requests > 4) return response("Finished");
+            const stream = createAssistantMessageEventStream();
+            const message = createAssistantMessage(model);
+            message.content = [
+              { type: "toolCall", id: `truncated-${requests}`, name: "write_note", arguments: {} },
+            ];
+            message.stopReason = "length";
+            stream.push({ type: "done", reason: "length", message });
+            return stream;
+          },
+          [
+            {
+              name: "write_note",
+              label: "Write",
+              description: "Write fixture",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ],
+          { maxSteps: 2 }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(requests).toBe(2);
+        expect(execute).not.toHaveBeenCalled();
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "max_turn_requests" })
+        );
+        expect(
+          f.records.get(id)?.messages.filter((message) => message.role === "toolResult")
+        ).toHaveLength(2);
+      });
+
+      it("continues past fifty tool rounds when no limit was saved (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        let requests = 0;
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "read" }],
+          details: undefined,
+        }));
+        const f = fixture(
+          () =>
+            ++requests <= 51
+              ? response("", [{ id: `read-${requests}`, name: "read_note", arguments: {} }])
+              : response("All notes checked"),
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ]
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(requests).toBe(52);
+        expect(execute).toHaveBeenCalledTimes(51);
+        expect(f.events.map((e) => e.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "end_turn" })
+        );
+      });
+
+      it("ends after the closing request even if it returns another tool call (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
         const request = jest.fn(() =>
           response("", [{ id: "step-1", name: "inspect", arguments: {} }])
         );
@@ -463,11 +2180,1244 @@ describe("NativeBackendProcess", () => {
           ],
           { maxSteps: 1 }
         );
+        f.proc.setPermissionPrompter(async () => ({
+          outcome: { outcome: "selected", optionId: "allow_once" },
+        }));
         const id = await f.open();
         await f.send(id);
-        expect(request).toHaveBeenCalledTimes(1);
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(
+          f.records.get(id)?.messages.filter((m) => m.role === "toolResult" && !m.isError)
+        ).toHaveLength(1);
         expect(f.events.map((e) => e.update)).toContainEqual(
           expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "max_turn_requests" })
+        );
+      });
+
+      it("gives a user message read mid-run its own step budget (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        let ready!: () => void;
+        const started = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
+        let release!: () => void;
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        let requests = 0;
+        let executions = 0;
+        const f = fixture(
+          () =>
+            ++requests <= 3
+              ? response("", [{ id: `read-${requests}`, name: "read_note", arguments: {} }])
+              : response("Closing summary"),
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async () => {
+                if (++executions === 1) {
+                  ready();
+                  await gate;
+                }
+                return { content: [{ type: "text", text: "result" }], details: undefined };
+              },
+            },
+          ],
+          { maxSteps: 2 }
+        );
+        const id = await f.open();
+        const run = f.send(id, "first", "First request");
+        await started;
+        await f.send(id, "new-request", "A new request during the task");
+        release();
+        await run;
+        expect(requests).toBe(4);
+        expect(executions).toBe(3);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "message_delivered", promptId: "new-request" })
+        );
+      });
+
+      it("returns queued text unread after instruction preparation fails (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let reject!: (failure: Error) => void;
+        const loading = new Promise<string>((_resolve, fail) => {
+          reject = fail;
+        });
+        let loads = 0;
+        const request = jest.fn(() => response("Unexpected next request"));
+        const f = fixture(request, [], {
+          getSystemPrompt: async () => {
+            if (++loads === 2) {
+              started();
+              return loading;
+            }
+            return "Initial instructions";
+          },
+        });
+        const id = await f.open();
+        const run = f.send(id, "first");
+        await ready;
+        await f.send(id, "next", "Keep this unsent");
+        reject(new Error("Cannot load instructions"));
+        await run;
+        expect(request).not.toHaveBeenCalled();
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "request_error" })
+        );
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "messages_withdrawn", promptIds: ["next"] })
+        );
+      });
+
+      it("returns new messages unread when they arrive during the closing request (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        let ready!: () => void;
+        const started = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
+        let complete!: () => void;
+        let requests = 0;
+        const f = fixture(
+          () => {
+            if (++requests === 1)
+              return response("", [{ id: "read", name: "read_note", arguments: {} }]);
+            const stream = createAssistantMessageEventStream();
+            complete = () => {
+              const message = {
+                ...createAssistantMessage(model),
+                content: [{ type: "text" as const, text: "Closing summary" }],
+                stopReason: "stop" as const,
+              };
+              stream.push({ type: "done", reason: "stop", message });
+            };
+            ready();
+            return stream;
+          },
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async () => ({
+                content: [{ type: "text", text: "result" }],
+                details: undefined,
+              }),
+            },
+          ],
+          { maxSteps: 1 }
+        );
+        const id = await f.open();
+        const run = f.send(id, "first");
+        await started;
+        await f.send(id, "new-request", "Do this next");
+        complete();
+        await run;
+        expect(requests).toBe(2);
+        expect(f.events.map((event) => event.update)).not.toContainEqual(
+          expect.objectContaining({ sessionUpdate: "message_delivered", promptId: "new-request" })
+        );
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "messages_withdrawn",
+            promptIds: ["new-request"],
+          })
+        );
+      });
+
+      it("restores tools and a fresh budget after a closing turn (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(JSON.parse(JSON.stringify(context)));
+            return contexts.length % 2 === 1
+              ? response("", [{ id: "read", name: "read_note", arguments: {} }])
+              : response("Read completed");
+          },
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async () => ({
+                content: [{ type: "text", text: "note" }],
+                details: undefined,
+              }),
+            },
+          ],
+          { maxSteps: 1 }
+        );
+        const id = await f.open();
+        await f.send(id, "first");
+        await f.send(id, "next");
+        expect(contexts).toHaveLength(4);
+        expect(getCurrentTools(contexts[2].messages).map((tool) => tool.name)).toEqual([
+          "read_note",
+        ]);
+        expect(JSON.stringify(contexts[2])).not.toContain(
+          "The configured step limit has been reached."
+        );
+      });
+
+      it.each([
+        ["quota", "quota_exhausted"],
+        ["auth", "authentication_error"],
+        ["context", "context_limit"],
+        ["request", "request_error"],
+      ] as const)(
+        "reports structured %s failures as %s without a raw provider error (https://github.com/ItsDalk-Lane/Scribe/issues/31)",
+        async (kind, stopReason) => {
+          const f = fixture((_model, _context, options) => {
+            options?.onFailure?.({ kind });
+            const stream = createAssistantMessageEventStream();
+            const error = {
+              ...createAssistantMessage(model),
+              stopReason: "error" as const,
+              errorMessage: "opaque provider detail",
+            };
+            stream.push({ type: "error", reason: "error", error });
+            return stream;
+          });
+          const id = await f.open();
+          await f.send(id);
+          const end = f.events
+            .map((event) => event.update)
+            .find((event) => event.sessionUpdate === "turn_ended");
+          expect(end).toEqual(expect.objectContaining({ stopReason }));
+          expect(end).not.toHaveProperty("error");
+        }
+      );
+
+      it("does not start a child request when a selected custom agent is disabled or missing", async () => {
+        const request = jest.fn(() => response("Unused"));
+        const f = fixture(request, [], {
+          getSubagents: () => [
+            {
+              id: "reviewer",
+              name: "Reviewer",
+              description: "Review",
+              instructions: "Review carefully",
+              enabled: false,
+            },
+          ],
+        });
+        await f.open();
+        for (const agent of ["reviewer", "missing"]) {
+          await expect(
+            f.toolContexts[0].executeSubagent!("child", {
+              prompt: "Review",
+              description: "Review",
+              agent,
+            })
+          ).rejects.toThrow("disabled or unavailable");
+        }
+        expect(request).not.toHaveBeenCalled();
+        expect(
+          f.events
+            .map((event) => event.update)
+            .filter((update) => update.sessionUpdate === "task_started")
+        ).toEqual([]);
+      });
+      it("names the child from the explicit name before the custom agent and description fallbacks", async () => {
+        const request = jest.fn(() => response("Child work"));
+        const f = fixture(request, [], {
+          getSubagents: () => [
+            {
+              id: "reviewer",
+              name: "Reviewer",
+              description: "Review",
+              instructions: "Review carefully",
+              enabled: true,
+            },
+          ],
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("named", {
+          prompt: "Inspect",
+          description: "Inspect notes",
+          name: "  Source audit  ",
+          agent: "reviewer",
+          background: true,
+        });
+        await f.toolContexts[0].executeSubagent!("custom-fallback", {
+          prompt: "Inspect",
+          description: "Inspect notes",
+          agent: "reviewer",
+          background: true,
+        });
+        await f.toolContexts[0].executeSubagent!("generic-fallback", {
+          prompt: "Inspect",
+          description: "Generic child",
+          background: true,
+        });
+        const children = await f.proc.listSubagentSessions({ sessionId: id });
+        expect(children.map((child) => child.name)).toEqual([
+          "Source audit",
+          "Reviewer: Inspect notes",
+          "Generic child",
+        ]);
+        await f.proc.shutdown();
+      });
+
+      it("delegates a slash subagent command straight to the agent without prompting the main model (https://github.com/ItsDalk-Lane/Scribe/issues/54)", async () => {
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(JSON.parse(JSON.stringify(context)));
+            return response("Child result");
+          },
+          [],
+          {
+            getSubagents: () => [
+              {
+                id: "research",
+                name: "Researcher",
+                description: "Research",
+                instructions: "Research thoroughly",
+                enabled: true,
+              },
+            ],
+          }
+        );
+        const id = await f.open();
+        await f.send(id, "slash-1", "/Researcher collect sources about Obsidian");
+        const children = await f.proc.listSubagentSessions({ sessionId: id });
+        expect(children).toHaveLength(1);
+        expect(children[0]).toMatchObject({ name: "Researcher: collect sources about Obsidian" });
+        expect(f.records.get(id)?.subagents?.[0]).toMatchObject({
+          instructions: "Research thoroughly",
+        });
+        expect(f.records.get(id)?.subagents?.[0]?.snapshot.messages[0]).toMatchObject({
+          text: "collect sources about Obsidian",
+        });
+        expect(
+          contexts.some((context) => JSON.stringify(context.messages).includes("/Researcher"))
+        ).toBe(false);
+        await f.proc.shutdown();
+      });
+
+      it("falls back to a normal model prompt for a bare or unknown subagent command (https://github.com/ItsDalk-Lane/Scribe/issues/54)", async () => {
+        const request = jest.fn(() => response("Hello"));
+        const f = fixture(request, [], {
+          getSubagents: () => [
+            {
+              id: "research",
+              name: "Researcher",
+              description: "Research",
+              instructions: "Research thoroughly",
+              enabled: true,
+            },
+          ],
+        });
+        const id = await f.open();
+        await f.send(id, "bare", "/research");
+        await f.send(id, "unknown", "/unknown-agent do things");
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(await f.proc.listSubagentSessions({ sessionId: id })).toEqual([]);
+        await f.proc.shutdown();
+      });
+
+      it("refuses background delegation cancelled while the task setup is being saved (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let entered!: () => void;
+        let finish!: () => void;
+        const saving = new Promise<void>((resolve) => {
+          entered = resolve;
+        });
+        const released = new Promise<void>((resolve) => {
+          finish = resolve;
+        });
+        let held = false;
+        const request = jest.fn(() => response("Must not run"));
+        const f = fixture(request, [], {
+          storage: {
+            load: async () => null,
+            list: async () => [],
+            save: async (record) => {
+              if (!held && record.taskGenerations?.length) {
+                held = true;
+                entered();
+                await released;
+              }
+            },
+          },
+        });
+        const id = await f.open();
+        const signal = new AbortController();
+        const delegation = f.toolContexts[0].executeSubagent!(
+          "cancelled-create",
+          { prompt: "Do work", description: "Cancelled", background: true },
+          signal.signal
+        );
+        await saving;
+        signal.abort();
+        finish();
+        await expect(delegation).rejects.toMatchObject({ name: "AbortError" });
+        expect(await f.proc.listSubagentSessions({ sessionId: id })).toEqual([]);
+        expect(request).not.toHaveBeenCalled();
+        await f.proc.shutdown();
+      });
+
+      it("counts failed and retried actual request usage once in the child run (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const failedUsage = { input: 7, output: 3, cacheRead: 0, cacheWrite: 0, totalTokens: 10 };
+        const successUsage = { input: 13, output: 5, cacheRead: 1, cacheWrite: 1, totalTokens: 20 };
+        const cost = { ...model.cost, total: 0 };
+        const f = fixture((_model, _context, options) => {
+          const stream = createAssistantMessageEventStream();
+          void (async () => {
+            await options?.beforeRequest?.("child-failed-request");
+            await options?.onRequestUsage?.("child-failed-request", {
+              ...failedUsage,
+              cost,
+            });
+            await options?.beforeRequest?.("child-retried-request");
+            await options?.onRequestUsage?.("child-failed-request", {
+              ...failedUsage,
+              cost,
+            });
+            await options?.onRequestUsage?.("child-retried-request", {
+              ...successUsage,
+              cost,
+            });
+            const message = createAssistantMessage(model);
+            message.content = [{ type: "text", text: "Retried child completed" }];
+            message.stopReason = "stop";
+            message.usage = { ...successUsage, cost };
+            stream.push({ type: "done", reason: "stop", message });
+          })();
+          return stream;
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("delegate-retry", {
+          prompt: "Retry the child request",
+          description: "Retry usage",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        expect(child.runs[0].usage).toEqual({
+          input: 20,
+          output: 8,
+          cacheRead: 1,
+          cacheWrite: 1,
+          totalTokens: 30,
+        });
+        expect(f.records.get(id)?.taskGenerations?.[0].usage).toHaveLength(2);
+      });
+
+      it.each([
+        { allowedTools: ["invoke_skill"], expected: ["invoke_skill"] },
+        { allowedTools: [], expected: [] },
+      ])(
+        "only exposes the child's allowed tools and blocks a forbidden tool call for $allowedTools (https://github.com/ItsDalk-Lane/Scribe/issues/50)",
+        async ({ allowedTools, expected }) => {
+          const childTools: string[][] = [];
+          const readNote = jest.fn(async () => ({ content: [], details: undefined }));
+          let assertChildTool: NativeToolContext["assertCanExecute"];
+          const f = fixture(
+            (_model, context) => {
+              const last = context.messages.at(-1);
+              if (last?.role === "toolResult") return response("Finished");
+              if (JSON.stringify(last).includes("Child task")) {
+                childTools.push(getCurrentTools(context.messages).map((tool) => tool.name));
+                return response("", [{ id: "forbidden", name: "read_note", arguments: {} }]);
+              }
+              return response("", [
+                {
+                  id: "delegate",
+                  name: "delegate_task",
+                  arguments: { prompt: "Child task", description: "Review", allowedTools },
+                },
+              ]);
+            },
+            [],
+            {
+              createTools: (context) => {
+                if (context.subagentId) assertChildTool = context.assertCanExecute;
+                const tools: AgentTool[] = ["invoke_skill", "read_note"].map((name) => ({
+                  name,
+                  label: name,
+                  description: name,
+                  parameters: { type: "object", properties: {} },
+                  execute:
+                    name === "read_note"
+                      ? readNote
+                      : async () => ({ content: [], details: undefined }),
+                })) as AgentTool[];
+                if (context.executeSubagent)
+                  tools.push({
+                    name: "delegate_task",
+                    label: "Delegate",
+                    description: "Delegate",
+                    parameters: { type: "object", properties: {} },
+                    execute: (id, args, signal) =>
+                      context.executeSubagent!(
+                        id,
+                        args as { prompt: string; description: string; allowedTools: string[] },
+                        signal
+                      ),
+                  } as AgentTool);
+                return { tools };
+              },
+            }
+          );
+          const id = await f.open();
+          await f.send(id);
+          expect(childTools).toEqual([expected]);
+          expect(readNote).not.toHaveBeenCalled();
+          expect(assertChildTool).toBeDefined();
+          expect(() => assertChildTool!("read_note")).toThrow("此子会话的角色限制不允许调用该工具");
+          if (allowedTools.length) expect(() => assertChildTool!("invoke_skill")).not.toThrow();
+          else
+            expect(() => assertChildTool!("invoke_skill")).toThrow(
+              "此子会话的角色限制不允许调用该工具"
+            );
+        }
+      );
+
+      it("delegates to a saved custom agent with its own instructions and the current model", async () => {
+        const contexts: Context[] = [];
+        const request = jest.fn((_model, context: Context) => {
+          contexts.push(context);
+          const last = context.messages.at(-1);
+          if (JSON.stringify(last).includes("Analyze selected"))
+            return response("Custom review done");
+          if (last?.role === "toolResult") return response("Parent complete");
+          return response("", [
+            {
+              id: "delegate",
+              name: "delegate_task",
+              arguments: { prompt: "Analyze selected", description: "Review", agent: "reviewer" },
+            },
+          ]);
+        });
+        const f = fixture(request, [], {
+          getSubagents: () => [
+            {
+              id: "reviewer",
+              name: "Reviewer",
+              description: "Review sources",
+              instructions: "Custom reviewer: cite every source.",
+              enabled: true,
+            },
+          ],
+          createTools: (context) => ({
+            tools: context.executeSubagent
+              ? [
+                  {
+                    name: "delegate_task",
+                    label: "Delegate",
+                    description: "Delegate",
+                    parameters: { type: "object", properties: {} },
+                    execute: (id, args, signal) =>
+                      context.executeSubagent!(
+                        id,
+                        args as { prompt: string; description: string; agent?: string },
+                        signal
+                      ),
+                  },
+                ]
+              : [],
+          }),
+        });
+        const id = await f.open();
+        await f.send(id);
+        expect(
+          contexts.some((context) =>
+            JSON.stringify(context.messages).includes("Custom reviewer: cite every source.")
+          )
+        ).toBe(true);
+        expect(request.mock.calls.every((call) => call[0].id === model.id)).toBe(true);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "task_started",
+            description: "Reviewer: Review",
+          })
+        );
+      });
+
+      it("rejects an unknown remote write after plan mode starts while its approval is pending (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let ready!: () => void;
+        let approve!: () => void;
+        const pending = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "changed" }],
+          details: undefined,
+        }));
+        let requests = 0;
+        const f = fixture(
+          () =>
+            ++requests === 1
+              ? response("", [{ id: "remote", name: "remote_write", arguments: {} }])
+              : response("No remote write"),
+          [
+            {
+              name: "remote_write",
+              label: "Remote",
+              description: "Remote",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ]
+        );
+        f.proc.setPermissionPrompter(
+          () =>
+            new Promise((resolve) => {
+              approve = () => resolve({ outcome: { outcome: "selected", optionId: "allow_once" } });
+              ready();
+            })
+        );
+        const id = await f.open();
+        const turn = f.send(id);
+        await pending;
+        await f.proc.setSessionMode({ sessionId: id, modeId: "plan" });
+        approve();
+        await turn;
+        expect(execute).not.toHaveBeenCalled();
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("Plan approval is required");
+      });
+
+      it("keeps permanent approvals separate for distinct remote tools with identical arguments (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let requests = 0;
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "changed" }],
+          details: undefined,
+        }));
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_always" },
+        }));
+        const f = fixture(
+          () =>
+            ++requests < 3
+              ? response("", [
+                  {
+                    id: `remote-${requests}`,
+                    name: requests === 1 ? "service_a_write" : "service_b_write",
+                    arguments: { target: "same" },
+                  },
+                ])
+              : response("Done"),
+          ["service_a_write", "service_b_write"].map((name) => ({
+            name,
+            label: name,
+            description: name,
+            parameters: { type: "object", properties: { target: { type: "string" } } },
+            execute,
+          }))
+        );
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        expect(permission).toHaveBeenCalledTimes(2);
+        expect(execute).toHaveBeenCalledTimes(2);
+      });
+
+      it("refreshes changed capability descriptions before the next actual model request (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let revision = "first";
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return contexts.length === 1
+              ? response("", [{ id: "read", name: "read_note", arguments: {} }])
+              : response("Updated tools");
+          },
+          [],
+          {
+            getCapabilityRevision: () => revision,
+            createTools: () => ({
+              tools: [
+                {
+                  name: revision === "first" ? "read_note" : "find_paths",
+                  label: "Current",
+                  description: revision,
+                  parameters: { type: "object", properties: {} },
+                  execute: async () => {
+                    revision = "second";
+                    return { content: [{ type: "text", text: "read" }], details: undefined };
+                  },
+                },
+              ],
+            }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(getCurrentTools(contexts[1].messages).map((tool) => tool.name)).toEqual([
+          "find_paths",
+        ]);
+      });
+
+      it("delivers interleaved child messages in accepted order after parent preparation finishes (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let blocked = false;
+        let ready!: () => void;
+        let release!: () => void;
+        const preparing = new Promise<void>((resolve) => {
+          ready = resolve;
+        });
+        const resumed = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const contexts: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(context);
+            return response("Done");
+          },
+          [],
+          {
+            getSystemPrompt: async () => {
+              if (blocked) {
+                ready();
+                await resumed;
+              }
+              return "Instructions";
+            },
+          }
+        );
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("a", { prompt: "A", description: "A" });
+        await f.toolContexts[0].executeSubagent!("b", { prompt: "B", description: "B" });
+        blocked = true;
+        const turn = f.send(id, "parent", "Read discoveries");
+        await preparing;
+        await f.toolContexts[2].sendParentMessage!({ kind: "discovery", text: "First from B" });
+        await f.toolContexts[1].sendParentMessage!({ kind: "discovery", text: "Second from A" });
+        release();
+        await turn;
+        const actual = JSON.stringify(contexts.at(-1)!.messages);
+        expect(actual).toContain("First from B");
+        expect(actual).toContain("Second from A");
+        expect(actual.indexOf("First from B")).toBeLessThan(actual.indexOf("Second from A"));
+        await f.proc.shutdown();
+      });
+
+      it("keeps a child's local plan and its approval from changing the parent or a sibling mode (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const contexts: NativeToolContext[] = [];
+        let waiting!: () => void;
+        let approve!: () => void;
+        const pending = new Promise<void>((resolve) => {
+          waiting = resolve;
+        });
+        const f = fixture(
+          (_model, context) => {
+            const task = context.messages.find(
+              (message) =>
+                message.role === "user" &&
+                !(
+                  typeof message.content === "string" &&
+                  message.content.startsWith("<runtime_context>")
+                )
+            );
+            return task?.role === "user" &&
+              task.content === "Child A" &&
+              !context.messages.some((message) => message.role === "toolResult")
+              ? response("", [{ id: "plan", name: "propose_plan", arguments: { plan: "Review" } }])
+              : response("Done");
+          },
+          [],
+          {
+            createTools: (context) => {
+              contexts.push(context);
+              return {
+                tools: [
+                  {
+                    name: "propose_plan",
+                    label: "Plan",
+                    description: "Plan",
+                    parameters: { type: "object", properties: { plan: { type: "string" } } },
+                    execute: async (id) => {
+                      const decision = await context.requestPermission({
+                        sessionId: context.sessionId,
+                        toolCall: {
+                          toolCallId: id,
+                          kind: "switch_mode",
+                          title: "Plan",
+                          rawInput: { plan: "Review" },
+                          isPlanProposal: true,
+                        },
+                        options: [{ optionId: "allow_once", name: "Approve", kind: "allow_once" }],
+                      });
+                      if (decision.outcome.outcome === "selected") context.onPlanApproved();
+                      return {
+                        content: [{ type: "text", text: "Plan approved" }],
+                        details: undefined,
+                      };
+                    },
+                  },
+                ],
+              };
+            },
+          }
+        );
+        f.proc.setPermissionPrompter(
+          () =>
+            new Promise((resolve) => {
+              approve = () => resolve({ outcome: { outcome: "selected", optionId: "allow_once" } });
+              waiting();
+            })
+        );
+        const id = await f.open();
+        await f.proc.setSessionMode({ sessionId: id, modeId: "full" });
+        const first = contexts[0].executeSubagent!("child-a", {
+          prompt: "Child A",
+          description: "A",
+        });
+        await pending;
+        expect(contexts[1].getMode()).toBe("plan");
+        expect(contexts[0].getMode()).toBe("full");
+        await contexts[0].executeSubagent!("child-b", { prompt: "Child B", description: "B" });
+        expect(contexts[2].getMode()).toBe("full");
+        approve();
+        await first;
+        expect(contexts[1].getMode()).toBe("full");
+        expect(contexts[0].getMode()).toBe("full");
+        expect(contexts[2].getMode()).toBe("full");
+      });
+
+      it("keeps an independent new parent task running when an old child reports delayed quota exhaustion (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let childReady!: () => void;
+        let parentReady!: () => void;
+        let failChild!: () => void;
+        let finishParent!: () => void;
+        let parentAborted = false;
+        const childStarted = new Promise<void>((resolve) => {
+          childReady = resolve;
+        });
+        const parentStarted = new Promise<void>((resolve) => {
+          parentReady = resolve;
+        });
+        let requests = 0;
+        const f = fixture((_model, _context, options) => {
+          const stream = createAssistantMessageEventStream();
+          if (++requests === 1) {
+            let ended = false;
+            const end = () => {
+              if (ended) return;
+              ended = true;
+              const message = createAssistantMessage(model);
+              message.stopReason = "error";
+              message.errorMessage = "Old account quota exhausted";
+              stream.push({ type: "error", reason: "error", error: message });
+            };
+            options?.signal?.addEventListener("abort", end, { once: true });
+            failChild = () => {
+              options?.onFailure?.({ kind: "quota" });
+              end();
+            };
+            childReady();
+          } else {
+            const abort = () => {
+              parentAborted = true;
+              const message = createAssistantMessage(model);
+              message.stopReason = "aborted";
+              stream.push({ type: "error", reason: "aborted", error: message });
+            };
+            options?.signal?.addEventListener("abort", abort, { once: true });
+            finishParent = () => {
+              options?.signal?.removeEventListener("abort", abort);
+              const message = createAssistantMessage(model);
+              message.content = [{ type: "text", text: "Independent task done" }];
+              message.stopReason = "stop";
+              stream.push({ type: "done", reason: "stop", message });
+            };
+            parentReady();
+          }
+          return stream;
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("old-delegate", {
+          prompt: "Old child",
+          description: "Old",
+          background: true,
+        });
+        await childStarted;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const sequence = Math.max(...child.messages.map((message) => message.sequence));
+        await f.proc.startIndependentTask({ sessionId: id });
+        const parent = f.send(id, "new-task", "Independent task");
+        await parentStarted;
+        const childEnded = f.proc.waitSubagents({
+          sessionId: id,
+          subagentIds: [child.id],
+          after: sequence,
+        });
+        failChild();
+        await childEnded;
+        expect(parentAborted).toBe(false);
+        finishParent();
+        await parent;
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "turn_ended",
+            turnId: "new-task",
+            stopReason: "end_turn",
+          })
+        );
+        await f.proc.shutdown();
+      });
+
+      it("stops the parent without another request when a child exhausts quota (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        const request = jest.fn((_model, context: Context, options?: AgentStreamOptions) => {
+          if (
+            JSON.stringify(
+              context.messages.findLast((message) => message.role === "user")?.content
+            ).includes("Child quota")
+          ) {
+            options?.onFailure?.({ kind: "quota", code: "insufficient_quota" });
+            const stream = createAssistantMessageEventStream();
+            stream.push({
+              type: "error",
+              reason: "error",
+              error: {
+                ...createAssistantMessage(model),
+                stopReason: "error",
+                errorMessage: "account exhausted",
+              },
+            });
+            return stream;
+          }
+          return response("", [
+            {
+              id: "delegate",
+              name: "delegate_task",
+              arguments: { prompt: "Child quota", description: "Check notes" },
+            },
+          ]);
+        });
+        const f = fixture(request, [], {
+          createTools: (context) => ({
+            tools: [
+              {
+                name: "delegate_task",
+                label: "Delegate",
+                description: "Delegate",
+                parameters: { type: "object", properties: {} },
+                execute: (id, input, signal) =>
+                  context.executeSubagent!(
+                    id,
+                    input as { prompt: string; description: string },
+                    signal
+                  ),
+              },
+            ],
+          }),
+        });
+        const id = await f.open();
+        await f.send(id);
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "quota_exhausted" })
+        );
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "task_ended", stopReason: "quota_exhausted" })
+        );
+      });
+
+      it("compacts within one prompt while preserving the latest complete tool batch and user request (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+        const contexts: Context[] = [];
+        let normal = 0;
+        const f = fixture(
+          (_model, context) => {
+            contexts.push(JSON.parse(JSON.stringify(context)));
+            if (JSON.stringify(context).includes("Summarize this recorded Obsidian conversation"))
+              return response("Earlier work summary");
+            normal++;
+            if (normal > 3) return response("Finished");
+            const stream = createAssistantMessageEventStream();
+            const message = createAssistantMessage(model);
+            message.content = [
+              { type: "toolCall", id: `read-${normal}`, name: "read_note", arguments: {} },
+            ];
+            message.stopReason = "toolUse";
+            message.usage.totalTokens = normal === 2 ? 7900 : 100;
+            stream.push({ type: "done", reason: "toolUse", message });
+            return stream;
+          },
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute: async (id) => ({
+                content: [{ type: "text", text: `${id}:` + "a".repeat(1000) }],
+                details: undefined,
+              }),
+            },
+          ]
+        );
+        const id = await f.open();
+        await f.send(id, "long", "Exact current task");
+        expect(contexts).toHaveLength(5);
+        expect(JSON.stringify(contexts[2])).toContain("read-1");
+        expect(JSON.stringify(contexts[2])).not.toContain("Exact current task");
+        expect(JSON.stringify(contexts[3])).toContain("Exact current task");
+        expect(JSON.stringify(contexts[3])).toContain("Earlier work summary");
+        expect(contexts[3].messages).toContainEqual(
+          expect.objectContaining({ role: "toolResult", toolCallId: "read-2" })
+        );
+        expect(
+          contexts[4].messages.filter(
+            (message) => message.role === "toolResult" && message.toolCallId === "read-3"
+          )
+        ).toHaveLength(1);
+        expect(
+          f.records
+            .get(id)
+            ?.messages.filter(
+              (message) =>
+                message.role === "assistant" &&
+                message.content.some((part) => part.type === "text" && part.text === "Finished")
+            )
+        ).toHaveLength(1);
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain('"toolCallId":"read-1"');
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "compaction",
+            status: "completed",
+            trigger: "auto",
+          })
+        );
+      });
+
+      it("bounds an oversized tool result without repeating its operation and keeps it bounded after reopening https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const original = "a".repeat(40000);
+        const contexts: Context[] = [];
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: original }],
+          details: undefined,
+        }));
+        const request = jest.fn((_model, context: Context) => {
+          contexts.push(JSON.parse(JSON.stringify(context)));
+          return contexts.length === 1
+            ? response("", [{ id: "huge", name: "read_note", arguments: {} }])
+            : response("Read result retained; no repeated operation.");
+        });
+        const f = fixture(request, [
+          {
+            name: "read_note",
+            label: "Read",
+            description: "Read",
+            parameters: { type: "object", properties: {} },
+            execute,
+          },
+        ]);
+        const id = await f.open();
+        await f.send(id);
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain(original);
+        expect(JSON.stringify(contexts[1].messages)).toContain("read_tool_result");
+        expect(JSON.stringify(contexts[1].messages)).not.toContain(original);
+        expect(estimateContextTokens(contexts[1].messages).tokens).toBeLessThan(
+          model.contextWindow * 0.8
+        );
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "end_turn" })
+        );
+        await f.proc.closeSession({ sessionId: id });
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await f.send(id, "reopened", "Continue from the saved result without repeating the read.");
+        expect(request).toHaveBeenCalledTimes(3);
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(contexts[2].messages)).toContain("read_tool_result");
+        expect(JSON.stringify(contexts[2].messages)).not.toContain(original);
+        expect(estimateContextTokens(contexts[2].messages).tokens).toBeLessThan(
+          model.contextWindow * 0.8
+        );
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain(original);
+        expect(f.events.map((event) => event.update)).not.toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "context_limit" })
+        );
+      });
+
+      it("makes every batch-budget omission visible with its saved-result reference and execution facts https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const contexts: Context[] = [];
+        const original = "batch output ".repeat(10000);
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: original }],
+          details: undefined,
+        }));
+        const largeModel = { ...model, contextWindow: 100000 };
+        const request = (context: Context) => {
+          contexts.push(JSON.parse(JSON.stringify(context)));
+          return contexts.length === 1
+            ? response(
+                "",
+                Array.from({ length: 6 }, (_, index) => ({
+                  id: `batch-${index}`,
+                  name: "read_note",
+                  arguments: {},
+                }))
+              )
+            : response("Batch completed; use saved results for omitted content.");
+        };
+        const f = fixture(
+          undefined,
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ],
+          {
+            createModel: async () => ({ model: largeModel, stream: request, agentStream: request }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(contexts).toHaveLength(2);
+        expect(execute).toHaveBeenCalledTimes(6);
+        const results = contexts[1].messages.filter((message) => message.role === "toolResult");
+        expect(results).toHaveLength(6);
+        const omitted = results.filter((message) => message.content.length === 0);
+        expect(omitted.length).toBeGreaterThan(0);
+        const modelText = contexts[1].messages
+          .filter((message) => message.role === "user")
+          .map((message) =>
+            typeof message.content === "string" ? message.content : JSON.stringify(message.content)
+          )
+          .join("\n");
+        for (const message of omitted) {
+          expect(message.isError).toBe(false);
+          expect(message.details).toMatchObject({
+            execution: { status: "completed", retry: "safe" },
+            outputProjection: { noticeOmitted: true },
+          });
+          const reference = (message.details as { resultReference: string }).resultReference;
+          expect(reference).toEqual(expect.any(String));
+          expect(modelText).toContain(
+            JSON.stringify({
+              tool_call_id: reference,
+              execution: { status: "completed", retry: "safe" },
+            })
+          );
+        }
+        expect(modelText).toContain("Continue with read_tool_result");
+        expect(modelText).toContain("do not repeat the original operation");
+        expect(estimateContextTokens(contexts[1].messages).tokens).toBeLessThan(
+          largeModel.contextWindow * 0.8
+        );
+        expect(
+          f.records.get(id)?.messages.filter((message) => message.role === "toolResult")
+        ).toHaveLength(6);
+        expect(
+          f.records
+            .get(id)
+            ?.messages.filter((message) => message.role === "toolResult")
+            .map((message) =>
+              message.content.some((part) => part.type === "text" && part.text === original)
+            )
+        ).toEqual(Array(6).fill(true));
+      });
+
+      it("continues each legacy result with a reused raw call id from its own saved original https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const originals = ["Older A ".repeat(8000), "Newer B ".repeat(8000)];
+        const contexts: Context[] = [];
+        const execute = jest.fn(async () => ({ content: [], details: undefined }));
+        const largeModel = { ...model, contextWindow: 100000 };
+        const request = (context: Context) => {
+          contexts.push(JSON.parse(JSON.stringify(context)));
+          return response("Use the retained results without executing either operation again.");
+        };
+        const f = fixture(
+          undefined,
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ],
+          {
+            createModel: async () => ({ model: largeModel, stream: request, agentStream: request }),
+          }
+        );
+        const id = await f.open();
+        await f.proc.closeSession({ sessionId: id });
+        const saved = f.records.get(id)!;
+        saved.messages = originals.flatMap((text, index): Context["messages"] => [
+          { role: "user", content: `Earlier request ${index + 1}`, timestamp: index * 10 + 1 },
+          {
+            ...createAssistantMessage(largeModel),
+            content: [{ type: "toolCall", id: "reused-call", name: "read_note", arguments: {} }],
+            stopReason: "toolUse",
+            timestamp: index * 10 + 2,
+          },
+          {
+            role: "toolResult",
+            toolCallId: "reused-call",
+            toolName: "read_note",
+            content: [{ type: "text", text }],
+            isError: false,
+            timestamp: index * 10 + 3,
+          },
+          {
+            ...createAssistantMessage(largeModel),
+            content: [{ type: "text", text: `Earlier reply ${index + 1}` }],
+            timestamp: index * 10 + 4,
+          },
+        ]);
+        expect(
+          saved.messages
+            .filter((message) => message.role === "toolResult")
+            .every((message) => message.details === undefined)
+        ).toBe(true);
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await f.send(
+          id,
+          "legacy-continue",
+          "Review both retained results without repeating either read."
+        );
+        expect(contexts).toHaveLength(1);
+        expect(execute).not.toHaveBeenCalled();
+        const results = contexts[0].messages.filter((message) => message.role === "toolResult");
+        expect(results).toHaveLength(2);
+        const notices = results.map((message) => {
+          const last = message.content.at(-1);
+          expect(last?.type).toBe("text");
+          const line =
+            last?.type === "text"
+              ? last.text
+                  .split("\n")
+                  .find((text) => text.startsWith("Continue with read_tool_result "))
+              : undefined;
+          expect(line).toBeDefined();
+          return JSON.parse(line!.slice("Continue with read_tool_result ".length)) as {
+            tool_call_id: string;
+            cursor: string;
+          };
+        });
+        expect(new Set(notices.map((notice) => notice.tool_call_id)).size).toBe(2);
+        for (let index = 0; index < results.length; index++) {
+          const continued = await f.toolContexts.at(-1)!.readToolResult!({
+            toolCallId: notices[index].tool_call_id,
+            cursor: notices[index].cursor,
+            maxCharacters: 100000,
+          });
+          const prefix = results[index].content
+            .slice(0, -1)
+            .map((part) => (part.type === "text" ? part.text : ""))
+            .join("");
+          const remainder = continued.content
+            .map((part) => (part.type === "text" ? part.text : ""))
+            .join("");
+          expect(prefix + remainder).toBe(originals[index]);
+        }
+        expect(execute).not.toHaveBeenCalled();
+        expect(estimateContextTokens(contexts[0].messages).tokens).toBeLessThan(
+          largeModel.contextWindow * 0.8
         );
       });
 
@@ -503,6 +3453,279 @@ describe("NativeBackendProcess", () => {
         );
         await f.send(id, "after-compact", "Continue");
         expect(JSON.stringify(contexts[2].messages)).toContain("Saved summary of the actual notes");
+      });
+
+      it("passes manual retention priorities to the summary and publishes the new occupancy immediately (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        const contexts: Context[] = [];
+        const options: AgentStreamOptions[] = [];
+        const f = fixture((_model, context, opts) => {
+          contexts.push(context);
+          options.push(opts ?? {});
+          return response(contexts.length === 2 ? "已保留笔记路径和待办" : "Earlier answer");
+        });
+        const id = await f.open();
+        await f.send(id);
+        await f.send(id, "focused-compact", "/compact 请保留所有笔记路径和未完成任务");
+        expect(JSON.stringify(contexts[1])).toContain("请保留所有笔记路径和未完成任务");
+        expect(options[1].maxTokens).toBeGreaterThan(0);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "compaction",
+            status: "completed",
+            trigger: "manual",
+            preTokens: expect.any(Number),
+            postTokens: expect.any(Number),
+            contextWindow: model.contextWindow,
+          })
+        );
+        const completed = f.events.findLast((event) => event.update.sessionUpdate === "compaction");
+        expect(completed?.update).toMatchObject({ postTokens: expect.any(Number) });
+      });
+
+      it.each([false, true])(
+        "recovers a context rejection once without replaying tools, repeated rejection=%s (https://github.com/ItsDalk-Lane/Scribe/issues/66)",
+        async (rejectAgain) => {
+          const contexts: Context[] = [];
+          let chats = 0;
+          let summaries = 0;
+          const execute = jest.fn(async () => ({
+            content: [{ type: "text" as const, text: "Read once" }],
+            details: undefined,
+          }));
+          const tool: AgentTool = {
+            name: "read_note",
+            label: "Read",
+            description: "Read",
+            parameters: { type: "object", properties: {} },
+            execute,
+          };
+          const f = fixture(
+            (_model, context, options) => {
+              contexts.push(JSON.parse(JSON.stringify(context)));
+              const last = context.messages.at(-1);
+              if (
+                typeof last?.content === "string" &&
+                last.content.startsWith("Summarize this recorded Obsidian conversation")
+              ) {
+                summaries++;
+                return response("Earlier goal and completed work");
+              }
+              chats++;
+              if (chats === 1) return response("Earlier reply");
+              if (chats === 2)
+                return response("", [{ id: "read-once", name: "read_note", arguments: {} }]);
+              if (chats === 3 || rejectAgain) {
+                options?.onFailure?.({ kind: "context" });
+                const stream = createAssistantMessageEventStream();
+                const error = createAssistantMessage(model);
+                error.stopReason = "error";
+                error.errorMessage = "Context rejected";
+                stream.push({ type: "error", reason: "error", error });
+                return stream;
+              }
+              return response("Continued successfully");
+            },
+            [tool]
+          );
+          const id = await f.open();
+          await f.send(id, "earlier", "Original task");
+          await f.send(id, "current", "Inspect the note once");
+          expect(summaries).toBe(1);
+          expect(chats).toBe(4);
+          expect(execute).toHaveBeenCalledTimes(1);
+          expect(JSON.stringify(contexts.at(-1))).toContain("Read once");
+          expect(JSON.stringify(contexts.at(-1))).toContain("Inspect the note once");
+          expect(
+            f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+          ).toMatchObject({ stopReason: rejectAgain ? "context_limit" : "end_turn" });
+        }
+      );
+
+      it("recovers a server context rejection with an unknown window without retaining the failed attempt's empty assistant (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        const contexts: Context[] = [];
+        let chats = 0;
+        let summaries = 0;
+        const f = fixture(undefined, [], {
+          createModel: async () => ({
+            model: { ...model, contextWindow: 0 },
+            stream: () => response("unused"),
+            agentStream: (context, options) => {
+              contexts.push(JSON.parse(JSON.stringify(context)));
+              const last = context.messages.at(-1);
+              if (
+                typeof last?.content === "string" &&
+                last.content.startsWith("Summarize this recorded Obsidian conversation")
+              ) {
+                summaries++;
+                return response("Recovered note history");
+              }
+              if (++chats !== 2)
+                return response(chats === 1 ? "Earlier answer" : "Recovered answer");
+              const stream = createAssistantMessageEventStream();
+              const error = createAssistantMessage(model);
+              error.stopReason = "error";
+              options?.onFailure?.({ kind: "context" });
+              stream.push({ type: "start", partial: error });
+              stream.push({ type: "error", reason: "error", error });
+              return stream;
+            },
+          }),
+        });
+        const id = await f.open();
+        await f.send(id, "earlier", "Keep the original goal");
+        await f.send(id, "recover", "Continue with the same note");
+
+        expect(summaries).toBe(1);
+        expect(chats).toBe(3);
+        expect(JSON.stringify(contexts.at(-1))).toContain("Recovered note history");
+        expect(JSON.stringify(contexts.at(-1))).toContain("Continue with the same note");
+        expect(
+          f.records.get(id)?.messages.filter((message) => message.role === "assistant")
+        ).toHaveLength(2);
+        expect(
+          f.events.filter((event) => event.update.sessionUpdate === "agent_segment_started")
+        ).toHaveLength(2);
+        expect(
+          f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+        ).toMatchObject({ stopReason: "end_turn" });
+      });
+
+      it.each([
+        {
+          kind: "context" as const,
+          partialText: "Already visible answer",
+          stopReason: "context_limit",
+        },
+        { kind: "request" as const, partialText: "", stopReason: "request_error" },
+      ])(
+        "does not compact or resend a $kind failure after visible text '$partialText' (https://github.com/ItsDalk-Lane/Scribe/issues/66)",
+        async ({ kind, partialText, stopReason }) => {
+          let calls = 0;
+          const f = fixture((_model, _context, options) => {
+            if (++calls === 1) return response("Earlier answer");
+            const stream = createAssistantMessageEventStream();
+            const partial = createAssistantMessage(model);
+            if (partialText) {
+              partial.content = [{ type: "text", text: partialText }];
+              stream.push({ type: "start", partial });
+              stream.push({ type: "text_delta", contentIndex: 0, delta: partialText, partial });
+            }
+            const error = createAssistantMessage(model);
+            error.stopReason = "error";
+            options?.onFailure?.({ kind });
+            stream.push({ type: "error", reason: "error", error });
+            return stream;
+          });
+          const id = await f.open();
+          await f.send(id, "earlier", "Original task");
+          await f.send(id, "failed", "Continue");
+
+          expect(calls).toBe(2);
+          expect(f.events.some((event) => event.update.sessionUpdate === "compaction")).toBe(false);
+          expect(
+            f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+          ).toMatchObject({ stopReason });
+          if (partialText)
+            expect(f.events.map((event) => event.update)).toContainEqual(
+              expect.objectContaining({
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: partialText },
+              })
+            );
+        }
+      );
+
+      it("counts the failed request and recovery summary against the task budget before permitting a resend (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        const admitted: string[] = [];
+        let attempts = 0;
+        let chats = 0;
+        const f = fixture(
+          (_model, context, options) => {
+            const stream = createAssistantMessageEventStream();
+            const requestId = `recovery-request-${++attempts}`;
+            void (async () => {
+              try {
+                await options?.beforeRequest?.(requestId);
+                const last = context.messages.at(-1);
+                const summary =
+                  typeof last?.content === "string" &&
+                  last.content.startsWith("Summarize this recorded Obsidian conversation");
+                admitted.push(summary ? "summary" : "chat");
+                const message = createAssistantMessage(model);
+                if (!summary && ++chats === 2) {
+                  options?.onFailure?.({ kind: "context" });
+                  message.stopReason = "error";
+                  stream.push({ type: "error", reason: "error", error: message });
+                } else {
+                  message.content = [
+                    {
+                      type: "text",
+                      text: summary ? "Budgeted recovery summary" : "Earlier answer",
+                    },
+                  ];
+                  message.stopReason = "stop";
+                  stream.push({ type: "done", reason: "stop", message });
+                }
+              } catch (error) {
+                const message = createAssistantMessage(model);
+                message.stopReason = "error";
+                message.errorMessage = error instanceof Error ? error.message : String(error);
+                options?.onFailure?.({ kind: "request" });
+                stream.push({ type: "error", reason: "error", error: message });
+              }
+            })();
+            return stream;
+          },
+          [],
+          { getSubagentLimits: () => ({ maxConcurrent: 3, maxQueued: 20, maxTaskRequests: 2 }) }
+        );
+        const id = await f.open();
+        await f.send(id, "earlier", "Original task");
+        await f.send(id, "recover", "Continue");
+
+        expect(attempts).toBe(4);
+        expect(admitted).toEqual(["chat", "chat", "summary"]);
+        expect(f.records.get(id)?.taskGenerations?.at(-1)?.requestIds).toEqual([
+          "recovery-request-2",
+          "recovery-request-3",
+        ]);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "compaction", status: "completed" })
+        );
+        expect(
+          f.events.findLast((event) => event.update.sessionUpdate === "turn_ended")?.update
+        ).toMatchObject({ stopReason: "max_task_requests" });
+      });
+
+      it("re-summarizes from the verified summary plus new history instead of the full original record (https://github.com/ItsDalk-Lane/Scribe/issues/63)", async () => {
+        const summaryRequests: string[] = [];
+        const contexts: Context[] = [];
+        let summaries = 0;
+        const f = fixture((_model, context) => {
+          contexts.push(JSON.parse(JSON.stringify(context)));
+          const last = context.messages.at(-1);
+          const text = typeof last?.content === "string" ? last.content : "";
+          if (text.startsWith("Summarize this recorded Obsidian conversation")) {
+            summaries++;
+            summaryRequests.push(text);
+            return response(summaries === 1 ? "First verified summary" : "Second merged summary");
+          }
+          return response("Reply");
+        });
+        const id = await f.open();
+        await f.send(id, "ancient", "ancient note about the forgotten vault");
+        await f.send(id, "compact-1", "/compact");
+        await f.send(id, "recent", "recent decision about the new vault layout");
+        await f.send(id, "compact-2", "/compact");
+        expect(summaries).toBe(2);
+        expect(summaryRequests[0]).toContain("ancient note about the forgotten vault");
+        // 第二次压缩以「已验证摘要 + 新增区间」取料，不把早已摘要过的原始历史再发给模型。https://github.com/ItsDalk-Lane/Scribe/issues/63
+        expect(summaryRequests[1]).toContain("First verified summary");
+        expect(summaryRequests[1]).toContain("recent decision about the new vault layout");
+        expect(summaryRequests[1]).not.toContain("ancient note about the forgotten vault");
+        // 记录形状保持不变：投影仍能命中最新的合并摘要。https://github.com/ItsDalk-Lane/Scribe/issues/63
+        await f.send(id, "after-second-compact", "Continue");
+        expect(JSON.stringify(contexts.at(-1)?.messages)).toContain("Second merged summary");
       });
       it("keeps the original context when the manual compaction summary ends truncated", async () => {
         const contexts: Context[] = [];
@@ -734,7 +3957,499 @@ describe("NativeBackendProcess", () => {
       });
     });
 
+    describe("mcp tool permission gating", () => {
+      function mcpToolFixture() {
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "ok" }],
+          details: undefined,
+        }));
+        const tool: AgentTool = {
+          name: "mcp__files__search",
+          label: "search",
+          description: "Search notes.",
+          parameters: { type: "object", properties: {} },
+          execute,
+        };
+        return { execute, tool };
+      }
+
+      it("runs mcp tools listed for auto-approval without a permission prompt", async () => {
+        const { execute, tool } = mcpToolFixture();
+        let requests = 0;
+        const f = fixture(
+          () =>
+            ++requests === 1
+              ? response("", [{ id: "mcp-1", name: "mcp__files__search", arguments: {} }])
+              : response("Done"),
+          [tool],
+          {
+            createTools: () => ({
+              tools: [tool],
+              autoApproveTools: new Set(["mcp__files__search"]),
+            }),
+          }
+        );
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        expect(permission).not.toHaveBeenCalled();
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("mcp__files__search");
+      });
+
+      it("still prompts for mcp tools that are not auto-approved", async () => {
+        const { execute, tool } = mcpToolFixture();
+        let requests = 0;
+        const f = fixture(
+          () =>
+            ++requests === 1
+              ? response("", [{ id: "mcp-1", name: "mcp__files__search", arguments: {} }])
+              : response("Done"),
+          [tool],
+          { createTools: () => ({ tools: [tool] }) }
+        );
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        expect(permission).toHaveBeenCalledTimes(1);
+        expect(execute).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("deferred mcp tool registration", () => {
+      interface DeferredFixtureInput {
+        autoApproved: boolean;
+      }
+
+      // 夹具复刻 descriptor 的真实接线：选中集合在下一轮重建时回读。https://github.com/ItsDalk-Lane/Scribe/issues/65
+      function deferredFixture({ autoApproved }: DeferredFixtureInput) {
+        const mcpExecute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "ok" }],
+          details: undefined,
+        }));
+        const selectedTool = (): AgentTool => ({
+          name: "mcp__files__search",
+          label: "search",
+          description: "Search notes.",
+          parameters: { type: "object", properties: {} },
+          execute: mcpExecute,
+        });
+        const seen: string[][] = [];
+        let requests = 0;
+        const f = fixture(
+          (_model, context) => {
+            seen.push(getCurrentTools(context.messages).map((tool) => tool.name));
+            requests += 1;
+            if (requests === 1)
+              return response("", [
+                { id: "ts-1", name: "tool_search", arguments: { select: "mcp__files__search" } },
+              ]);
+            if (requests === 2)
+              return response("", [{ id: "mcp-1", name: "mcp__files__search", arguments: {} }]);
+            return response("Done");
+          },
+          [],
+          {
+            createTools: (context) => {
+              const selected = context.mcpToolSelections?.names().includes("mcp__files__search")
+                ? [selectedTool()]
+                : [];
+              return {
+                tools: [
+                  {
+                    name: "tool_search",
+                    label: "ToolSearch",
+                    description: "register deferred tools",
+                    parameters: { type: "object", properties: {} },
+                    execute: async () => {
+                      context.mcpToolSelections?.select("mcp__files__search");
+                      context.registerTool?.(selectedTool(), autoApproved);
+                      return {
+                        content: [{ type: "text" as const, text: "registered" }],
+                        details: undefined,
+                      };
+                    },
+                  },
+                  ...selected,
+                ],
+                autoApproveTools:
+                  autoApproved && selected.length > 0
+                    ? new Set(["mcp__files__search"])
+                    : new Set<string>(),
+              };
+            },
+          }
+        );
+        return { mcpExecute, seen, f };
+      }
+
+      it("runs a dynamically registered tool without a permission prompt when it is auto-approved", async () => {
+        const { mcpExecute, seen, f } = deferredFixture({ autoApproved: true });
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        expect(permission).not.toHaveBeenCalled();
+        expect(mcpExecute).toHaveBeenCalledTimes(1);
+        expect(seen[1]).toContain("mcp__files__search");
+      });
+
+      it("prompts once for a dynamically registered tool that is not auto-approved", async () => {
+        const { mcpExecute, seen, f } = deferredFixture({ autoApproved: false });
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        expect(permission).toHaveBeenCalledTimes(1);
+        expect(mcpExecute).toHaveBeenCalledTimes(1);
+        expect(seen[1]).toContain("mcp__files__search");
+      });
+
+      it("keeps selected tools registered on the following turn without another search", async () => {
+        const { mcpExecute, seen, f } = deferredFixture({ autoApproved: true });
+        const permission = jest.fn(async () => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        await f.send(id);
+        await f.send(id, "prompt-2");
+        expect(mcpExecute).toHaveBeenCalledTimes(1);
+        expect(seen[3]).toContain("mcp__files__search");
+      });
+    });
+
+    describe("continueTaskBudget()", () => {
+      it("adds the configured allowance to the exact task once per grant without starting a model (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const request = jest.fn(() => response("Done"));
+        const f = fixture(request);
+        const id = await f.open();
+        await f.send(id);
+        const task = f.records.get(id)!.taskGenerations![0];
+        await f.proc.continueTaskBudget({
+          sessionId: id,
+          taskGenerationId: task.id,
+          requestId: "grant",
+        });
+        await f.proc.continueTaskBudget({
+          sessionId: id,
+          taskGenerationId: task.id,
+          requestId: "grant",
+        });
+        expect(
+          f.records.get(id)!.taskGenerations!.find((entry) => entry.id === task.id)?.limit
+        ).toBe(200);
+        expect(request).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("startIndependentTask()", () => {
+      it("waits for durable skill revocation before accepting a concurrent message (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        const directory = await mkdtemp(join(tmpdir(), "scribe-independent-"));
+        try {
+          const storage = new NodeNativeSessionStorage(directory);
+          const append = storage.append.bind(storage);
+          let started!: () => void;
+          let release!: () => void;
+          const entered = new Promise<void>((resolve) => {
+            started = resolve;
+          });
+          const blocked = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          const spy = jest.spyOn(storage, "append").mockImplementation(async (...args) => {
+            if (args[1] === "skill_delivery_revoked") {
+              started();
+              await blocked;
+            }
+            return append(...args);
+          });
+          const contexts: Context[] = [];
+          const f = fixture(
+            (_model, context) => {
+              contexts.push(context);
+              return response("Done");
+            },
+            [],
+            {
+              storage,
+              getManuallyInvokedSkill: (name) => ({ name, body: "Earlier skill instructions" }),
+            }
+          );
+          const id = await f.open();
+          await f.send(id, "first", "/manual-review Check");
+          const independent = f.proc.startIndependentTask({ sessionId: id });
+          await entered;
+          const next = f.send(id, "second", "New task");
+          expect(contexts).toHaveLength(1);
+          release();
+          await Promise.all([independent, next]);
+          expect(contexts).toHaveLength(2);
+          expect(JSON.stringify(contexts[1].messages)).not.toContain("Earlier skill instructions");
+          const kinds = (await storage.load(id))!.journalRecords!.map((fact) => fact.kind);
+          expect(kinds.lastIndexOf("skill_delivery_revoked")).toBeLessThan(
+            kinds.lastIndexOf("user_accepted")
+          );
+          spy.mockRestore();
+          await f.proc.shutdown();
+        } finally {
+          await rm(directory, { recursive: true, force: true });
+        }
+      });
+
+      it("refuses to start an independent task while a message is being accepted (https://github.com/ItsDalk-Lane/Scribe/issues/68)", async () => {
+        const directory = await mkdtemp(join(tmpdir(), "scribe-independent-"));
+        try {
+          const storage = new NodeNativeSessionStorage(directory);
+          const append = storage.append.bind(storage);
+          let started!: () => void;
+          let release!: () => void;
+          const entered = new Promise<void>((resolve) => {
+            started = resolve;
+          });
+          const blocked = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          const spy = jest.spyOn(storage, "append").mockImplementation(async (...args) => {
+            if (args[1] === "user_accepted") {
+              started();
+              await blocked;
+            }
+            return append(...args);
+          });
+          const f = fixture(undefined, [], { storage });
+          const id = await f.open();
+          const next = f.send(id, "first", "New task");
+          await entered;
+          await expect(f.proc.startIndependentTask({ sessionId: id })).rejects.toThrow(
+            "请等待当前主对话回复结束"
+          );
+          release();
+          await next;
+          spy.mockRestore();
+          await f.proc.shutdown();
+        } finally {
+          await rm(directory, { recursive: true, force: true });
+        }
+      });
+
+      it("starts a distinct budget generation without rewriting the completed task (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const f = fixture();
+        const id = await f.open();
+        await f.send(id);
+        const originalId = f.records.get(id)!.taskGenerations![0].id;
+        await f.proc.startIndependentTask({ sessionId: id });
+        await f.send(id, "independent", "New task");
+        const tasks = f.records.get(id)!.taskGenerations!;
+        expect(tasks).toHaveLength(2);
+        expect(tasks[0].id).toBe(originalId);
+        expect(tasks[0].autoContinue).toBe(false);
+        expect(tasks[1].id).not.toBe(originalId);
+      });
+    });
+
+    describe("setSubagentArchived()", () => {
+      it("does not append archived results or start an extra parent request after its current response ends (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let signalChild!: () => void;
+        let signalParent!: () => void;
+        const childStarted = {
+          promise: new Promise<void>((resolve) => {
+            signalChild = resolve;
+          }),
+        };
+        const parentStarted = {
+          promise: new Promise<void>((resolve) => {
+            signalParent = resolve;
+          }),
+        };
+        let endParent!: () => void;
+        const contexts: Context[] = [];
+        const f = fixture((_model, context, options) => {
+          contexts.push(context);
+          const stream = createAssistantMessageEventStream();
+          const first = context.messages.find(
+            (message) =>
+              message.role === "user" &&
+              !(
+                typeof message.content === "string" &&
+                message.content.startsWith("<runtime_context>")
+              )
+          );
+          if (first?.role === "user" && first.content === "Archive child") {
+            options?.signal?.addEventListener(
+              "abort",
+              () => {
+                const message = createAssistantMessage(model);
+                message.stopReason = "aborted";
+                stream.push({ type: "error", reason: "aborted", error: message });
+              },
+              { once: true }
+            );
+            signalChild();
+          } else if (contexts.length === 2) {
+            endParent = () => {
+              const message = createAssistantMessage(model);
+              message.content = [{ type: "text", text: "Parent complete" }];
+              message.stopReason = "stop";
+              stream.push({ type: "done", reason: "stop", message });
+            };
+            signalParent();
+          } else return response("Unexpected extra request");
+          return stream;
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("child", {
+          prompt: "Archive child",
+          description: "Archived",
+          background: true,
+        });
+        await childStarted.promise;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const turn = f.send(id, "parent-current", "Current work");
+        await parentStarted.promise;
+        await f.proc.setSubagentArchived({ sessionId: id, subagentId: child.id, archived: true });
+        endParent();
+        await turn;
+        expect(contexts).toHaveLength(2);
+        expect(
+          (await f.proc.listSubagentSessions({ sessionId: id }))[0].runs[0].resultDelivered
+        ).not.toBe(true);
+        await f.proc.shutdown();
+      });
+
+      it("archives and unarchives the retained child without exposing another chat's state (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const f = fixture();
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("delegate", {
+          prompt: "Child",
+          description: "Retained",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.setSubagentArchived({ sessionId: id, subagentId: child.id, archived: true });
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].retention).toBe(
+          "archived"
+        );
+        await expect(
+          f.proc.sendSubagentMessage({
+            sessionId: id,
+            subagentId: child.id,
+            text: "Continue",
+            mode: "wake",
+          })
+        ).rejects.toThrow("取消归档");
+        await f.proc.setSubagentArchived({ sessionId: id, subagentId: child.id, archived: false });
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].retention).toBe(
+          "retained"
+        );
+      });
+    });
+
+    describe("deleteSubagentSession()", () => {
+      it("removes the saved child while retaining the original parent chat (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const f = fixture();
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("delegate", {
+          prompt: "Child",
+          description: "Retained",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.deleteSubagentSession({ sessionId: id, subagentId: child.id });
+        expect(await f.proc.listSubagentSessions({ sessionId: id })).toEqual([]);
+        expect(f.records.has(id)).toBe(true);
+        await expect(
+          f.proc.sendSubagentMessage({
+            sessionId: id,
+            subagentId: child.id,
+            text: "Continue",
+            mode: "wake",
+          })
+        ).rejects.toThrow("找不到");
+      });
+    });
+
+    describe("confirmSubagentRecovery()", () => {
+      it("records an explicit recovery confirmation without running a model or tool (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const request = jest.fn(() => response("Done"));
+        const f = fixture(request);
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("delegate", {
+          prompt: "Child",
+          description: "Retained",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const count = request.mock.calls.length;
+        await f.proc.confirmSubagentRecovery({ sessionId: id, subagentId: child.id });
+        expect(request).toHaveBeenCalledTimes(count);
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].id).toBe(child.id);
+      });
+    });
+
     describe("cancel", () => {
+      it("still aborts child work and releases owned resources when saving the stop fails (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const contexts: NativeToolContext[] = [];
+        let fail = false;
+        let started!: () => void;
+        let aborted = false;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const shutdown = jest.fn(async () => {});
+        const f = fixture(
+          (_model, _context, options) => {
+            const stream = createAssistantMessageEventStream();
+            options?.signal?.addEventListener(
+              "abort",
+              () => {
+                aborted = true;
+                const message = createAssistantMessage(model);
+                message.stopReason = "aborted";
+                stream.push({ type: "error", reason: "aborted", error: message });
+              },
+              { once: true }
+            );
+            started();
+            return stream;
+          },
+          [],
+          {
+            storage: {
+              load: async () => null,
+              list: async () => [],
+              save: async () => {
+                if (fail) throw new Error("Stop save failed");
+              },
+            },
+            createTools: (context) => {
+              contexts.push(context);
+              return { tools: [], shutdown };
+            },
+          }
+        );
+        const id = await f.open();
+        await contexts[0].executeSubagent!("child", {
+          prompt: "Run",
+          description: "Running",
+          background: true,
+        });
+        await ready;
+        fail = true;
+        await expect(f.proc.cancel({ sessionId: id })).rejects.toThrow("Stop save failed");
+        expect(aborted).toBe(true);
+        expect(shutdown).toHaveBeenCalledTimes(2);
+        fail = false;
+        await f.proc.shutdown();
+      });
+
       it("stops during instruction loading and does not start a model request when that loading finishes later", async () => {
         let started!: () => void;
         let finish!: (text: string) => void;
@@ -796,7 +4511,7 @@ describe("NativeBackendProcess", () => {
           f.events.filter((e) => e.update.sessionUpdate === "agent_message_chunk")
         ).toHaveLength(0);
       });
-      it("sends the unread queued message on its own after Send now cancels the running reply", async () => {
+      it("sends unread text after Send now even when the provider reports structured cancellation (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
         let started!: () => void;
         const ready = new Promise<void>((resolve) => {
           started = resolve;
@@ -810,6 +4525,7 @@ describe("NativeBackendProcess", () => {
             options?.signal?.addEventListener(
               "abort",
               () => {
+                options?.onFailure?.({ kind: "cancelled" });
                 const message = createAssistantMessage(model);
                 message.stopReason = "aborted";
                 stream.push({ type: "error", reason: "aborted", error: message });
@@ -916,7 +4632,478 @@ describe("NativeBackendProcess", () => {
       });
     });
 
+    describe("stopSubagent()", () => {
+      it("stops the selected retained child's active run and preserves its directory (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let requests = 0;
+        const f = fixture((_model, _context, options) => {
+          if (++requests > 1) return response("Stopped child acknowledged");
+          const stream = createAssistantMessageEventStream();
+          options?.signal?.addEventListener(
+            "abort",
+            () => {
+              const message = createAssistantMessage(model);
+              message.stopReason = "aborted";
+              stream.push({ type: "error", reason: "aborted", error: message });
+            },
+            { once: true }
+          );
+          started();
+          return stream;
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("child", {
+          prompt: "Running",
+          description: "Retained",
+          background: true,
+        });
+        await ready;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.stopSubagent({ sessionId: id, subagentId: child.id });
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].runs[0]).toMatchObject({
+          status: "stopped",
+          result: "Subagent stopped.",
+        });
+        await f.proc.shutdown();
+      });
+    });
+
+    describe("sendSubagentMessage()", () => {
+      it("queues manual compression during a child reply and delivers it as one child-scoped operation after the reply completes (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const first = createAssistantMessageEventStream();
+        const requests: Context[] = [];
+        const f = fixture((_model, context) => {
+          requests.push(JSON.parse(JSON.stringify(context)));
+          if (requests.length === 1) {
+            started();
+            return first;
+          }
+          return response("Child note paths and unfinished work");
+        });
+        const id = await f.open();
+        const running = f.toolContexts[0].executeSubagent!("active-child", {
+          prompt: "Inspect the child note",
+          description: "Active child",
+        });
+        await ready;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "/compact 保留笔记路径和未完成工作",
+          mode: "enqueue",
+          messageId: "queued-child-compact",
+          payload: { content: [{ type: "text", text: "/compact 保留笔记路径和未完成工作" }] },
+        });
+        expect(requests).toHaveLength(1);
+        const message = createAssistantMessage(model);
+        message.content = [{ type: "text", text: "Original child work completed" }];
+        message.stopReason = "stop";
+        first.push({ type: "done", reason: "stop", message });
+        await running;
+
+        expect(requests).toHaveLength(2);
+        const summaryText = requests[1].messages.at(-1)?.content;
+        expect(summaryText).toEqual(
+          expect.stringContaining("Summarize this recorded Obsidian conversation")
+        );
+        expect(summaryText).toEqual(expect.stringContaining("Original child work completed"));
+        expect(summaryText).toEqual(expect.stringContaining("保留笔记路径和未完成工作"));
+        expect(JSON.stringify(requests[0])).not.toContain("/compact");
+        const [completedChild] = await f.proc.listSubagentSessions({ sessionId: id });
+        expect(
+          completedChild.messages.find((entry) => entry.id === "queued-child-compact")?.state
+        ).toBe("delivered");
+        expect(completedChild.runs[0].status).toBe("completed");
+        expect(completedChild.runs[0].result).toContain("Original child work completed");
+        const compactions = f.events.filter(
+          (event) =>
+            event.update.sessionUpdate === "compaction" && event.update.status === "completed"
+        );
+        expect(compactions).toHaveLength(1);
+        expect(compactions[0]).toMatchObject({
+          taskToolCallId: completedChild.runs[0].toolCallId,
+          update: {
+            sessionUpdate: "compaction",
+            subagentId: child.id,
+            runId: completedChild.runs[0].id,
+            trigger: "manual",
+          },
+        });
+        await f.proc.shutdown();
+      });
+
+      it("ends each delivered user round once when a queued compact command separates two child reply batches (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        let admit!: (release: () => void) => void;
+        let acquiring!: () => void;
+        const admitted = new Promise<() => void>((resolve) => {
+          admit = resolve;
+        });
+        const slotRequested = new Promise<void>((resolve) => {
+          acquiring = resolve;
+        });
+        const requests: Context[] = [];
+        const f = fixture(
+          (_model, context) => {
+            requests.push(JSON.parse(JSON.stringify(context)));
+            const text = context.messages.at(-1)?.content;
+            return response(
+              typeof text === "string" &&
+                text.startsWith("Summarize this recorded Obsidian conversation")
+                ? "The first user batch was completed; continue with the next queued request."
+                : "The requested child work is complete."
+            );
+          },
+          [],
+          {
+            acquireSubagentSlot: () => {
+              acquiring();
+              return admitted;
+            },
+          }
+        );
+        const id = await f.open();
+        const running = f.toolContexts[0].executeSubagent!("queued-child", {
+          prompt: "Inspect the child notes",
+          description: "Queued child",
+        });
+        await slotRequested;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        for (const [messageId, text] of [
+          ["child-user-a", "Complete the first ordinary request"],
+          ["child-compact-between", "/compact 保留已完成工作"],
+          ["child-user-b", "Complete the second ordinary request"],
+        ])
+          await f.proc.sendSubagentMessage({
+            sessionId: id,
+            subagentId: child.id,
+            text,
+            mode: "enqueue",
+            messageId,
+            payload: { content: [{ type: "text", text }] },
+          });
+        admit(() => {});
+        await running;
+
+        expect(requests).toHaveLength(3);
+        for (const turnId of ["child-user-a", "child-user-b"]) {
+          const endings = f.events.filter(
+            (event) => event.update.sessionUpdate === "turn_ended" && event.update.turnId === turnId
+          );
+          expect(endings).toHaveLength(1);
+          expect(endings[0].update).toMatchObject({
+            sessionUpdate: "turn_ended",
+            subagentId: child.id,
+            stopReason: "end_turn",
+          });
+        }
+        await f.proc.shutdown();
+      });
+
+      it("compacts only the addressed child with the user's preservation focus (https://github.com/ItsDalk-Lane/Scribe/issues/66)", async () => {
+        const requests: Context[] = [];
+        const f = fixture((_model, context) => {
+          requests.push(JSON.parse(JSON.stringify(context)));
+          const text = context.messages.at(-1)?.content;
+          return response(
+            typeof text === "string" &&
+              text.startsWith("Summarize this recorded Obsidian conversation")
+              ? "Child handoff"
+              : "Original child reply"
+          );
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("child", {
+          prompt: "Child original goal",
+          description: "Child",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const count = requests.length;
+        const after = Math.max(0, ...child.messages.map((message) => message.sequence));
+        await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "/compact 保留子任务笔记路径",
+          mode: "wake",
+          messageId: "compact-child",
+          payload: { content: [{ type: "text", text: "/compact 保留子任务笔记路径" }] },
+        });
+        await f.proc.waitSubagents({ sessionId: id, subagentIds: [child.id], after });
+        const newRequests = requests.slice(count);
+        expect(newRequests).toHaveLength(1);
+        expect(JSON.stringify(newRequests[0])).toContain("Preservation focus");
+        expect(JSON.stringify(newRequests[0])).toContain("保留子任务笔记路径");
+        expect(f.events).toContainEqual(
+          expect.objectContaining({
+            taskToolCallId: expect.any(String),
+            update: expect.objectContaining({
+              sessionUpdate: "compaction",
+              subagentId: child.id,
+              status: "completed",
+              postTokens: expect.any(Number),
+            }),
+          })
+        );
+        expect(
+          (await f.proc.listSubagentSessions({ sessionId: id }))[0].messages.find(
+            (message) => message.id === "compact-child"
+          )?.state
+        ).toBe("delivered");
+        await f.proc.shutdown();
+      });
+
+      it("marks a delivered child round as failed when resource cleanup fails after a successful model reply https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const first = createAssistantMessageEventStream();
+        let requests = 0;
+        let failCleanup = true;
+        const contexts: NativeToolContext[] = [];
+        const f = fixture(
+          () => {
+            requests++;
+            if (requests === 1) {
+              started();
+              return first;
+            }
+            return response("Successful final text");
+          },
+          [],
+          {
+            createTools: (context) => {
+              contexts.push(context);
+              return {
+                tools: [],
+                shutdown: context.subagentId
+                  ? async () => {
+                      if (failCleanup) throw new Error("Cleanup failed");
+                    }
+                  : undefined,
+              };
+            },
+          }
+        );
+        const id = await f.open();
+        await contexts[0].executeSubagent!("delegate", {
+          prompt: "Child",
+          description: "Child",
+          background: true,
+        });
+        await ready;
+        const [snapshot] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.startIndependentTask({ sessionId: id });
+        await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: snapshot.id,
+          text: "Follow-up",
+          mode: "enqueue",
+          messageId: "user-round",
+        });
+        const completed = f.proc.waitSubagents({
+          sessionId: id,
+          subagentIds: [snapshot.id],
+          after: Math.max(...snapshot.messages.map((message) => message.sequence)),
+        });
+        const message = createAssistantMessage(model);
+        message.content = [{ type: "text", text: "First" }];
+        message.stopReason = "stop";
+        first.push({ type: "done", reason: "stop", message });
+        await completed;
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "turn_ended",
+            turnId: "user-round",
+            subagentId: snapshot.id,
+            stopReason: "request_error",
+          })
+        );
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].runs[0].status).toBe(
+          "failed"
+        );
+        failCleanup = false;
+        await f.proc.shutdown();
+      });
+      it("freezes in-flight child usage on its original round and moves only delivered user steering to a new round https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+        let started!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const first = createAssistantMessageEventStream();
+        let requests = 0;
+        const contexts: NativeToolContext[] = [];
+        const f = fixture(
+          (_model, _context, options) => {
+            requests++;
+            void options?.onCallMetrics?.({
+              id: `call-${requests}`,
+              requestIds: [`request-${requests}`],
+              status: "completed",
+              usage: { totalTokens: 7 },
+            });
+            if (requests === 1) {
+              started();
+              return first;
+            }
+            return requests === 2
+              ? response("", [{ id: "inspect", name: "inspect", arguments: {} }])
+              : response("Child final response");
+          },
+          [],
+          {
+            createTools: (context) => {
+              contexts.push(context);
+              return {
+                tools: [
+                  {
+                    name: "inspect",
+                    label: "Inspect",
+                    description: "Inspect fixture",
+                    parameters: { type: "object", properties: {} },
+                    execute: async (toolCallId) => {
+                      context.emit({
+                        sessionUpdate: "task_started",
+                        taskId: "child-command",
+                        toolCallId,
+                        kind: "command",
+                        description: "Child command",
+                      });
+                      context.emit({
+                        sessionUpdate: "task_ended",
+                        taskId: "child-command",
+                        status: "completed",
+                      });
+                      return { content: [{ type: "text", text: "Inspected" }], details: undefined };
+                    },
+                  },
+                ],
+              };
+            },
+          }
+        );
+        f.proc.setPermissionPrompter(async () => ({
+          outcome: { outcome: "selected", optionId: "allow_once" },
+        }));
+        const id = await f.open();
+        await contexts[0].executeSubagent!("delegate", {
+          prompt: "First child input",
+          description: "Child",
+          background: true,
+        });
+        await ready;
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        await f.proc.startIndependentTask({ sessionId: id });
+        const accepted = await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "User steering",
+          mode: "enqueue",
+          messageId: "child-user-message",
+        });
+        expect(accepted.status).toBe("enqueued");
+        const completed = f.proc.waitSubagents({
+          sessionId: id,
+          subagentIds: [child.id],
+          after: Math.max(...child.messages.map((message) => message.sequence)),
+        });
+        const message = createAssistantMessage(model);
+        message.content = [{ type: "text", text: "First child response" }];
+        message.stopReason = "stop";
+        first.push({ type: "done", reason: "stop", message });
+        await completed;
+        const observations = f.events.flatMap((event) =>
+          event.update.sessionUpdate === "model_call_metrics" ? [event.update.observation] : []
+        );
+        expect(observations).toHaveLength(3);
+        expect(observations[0].roundId).toBe(child.runs[0].roundId);
+        expect(observations[1].roundId).not.toBe(observations[0].roundId);
+        expect(observations[1].promptId).toBe("child-user-message");
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "turn_ended",
+            turnId: "child-user-message",
+            roundId: observations[1].roundId,
+            subagentId: child.id,
+          })
+        );
+        expect(observations[2].roundId).toBe(observations[1].roundId);
+        expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({
+            sessionUpdate: "task_started",
+            taskId: "child-command",
+            roundId: observations[1].roundId,
+            subagentId: child.id,
+          })
+        );
+        expect(requests).toBe(3);
+        await f.proc.shutdown();
+      });
+    });
+
     describe("stopTask", () => {
+      it("ignores an ended run's late stop while the same child's new run continues (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        let started!: () => void;
+        let finish!: () => void;
+        let aborted = false;
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let requests = 0;
+        const f = fixture((_model, _context, options) => {
+          if (++requests !== 2) return response("Done");
+          const stream = createAssistantMessageEventStream();
+          const abort = () => {
+            aborted = true;
+            const message = createAssistantMessage(model);
+            message.stopReason = "aborted";
+            stream.push({ type: "error", reason: "aborted", error: message });
+          };
+          options?.signal?.addEventListener("abort", abort, { once: true });
+          finish = () => {
+            options?.signal?.removeEventListener("abort", abort);
+            const message = createAssistantMessage(model);
+            message.content = [{ type: "text", text: "Second run done" }];
+            message.stopReason = "stop";
+            stream.push({ type: "done", reason: "stop", message });
+          };
+          started();
+          return stream;
+        });
+        const id = await f.open();
+        await f.toolContexts[0].executeSubagent!("delegate", {
+          prompt: "Child",
+          description: "Retained",
+        });
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const sequence = Math.max(...child.messages.map((message) => message.sequence));
+        await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "Continue",
+          mode: "wake",
+        });
+        await ready;
+        await f.proc.stopTask({ sessionId: id, taskId: child.runs[0].id });
+        expect(aborted).toBe(false);
+        const completed = f.proc.waitSubagents({
+          sessionId: id,
+          subagentIds: [child.id],
+          after: sequence,
+        });
+        finish();
+        expect((await completed).reason).toBe("completed");
+        expect((await f.proc.listSubagentSessions({ sessionId: id }))[0].runs).toHaveLength(2);
+        await f.proc.shutdown();
+      });
+
       it("passes the requested task identity to its runner without cancelling the chat", async () => {
         const stopTask = jest.fn(async () => {});
         const f = fixture(undefined, [], { createTools: () => ({ tools: [], stopTask }) });
@@ -931,6 +5118,34 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("loadSession", () => {
+      it("restores child messages and turn start times in their original order without rerunning them https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
+        const f = fixture(() => response("Done"));
+        const id = await f.open();
+        await f.send(id);
+        await f.toolContexts[0].executeSubagent!("child", {
+          prompt: "Child",
+          description: "Child",
+        });
+        await f.send(id, "follow-up", "Continue");
+        const relevant = (events: SessionEvent[]) =>
+          events.filter((event) =>
+            ["turn_started", "subagent_message", "message_delivered", "turn_ended"].includes(
+              event.update.sessionUpdate
+            )
+          );
+        const original = relevant(f.events);
+        expect(original.some((event) => event.update.sessionUpdate === "subagent_message")).toBe(
+          true
+        );
+        await f.proc.closeSession({ sessionId: id });
+        f.events.length = 0;
+
+        await f.proc.loadSession({ sessionId: id, cwd: "/fixture/vault" });
+
+        expect(relevant(f.events)).toEqual(original);
+        await f.proc.shutdown();
+      });
+
       it("replays stored history without executing its recorded tools", async () => {
         const execute = jest.fn(async () => ({
           content: [{ type: "text" as const, text: "read result" }],
@@ -989,6 +5204,54 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("setPermissionPrompter", () => {
+      it("keeps one-shot command approval separate for the parent, two children and a later run of the same child (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
+        const permission = jest.fn(async (_prompt: PermissionPrompt) => ({
+          outcome: { outcome: "selected" as const, optionId: "allow_once" },
+        }));
+        const f = fixture();
+        f.proc.setPermissionPrompter(permission);
+        const id = await f.open();
+        const prompt = (call: string) => ({
+          sessionId: id,
+          toolCall: {
+            toolCallId: call,
+            kind: "execute" as const,
+            vendorToolName: "run_command",
+            title: "Same command",
+            rawInput: { command: "printf same", cwd: "/fixture/vault" },
+          },
+          options: [],
+        });
+        await f.toolContexts[0].requestPermission(prompt("parent-command"));
+        await f.toolContexts[0].executeSubagent!("child-a", { prompt: "A", description: "A" });
+        await f.toolContexts[1].requestPermission(prompt("a-command"));
+        await f.toolContexts[0].executeSubagent!("child-b", { prompt: "B", description: "B" });
+        await f.toolContexts[2].requestPermission(prompt("b-command"));
+        const [child] = await f.proc.listSubagentSessions({ sessionId: id });
+        const sequence = Math.max(...child.messages.map((message) => message.sequence));
+        const completed = f.proc.waitSubagents({
+          sessionId: id,
+          subagentIds: [child.id],
+          after: sequence,
+        });
+        await f.proc.sendSubagentMessage({
+          sessionId: id,
+          subagentId: child.id,
+          text: "Continue A",
+          mode: "wake",
+        });
+        await completed;
+        await f.toolContexts[3].requestPermission(prompt("a-next-command"));
+        expect(permission).toHaveBeenCalledTimes(4);
+        expect(permission.mock.calls.map((call) => call[0].requester)).toEqual([
+          "main",
+          expect.objectContaining({ subagentId: child.id }),
+          expect.any(Object),
+          expect.objectContaining({ subagentId: child.id }),
+        ]);
+        await f.proc.shutdown();
+      });
+
       it("remembers only an explicit persistent decision for the same action in the same chat and requester", async () => {
         const f = fixture();
         const id = await f.open();
@@ -1171,10 +5434,90 @@ describe("NativeBackendProcess", () => {
           f.proc.setSessionModel({ sessionId: id, modelId: "unregistered" })
         ).rejects.toThrow("unavailable");
       });
+
+      it("defers a mid-turn switch to the next turn instead of swapping the running provider (https://github.com/ItsDalk-Lane/Scribe/issues/60)", async () => {
+        const used: string[] = [];
+        let started!: () => void;
+        let release!: () => void;
+        const seen = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        const hold = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const otherModel = { ...model, id: "other-model", name: "Other model" };
+        let busyFirstRequestDone = false;
+        const busyProvider: ProviderChatModel = {
+          model,
+          stream: () => response("Idle"),
+          agentStream: () => {
+            if (!busyFirstRequestDone) {
+              busyFirstRequestDone = true;
+              used.push(model.id);
+              started();
+              return response("", [{ id: "call-1", name: "probe", arguments: {} }]);
+            }
+            used.push(model.id);
+            return response("Reply from busy");
+          },
+        };
+        const nextProvider: ProviderChatModel = {
+          model: otherModel,
+          stream: () => response("Second"),
+          agentStream: () => {
+            used.push(otherModel.id);
+            return response("Second");
+          },
+        };
+        const f = fixture(() => response("Idle"), [], {
+          createModel: async (id: string) => byId[id],
+          getModels: () => [
+            {
+              baseModelId: model.id,
+              name: model.name,
+              provider: model.provider,
+              effortOptions: [],
+            },
+            {
+              baseModelId: otherModel.id,
+              name: otherModel.name,
+              provider: otherModel.provider,
+              effortOptions: [],
+            },
+          ],
+          createTools: () => ({
+            tools: [
+              {
+                name: "probe",
+                label: "Probe",
+                description: "Probe",
+                parameters: { type: "object", properties: {} },
+                execute: async () => {
+                  await hold;
+                  return { content: [{ type: "text", text: "tool done" }], details: undefined };
+                },
+              },
+            ] as AgentTool[],
+          }),
+        });
+        const byId: Record<string, ProviderChatModel> = {
+          [model.id]: busyProvider,
+          [otherModel.id]: nextProvider,
+        };
+        const id = await f.open();
+        const turn = f.send(id, "turn-1", "hi");
+        await seen;
+        await f.proc.setSessionModel({ sessionId: id, modelId: otherModel.id });
+        expect(f.records.get(id)?.modelId).toBe(otherModel.id);
+        release();
+        await turn;
+        await f.send(id, "turn-2", "again");
+        expect(used).toEqual([model.id, model.id, otherModel.id]);
+      });
     });
 
     describe("setSessionMode", () => {
-      it("changes the policy seen by tools and only leaves plan mode after the matching approval", async () => {
+      it("changes the policy seen by tools and returns to Default when the plan is approved", async () => {
         const f = fixture();
         const id = await f.open();
         await f.proc.setSessionMode({ sessionId: id, modeId: "plan" });
@@ -1359,6 +5702,33 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("resumeSession", () => {
+      it("restores the authoring purpose and never exposes file or command tools after reopening", async () => {
+        const seen: string[][] = [];
+        const tools = ["read_note", "run_command", "write_note", "delegate_task"].map((name) => ({
+          name,
+          label: name,
+          description: name,
+          parameters: { type: "object", properties: {} },
+          execute: jest.fn(async () => ({ content: [], details: undefined })),
+        })) as AgentTool[];
+        const f = fixture((_model, context) => {
+          seen.push(getCurrentTools(context.messages).map((tool) => tool.name));
+          return response("Still drafting");
+        }, tools);
+        const opened = await f.proc.newSession({
+          cwd: "/fixture/vault",
+          purpose: "skill-authoring",
+        });
+        await f.proc.closeSession({ sessionId: opened.sessionId });
+        const restored = await f.proc.resumeSession({
+          sessionId: opened.sessionId,
+          cwd: "/fixture/vault",
+        });
+        expect(restored.purpose).toBe("skill-authoring");
+        await f.send(opened.sessionId);
+        expect(seen[0]).toEqual(["read_note"]);
+      });
+
       it("resumes the original project and refuses an attempt from another project", async () => {
         const f = fixture();
         const id = await f.open();

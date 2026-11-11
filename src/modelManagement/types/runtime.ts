@@ -29,4 +29,5 @@ export interface ProviderDefinition {
   modelInputHint: string;
   catalogProviderId?: string;
   npm?: string;
+  presetId?: string;
 }

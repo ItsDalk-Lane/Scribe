@@ -6,19 +6,21 @@ import { App, Modal } from "obsidian";
 import React from "react";
 import { Root } from "react-dom/client";
 
-function ConfirmModalContent({
-  content,
-  onConfirm,
-  onCancel,
-  confirmButtonText,
-  cancelButtonText,
-}: {
+export interface ConfirmModalContentProps {
   content: React.ReactNode;
   onConfirm: () => void;
   onCancel: () => void;
   confirmButtonText: string;
   cancelButtonText: string;
-}) {
+}
+
+export function ConfirmModalContent({
+  content,
+  onConfirm,
+  onCancel,
+  confirmButtonText,
+  cancelButtonText,
+}: ConfirmModalContentProps) {
   return (
     <div className="tw-flex tw-flex-col tw-gap-5">
       <div className="tw-whitespace-pre-wrap">{content}</div>

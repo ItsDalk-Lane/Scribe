@@ -3,6 +3,8 @@ import type {
   AgentExtensionItem,
   AgentExtensionRuntimeSnapshot,
 } from "./extensionInventory";
+import type { AgentExtensionScope } from "./extensionManagement";
+import { normalizeAbsPath } from "@/utils/pathUtils";
 
 function disabledPluginIds(groups: readonly AgentExtensionGroup[]): Set<string> {
   return new Set(
@@ -25,6 +27,7 @@ function withoutDisabledChildren(
 
 export interface MergeExtensionRuntimeOptions {
   appendRuntimeEntries?: boolean;
+  runtimeScope?: AgentExtensionScope;
 }
 
 export function mergeExtensionRuntime(
@@ -131,11 +134,18 @@ export function mergeExtensionRuntime(
     const matched = new Set<AgentExtensionItem>();
     const normalizeName = (name: string) => (group.kind === "plugin" ? name.split("@")[0] : name);
     const identity = (item: AgentExtensionItem) => item.runtimeName ?? item.name;
-    const normalizePath = (path: string) => path.replace(/\\/g, "/").replace(/\/+$/, "");
+    // 其他项目的技能状态来自各自范围，不能由当前范围的检查覆盖。https://github.com/ItsDalk-Lane/Scribe/issues/6
+    const inRuntimeScope = (item: AgentExtensionItem) =>
+      group.kind !== "skill" ||
+      options.runtimeScope?.kind !== "project" ||
+      item.target?.scope.kind !== "project" ||
+      normalizeAbsPath(item.target.scope.cwd) === normalizeAbsPath(options.runtimeScope.cwd);
+    const scopedItems = group.items.filter(inRuntimeScope);
     const items = group.items.map((item): AgentExtensionItem => {
+      if (!inRuntimeScope(item)) return item;
       const name = normalizeName(identity(item));
       const uniqueName =
-        group.items.filter((entry) => normalizeName(identity(entry)) === name).length === 1;
+        scopedItems.filter((entry) => normalizeName(identity(entry)) === name).length === 1;
       const matches = reported.filter((entry) => {
         if (group.kind === "hook") {
           const left = item.hookIdentity,
@@ -158,7 +168,7 @@ export function mergeExtensionRuntime(
           );
         }
         if (group.kind === "plugin" && item.location && entry.location)
-          return normalizePath(item.location) === normalizePath(entry.location);
+          return normalizeAbsPath(item.location) === normalizeAbsPath(entry.location);
         if (group.kind === "plugin" && entry.availability === "failed" && entry.name.includes("@"))
           return item.name === entry.name;
         return uniqueName && normalizeName(identity(entry)) === name;
@@ -186,7 +196,7 @@ export function mergeExtensionRuntime(
         group.kind === "plugin" && runtime.pluginErrorCount
           ? [
               ...group.warnings,
-              "Claude reported plugin errors; details for each plugin were not provided.",
+              "The agent reported plugin errors; details for each plugin were not provided.",
             ]
           : group.warnings,
       items: [

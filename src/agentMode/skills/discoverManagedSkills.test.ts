@@ -1,4 +1,3 @@
-import { BUILTIN_SKILLS } from "@/builtinSkills/builtinSkills";
 import { logWarn } from "@/logger";
 import { discoverManagedSkills, type SkillsFsAdapter } from "./discoverManagedSkills";
 
@@ -88,6 +87,52 @@ describe("discoverManagedSkills", () => {
       });
       expect(result).toEqual({ accepted: [], rejected: [] });
       expect(mockedLogWarn).not.toHaveBeenCalled();
+    });
+
+    it("recognizes a lowercase description and displays existing author, version and tags", async () => {
+      const adapter = makeAdapter({
+        [`${SKILLS_ROOT}/review-prose/skill.md`]:
+          "---\nname: review-prose\ndescription: Test\nmetadata:\n  author: Jane\n  version: 2\n  tags: [writing, notes]\n---\nBody",
+      });
+      const result = await discoverManagedSkills({
+        skillsFolderRelPath: SKILLS_ROOT,
+        skillsFolderAbsPath: null,
+        adapter,
+      });
+      expect(result.accepted[0]).toMatchObject({
+        author: "Jane",
+        version: "2",
+        tags: ["writing", "notes"],
+        filePath: `${SKILLS_ROOT}/review-prose/skill.md`,
+      });
+    });
+    it("reports ambiguous description files without choosing one", async () => {
+      const adapter = makeAdapter({
+        [`${SKILLS_ROOT}/review-prose/SKILL.md`]: validSkillMd(),
+        [`${SKILLS_ROOT}/review-prose/skill.md`]: validSkillMd(),
+      });
+      const result = await discoverManagedSkills({
+        skillsFolderRelPath: SKILLS_ROOT,
+        skillsFolderAbsPath: null,
+        adapter,
+      });
+      expect(result.accepted).toEqual([]);
+      expect(result.rejected[0].reason).toContain("Multiple SKILL.md");
+    });
+    it("reads a previously bundled skill as an ordinary skill without changing its metadata or body https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
+      const content =
+        '---\nname: obsidian-markdown\ndescription: Local skill\nmetadata:\n  scribe-builtin-version: "1"\n  scribe-enabled-agents: "native"\n  user-data: keep\n---\nExisting user-edited instructions';
+      const adapter = makeAdapter({ [`${SKILLS_ROOT}/obsidian-markdown/SKILL.md`]: content });
+      const result = await discoverManagedSkills({
+        skillsFolderRelPath: SKILLS_ROOT,
+        skillsFolderAbsPath: null,
+        adapter,
+      });
+      expect(result.accepted).toHaveLength(1);
+      expect(result.accepted[0]).not.toHaveProperty("builtin");
+      expect(result.accepted[0].enabledAgents).toEqual(["native"]);
+      expect(result.accepted[0].body).toBe("Existing user-edited instructions");
+      expect(await adapter.read(`${SKILLS_ROOT}/obsidian-markdown/SKILL.md`)).toBe(content);
     });
 
     it("returns a single Skill for one valid SKILL.md", async () => {
@@ -219,8 +264,10 @@ describe("discoverManagedSkills", () => {
       expect(skills.map((s) => s.name)).toEqual(["has-skill"]);
       expect(mockedLogWarn).not.toHaveBeenCalled();
     });
-    it("marks only catalog skills with YAML metadata read-only, preserving renamed copies and body examples", async () => {
-      const [managed, bodyExample, markerless] = BUILTIN_SKILLS;
+    it("treats marker-bearing renamed copies and body examples as ordinary skills https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
+      const managed = { name: "example-managed" };
+      const bodyExample = { name: "body-example" };
+      const markerless = { name: "markerless" };
       const result = await discoverManagedSkills({
         skillsFolderRelPath: SKILLS_ROOT,
         skillsFolderAbsPath: null,
@@ -238,9 +285,11 @@ describe("discoverManagedSkills", () => {
           [`${SKILLS_ROOT}/${markerless.name}/SKILL.md`]: validSkillMd({ name: markerless.name }),
         }),
       });
-      expect(result.accepted.find((skill) => skill.name === managed.name)?.builtin).toBe(true);
+      expect(result.accepted.find((skill) => skill.name === managed.name)).not.toHaveProperty(
+        "builtin"
+      );
       for (const name of ["renamed-copy", bodyExample.name, markerless.name]) {
-        expect(result.accepted.find((skill) => skill.name === name)?.builtin).toBe(false);
+        expect(result.accepted.find((skill) => skill.name === name)).not.toHaveProperty("builtin");
       }
     });
   });

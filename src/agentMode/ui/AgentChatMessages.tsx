@@ -1,11 +1,8 @@
+import { TurnUsageBadge } from "@/agentMode/ui/TurnUsageBadge";
 import { t } from "@/lib/i18n";
 import { AgentTrail } from "@/agentMode/ui/AgentTrailView";
 import { AskUserQuestionCard } from "@/agentMode/ui/AskUserQuestionCard";
 import { PlanProposalCard } from "@/agentMode/ui/PlanProposalCard";
-import { FeedbackCard, findFeedbackCardIndex } from "@/agentMode/ui/FeedbackCard";
-import { openReportIssueModal } from "@/agentMode/ui/ReportIssueModal";
-import { formatFeedbackNote, type FeedbackOffer } from "@/agentMode/session/feedback/feedbackOffer";
-import { setSettings } from "@/settings/model";
 import { ToolPermissionCard } from "@/agentMode/ui/ToolPermissionCard";
 import { useAgentTasks } from "@/agentMode/ui/AgentTasksContext";
 import { permissionRequesterName } from "@/agentMode/ui/taskDisplay";
@@ -14,6 +11,7 @@ import { AgentTurnDurationIndicator } from "@/agentMode/ui/AgentTurnDurationIndi
 import ChatSingleMessage from "@/components/chat-components/ChatSingleMessage";
 import { ChatTranscriptViewport } from "@/components/chat-components/ui/ChatTranscriptViewport";
 import { USER_SENDER } from "@/constants";
+import { Button } from "@/components/ui/button";
 import { useChatScrolling } from "@/hooks/useChatScrolling";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
 import type {
@@ -25,7 +23,7 @@ import type {
 import type { ChatMessage } from "@/types/message";
 import { logError } from "@/logger";
 import { App, Notice, Plugin } from "obsidian";
-import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 interface AgentChatMessagesProps {
   messages: AgentChatMessage[];
@@ -36,7 +34,6 @@ interface AgentChatMessagesProps {
   pendingAskUserQuestions: AskUserQuestionPrompt[];
   chatBackend: AgentChatBackend;
   isLoading: boolean;
-  feedbackOffer: FeedbackOffer | null;
   onForkMessage?: (messageId: string) => Promise<void>;
 }
 
@@ -53,6 +50,18 @@ function toChatMessageView(m: AgentChatMessage): ChatMessage {
   };
 }
 
+function messageFailureText(message: AgentChatMessage): string | undefined {
+  if (!message.isErrorMessage) return undefined;
+  if (typeof message.errorText === "string") return message.errorText;
+  const body = (message.parts ?? [])
+    .flatMap((part) => (part.kind === "text" ? [part.text] : []))
+    .join("");
+  const prefix = `${body}\n\n`;
+  return body && message.message.startsWith(prefix)
+    ? message.message.slice(prefix.length)
+    : message.message;
+}
+
 function findToolCallTitle(messages: AgentChatMessage[], toolCallId: string): string | undefined {
   for (let i = messages.length - 1; i >= 0; i--) {
     const part = messages[i].parts?.find((p) => p.kind === "tool_call" && p.id === toolCallId);
@@ -62,8 +71,9 @@ function findToolCallTitle(messages: AgentChatMessage[], toolCallId: string): st
 }
 
 function lastAssistant(visible: AgentChatMessage[]): AgentChatMessage | undefined {
+  // 协作通知不代表新的模型回答，不能抢走仍在生成的主回复的展示身份。https://github.com/ItsDalk-Lane/Scribe/issues/52
   for (let i = visible.length - 1; i >= 0; i--) {
-    if (visible[i].sender !== USER_SENDER) return visible[i];
+    if (visible[i].sender !== USER_SENDER && !visible[i].synthetic) return visible[i];
   }
   return undefined;
 }
@@ -74,7 +84,6 @@ interface AgentMessageRowProps {
   sourcePath: string;
   isLatestAssistant: boolean;
   isStreaming: boolean;
-  trailingCard?: React.ReactNode;
   onForkMessage?: (messageId: string) => void;
   forkDisabled?: boolean;
 }
@@ -85,7 +94,6 @@ const AgentMessageRow = memo(function AgentMessageRow({
   sourcePath,
   isLatestAssistant,
   isStreaming,
-  trailingCard,
   onForkMessage,
   forkDisabled,
 }: AgentMessageRowProps) {
@@ -94,8 +102,11 @@ const AgentMessageRow = memo(function AgentMessageRow({
   const hasParts = (message.parts?.length ?? 0) > 0;
   const renderTrail = isAssistant && hasParts;
   const completedTurnDurationMs = message.turnDurationMs;
+  // 子会话追加输入会共用原消息的时间戳，运行计时必须优先使用该回合真实交付起点。https://github.com/ItsDalk-Lane/Scribe/issues/52
   const runningTurnStartedAtMs =
-    isLatestAssistant && isStreaming ? message.timestamp?.epoch : undefined;
+    isLatestAssistant && isStreaming
+      ? (message.turnMetrics?.roundStartedAtMs ?? message.timestamp?.epoch)
+      : undefined;
   const completedTurnDuration =
     completedTurnDurationMs !== undefined ? (
       <AgentTurnDurationIndicator status="complete" durationMs={completedTurnDurationMs} inline />
@@ -116,6 +127,8 @@ const AgentMessageRow = memo(function AgentMessageRow({
         <div className="tw-px-3 tw-pt-2">
           <AgentTrail
             parts={message.parts!}
+            messageId={message.id}
+            metrics={message.turnMetrics}
             onFork={onFork}
             forkDisabled={forkDisabled}
             isStreaming={isStreaming}
@@ -123,8 +136,9 @@ const AgentMessageRow = memo(function AgentMessageRow({
             turnDurationMs={completedTurnDurationMs}
             timestamp={message.timestamp?.display}
             app={app}
+            sourcePath={sourcePath}
             turnStopReason={message.turnStopReason}
-            errorText={message.isErrorMessage ? message.message : undefined}
+            errorText={messageFailureText(message)}
             fileChanges={message.fileChanges}
             onOpenFileChange={(change) =>
               void openTurnDiff(app, change, message.id).catch((error: unknown) =>
@@ -143,13 +157,17 @@ const AgentMessageRow = memo(function AgentMessageRow({
             message={adaptedMessage}
             app={app}
             isStreaming={false}
+            footerAfterTimestamp={
+              isAssistant && !message.synthetic ? (
+                <TurnUsageBadge metrics={message.turnMetrics} />
+              ) : undefined
+            }
             onFork={onFork}
             forkDisabled={forkDisabled}
           />
           {runningTurnDuration ? <div className="tw-px-3">{runningTurnDuration}</div> : null}
         </>
       )}
-      {trailingCard}
     </div>
   );
 });
@@ -164,7 +182,6 @@ const AgentChatMessages = memo(
     pendingAskUserQuestions,
     chatBackend,
     isLoading,
-    feedbackOffer,
     onForkMessage,
   }: AgentChatMessagesProps) => {
     const { app } = plugin;
@@ -188,16 +205,45 @@ const AgentChatMessages = memo(
       [onForkMessage]
     );
 
-    const visible = useMemo(() => messages.filter((m) => m.isVisible), [messages]);
-    const adapted = useMemo(() => visible.map(toChatMessageView), [visible]);
+    const allVisible = useMemo(() => messages.filter((m) => m.isVisible), [messages]);
+    const [paging, setPaging] = useState({ backend: chatBackend, rounds: 30 });
+    const roundLimit = paging.backend === chatBackend ? paging.rounds : 30;
+    const start = useMemo(() => {
+      const turns = allVisible.flatMap((message, index) =>
+        message.sender === USER_SENDER ? [index] : []
+      );
+      return turns.length > roundLimit ? turns[turns.length - roundLimit] : 0;
+    }, [allVisible, roundLimit]);
+    const visible = useMemo(() => allVisible.slice(start), [allVisible, start]);
+    const adapted = useMemo(() => allVisible.map(toChatMessageView), [allVisible]);
+    const scrollNode = useRef<HTMLDivElement | null>(null);
+    const scrollAnchor = useRef<{ height: number; top: number } | null>(null);
     const {
       scrollContainerCallbackRef,
       contentCallbackRef,
       onScroll,
       isScrollPaused,
       scrollToEnd,
-      getMessageKey,
     } = useChatScrolling({ chatHistory: adapted });
+    const attachScrollNode = useCallback(
+      (node: HTMLDivElement | null) => {
+        scrollNode.current = node;
+        scrollContainerCallbackRef(node);
+      },
+      [scrollContainerCallbackRef]
+    );
+    const loadEarlier = useCallback(() => {
+      const node = scrollNode.current;
+      if (node) scrollAnchor.current = { height: node.scrollHeight, top: node.scrollTop };
+      setPaging({ backend: chatBackend, rounds: roundLimit + 30 });
+    }, [chatBackend, roundLimit]);
+    useLayoutEffect(() => {
+      const anchor = scrollAnchor.current;
+      const node = scrollNode.current;
+      if (!anchor || !node) return;
+      node.scrollTop = anchor.top + node.scrollHeight - anchor.height;
+      scrollAnchor.current = null;
+    }, [visible]);
 
     const showPlanCard = currentPlan != null && currentPlan.decision === "pending";
     const inlinePlanCard = showPlanCard ? (
@@ -223,35 +269,6 @@ const AgentChatMessages = memo(
         ? `permission:${pendingPermission.toolCall.toolCallId}`
         : null;
 
-    const feedbackCardIndex = useMemo(
-      () => findFeedbackCardIndex(visible, feedbackOffer),
-      [visible, feedbackOffer]
-    );
-    const feedbackCard = useMemo(
-      () =>
-        feedbackOffer ? (
-          <FeedbackCard
-            offer={feedbackOffer}
-            onReview={() =>
-              openReportIssueModal(plugin, {
-                activeBackend: feedbackOffer.evidence.backendId,
-                initialNote: formatFeedbackNote(feedbackOffer),
-                preselectAllSources: true,
-                onReported: (report) => chatBackend.markFeedbackReported(report),
-              })
-            }
-            onDismiss={() => chatBackend.dismissFeedbackOffer()}
-            onTurnOff={() => {
-              setSettings((cur) => ({
-                agentMode: { ...cur.agentMode, offerFeedbackCards: false },
-              }));
-              chatBackend.dismissFeedbackOffer();
-            }}
-          />
-        ) : null,
-      [feedbackOffer, plugin, chatBackend]
-    );
-
     const latestAssistant = useMemo(() => lastAssistant(visible), [visible]);
     const streamingMessageId =
       isLoading && !latestAssistant?.turnStopReason ? latestAssistant?.id : undefined;
@@ -259,16 +276,23 @@ const AgentChatMessages = memo(
     return (
       <div className="tw-flex tw-h-full tw-flex-1 tw-flex-col tw-overflow-hidden">
         <ChatTranscriptViewport
-          scrollContainerRef={scrollContainerCallbackRef}
+          scrollContainerRef={attachScrollNode}
           contentRef={contentCallbackRef}
           onScroll={onScroll}
           isScrollPaused={isScrollPaused}
           scrollToEnd={scrollToEnd}
         >
-          {visible.map((message, index) => {
+          {start > 0 ? (
+            <div className="tw-flex tw-justify-center tw-py-2">
+              <Button type="button" variant="ghost" onClick={loadEarlier}>
+                {t("Load 30 earlier turns")}
+              </Button>
+            </div>
+          ) : null}
+          {visible.map((message) => {
             return (
               <AgentMessageRow
-                key={getMessageKey(adapted[index], index)}
+                key={message.seq ?? message.id}
                 message={message}
                 onForkMessage={onForkMessage ? forkMessage : undefined}
                 forkDisabled={forkDisabled}
@@ -278,7 +302,6 @@ const AgentChatMessages = memo(
                   message.sender !== USER_SENDER && message.id === latestAssistant?.id
                 }
                 isStreaming={message.id === streamingMessageId}
-                trailingCard={index === feedbackCardIndex ? feedbackCard : undefined}
               />
             );
           })}

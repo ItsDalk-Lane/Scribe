@@ -1,4 +1,4 @@
-export type { ModelInfo, ProviderType } from "./types/catalog";
+export type { ModelCostCurrency, ModelInfo, ModelStatus, ProviderType } from "./types/catalog";
 export type {
   AgentType,
   BackendConfig,
@@ -16,6 +16,7 @@ export {
   providerNeedsResolvedApiKey,
   providerRequiresApiKey,
 } from "./providers/providerRequiresApiKey";
+export { isProviderModelsEnabled } from "./providers/providerEnablement";
 export { BackendConfigRegistry } from "./backends/BackendConfigRegistry";
 export {
   configuredModelToCustomModel,
@@ -42,4 +43,4 @@ export {
 
 export { ModelManagementProvider, useModelManagement } from "./ui/ModelManagementContext";
 
-export { ByokPanel } from "./ui/tabs/ByokPanel";
+export { ModelsAndProvidersPanel } from "./ui/tabs/ModelsAndProvidersPanel";

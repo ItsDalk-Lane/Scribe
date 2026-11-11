@@ -1,9 +1,10 @@
 import { DEFAULT_SETTINGS } from "@/constants";
+import { setInterfaceLocale } from "@/lib/i18n";
 import { settingsAtom, settingsStore } from "@/settings/model";
 import { BasicSettings } from "@/settings/v2/components/BasicSettings";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { Notice } from "obsidian";
 import React from "react";
+import { Notice } from "obsidian";
 
 const mockCloseSettings = jest.fn<void, []>();
 jest.mock("@/context", () => {
@@ -26,80 +27,27 @@ jest.mock("@/instructions/agentsFile", () => ({
   writeAgentsFile: (...a: unknown[]): Promise<void> => writeAgentsFile(...a),
 }));
 
-const applyScribeRootChange = jest.fn<Promise<void>, unknown[]>().mockResolvedValue(undefined);
-const scribeRootContainsNotes = jest.fn<boolean, unknown[]>().mockReturnValue(false);
-const findScribeRootFileConflict = jest.fn<string | null, unknown[]>().mockReturnValue(null);
-jest.mock("@/settings/scribeRootChange", () => ({
-  applyScribeRootChange: (...a: unknown[]) => applyScribeRootChange(...a),
-  scribeRootContainsNotes: (...a: unknown[]) => scribeRootContainsNotes(...a),
-  findScribeRootFileConflict: (...a: unknown[]) => findScribeRootFileConflict(...a),
-}));
-
-let capturedOnConfirm: (() => void) | null = null;
-let capturedConfirmButtonText = "";
-const modalCtor = jest.fn((onConfirm: () => void, confirmButtonText: string) => {
-  capturedOnConfirm = onConfirm;
-  capturedConfirmButtonText = confirmButtonText;
-});
-jest.mock("@/components/modals/ConfirmModal", () => ({
-  ConfirmModal: class {
-    open = jest.fn();
-    constructor(
-      _app: unknown,
-      onConfirm: () => void,
-      _content: unknown,
-      _title: string,
-      confirmButtonText: string
-    ) {
-      modalCtor(onConfirm, confirmButtonText);
-    }
-  },
+const mockClearDeviceUnlock = jest.fn<Promise<void>, unknown[]>().mockResolvedValue(undefined);
+jest.mock("@/services/deviceUnlockStore", () => ({
+  clearDeviceUnlock: (...a: unknown[]): Promise<void> => mockClearDeviceUnlock(...a),
 }));
 
 describe("BasicSettings", () => {
   describe("BasicSettings", () => {
     beforeEach(() => {
       jest.clearAllMocks();
-      capturedOnConfirm = null;
-      capturedConfirmButtonText = "";
       settingsStore.set(settingsAtom, { ...DEFAULT_SETTINGS, scribeFolder: "scribe" });
-      scribeRootContainsNotes.mockReturnValue(false);
-      findScribeRootFileConflict.mockReturnValue(null);
     });
 
-    it("shows only the selected section and retains an unapplied folder draft while switching sections", () => {
-      const view = render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), {
-        target: { value: "draft-folder" },
-      });
+    afterEach(() => setInterfaceLocale("en"));
+
+    it("shows the general settings and the vault instructions without section headings", () => {
+      render(<BasicSettings />);
+
+      expect(screen.queryByLabelText("Scribe folder")).toBeNull();
+      expect(screen.queryByText("General")).toBeNull();
       expect(screen.queryByText("Custom instructions")).toBeNull();
       expect(screen.queryByText("Autosave chats as Markdown")).toBeNull();
-      view.rerender(<BasicSettings section="saving" />);
-      expect(screen.getByText("Autosave chats as Markdown")).toBeTruthy();
-      expect(screen.queryByLabelText("Scribe folder")).toBeNull();
-      view.rerender(<BasicSettings />);
-      expect(screen.getByLabelText<HTMLInputElement>("Scribe folder").value).toBe("draft-folder");
-    });
-
-    it("hides the filename template behind a collapsed Advanced disclosure", () => {
-      render(<BasicSettings section="saving" />);
-      expect(screen.getByRole("button", { name: "Advanced" })).not.toBeNull();
-      expect(screen.queryByText("Chat note name template")).toBeNull();
-
-      fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
-      expect(screen.getByText("Chat note name template")).not.toBeNull();
-    });
-
-    it("keeps the template reachable when autosave is off", () => {
-      settingsStore.set(settingsAtom, {
-        ...DEFAULT_SETTINGS,
-        scribeFolder: "scribe",
-        autosaveChat: false,
-      });
-      render(<BasicSettings section="saving" />);
-
-      fireEvent.click(screen.getByRole("button", { name: "Advanced" }));
-      expect(screen.getByText("Chat note name template")).not.toBeNull();
     });
 
     it("turns off active-note auto-attach from its switch", () => {
@@ -111,94 +59,40 @@ describe("BasicSettings", () => {
       expect(settingsStore.get(settingsAtom).autoAttachActiveNote).toBe(false);
     });
 
-    it("binds the Scribe folder input to the persisted root", () => {
+    it("turns off device master-password remembering and drops the stored unlock (https://github.com/ItsDalk-Lane/Scribe/issues/37)", () => {
       render(<BasicSettings />);
-      expect(screen.getByLabelText<HTMLInputElement>("Scribe folder").value).toBe("scribe");
+
+      const row = screen.getByText("Remember the master password on this device").parentElement!
+        .parentElement!;
+      fireEvent.click(within(row).getByRole("switch"));
+
+      expect(settingsStore.get(settingsAtom).secretsRememberOnDevice).toBe(false);
+      expect(mockClearDeviceUnlock).toHaveBeenCalledTimes(1);
     });
 
-    it("rejects an invalid root on Apply without opening the confirm modal", () => {
+    it("saves skill catalog budget edits while keeping the untouched budget limit", () => {
       render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), { target: { value: "../escape" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-      expect(Notice).toHaveBeenCalledTimes(1);
-      expect(modalCtor).not.toHaveBeenCalled();
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
-    });
 
-    it("rejects a root inside the vault's active config directory", () => {
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), {
-        target: { value: ".vault-config/plugins" },
+      fireEvent.change(screen.getByLabelText("Context share (percent)"), {
+        target: { value: "5" },
       });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-
-      expect(Notice).toHaveBeenCalledTimes(1);
-      expect(modalCtor).not.toHaveBeenCalled();
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
-    });
-
-    it("rejects a root whose path is occupied by an existing file without opening the confirm modal", () => {
-      findScribeRootFileConflict.mockReturnValue("ai.txt");
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), { target: { value: "ai.txt" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-      expect(Notice).toHaveBeenCalledTimes(1);
-      expect(modalCtor).not.toHaveBeenCalled();
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
-    });
-
-    it("opens a warning confirmation for a root that already contains Markdown", () => {
-      scribeRootContainsNotes.mockReturnValue(true);
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), { target: { value: "existing" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-
-      expect(modalCtor).toHaveBeenCalledTimes(1);
-      expect(capturedConfirmButtonText).toBe("Use folder");
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
-
-      capturedOnConfirm?.();
-      expect(applyScribeRootChange).toHaveBeenCalledWith(expect.anything(), "existing");
-    });
-
-    it("still warns when the non-empty folder is a previously used Scribe root", () => {
-      settingsStore.set(settingsAtom, {
-        ...DEFAULT_SETTINGS,
-        scribeFolder: "scribe",
-        scribeRootHistory: ["scribe", "old-root"],
+      expect(settingsStore.get(settingsAtom).agentMode.skills).toMatchObject({
+        catalogBudgetPercent: 5,
+        catalogBudgetMaxTokens: 10000,
       });
-      scribeRootContainsNotes.mockReturnValue(true);
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), { target: { value: "old-root" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
 
-      expect(scribeRootContainsNotes).toHaveBeenCalledWith(expect.anything(), "old-root");
-      expect(modalCtor).toHaveBeenCalledTimes(1);
-      expect(capturedConfirmButtonText).toBe("Use folder");
-    });
-
-    it("opens the confirm modal for a valid new root and applies the change on confirm", () => {
-      render(<BasicSettings />);
-      fireEvent.change(screen.getByLabelText("Scribe folder"), { target: { value: "ai" } });
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-      expect(modalCtor).toHaveBeenCalledTimes(1);
-      expect(capturedConfirmButtonText).toBe("Change folder");
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
-
-      capturedOnConfirm?.();
-      expect(applyScribeRootChange).toHaveBeenCalledWith(expect.anything(), "ai");
-    });
-
-    it("does nothing when Apply is pressed with the current root unchanged", () => {
-      render(<BasicSettings />);
-      fireEvent.click(screen.getByRole("button", { name: "Apply Scribe folder" }));
-      expect(modalCtor).not.toHaveBeenCalled();
-      expect(applyScribeRootChange).not.toHaveBeenCalled();
+      fireEvent.change(screen.getByLabelText("Absolute token maximum"), {
+        target: { value: "500" },
+      });
+      expect(settingsStore.get(settingsAtom).agentMode.skills).toMatchObject({
+        catalogBudgetPercent: 5,
+        catalogBudgetMaxTokens: 500,
+      });
     });
 
     it("keeps the draft open after a failed save and retries it before opening the file", async () => {
       writeAgentsFile.mockRejectedValueOnce(new Error("disk unavailable"));
-      render(<BasicSettings section="instructions" />);
+      render(<BasicSettings />);
       const editor = await screen.findByRole("textbox", { name: "Custom vault instructions" });
       fireEvent.change(editor, { target: { value: "Unsaved rules" } });
       fireEvent.click(screen.getByRole("button", { name: /Open AGENTS.md/ }));
@@ -213,14 +107,14 @@ describe("BasicSettings", () => {
     });
 
     it("opens a blank vault AGENTS.md, never seeded from a Chat prompt", async () => {
-      render(<BasicSettings section="instructions" />);
+      render(<BasicSettings />);
       fireEvent.click(await screen.findByRole("button", { name: /Open AGENTS.md/ }));
       await waitFor(() => expect(openAgentsFile).toHaveBeenCalledWith(expect.anything(), ""));
       expect(writeAgentsFile).not.toHaveBeenCalled();
     });
 
     it("lands a pending edit before opening the file, so the open cannot race the save", async () => {
-      render(<BasicSettings section="instructions" />);
+      render(<BasicSettings />);
       const editor = await screen.findByRole("textbox", { name: "Custom vault instructions" });
       fireEvent.change(editor, { target: { value: "Always cite." } });
 
@@ -235,7 +129,7 @@ describe("BasicSettings", () => {
 
     it("shows what the vault AGENTS.md already says, so editing starts from the real file", async () => {
       readAgentsFile.mockResolvedValue("Cite every source.");
-      render(<BasicSettings section="instructions" />);
+      render(<BasicSettings />);
       const editor = await screen.findByRole<HTMLTextAreaElement>("textbox", {
         name: "Custom vault instructions",
       });
@@ -246,7 +140,7 @@ describe("BasicSettings", () => {
     it("saves an edit back to the vault AGENTS.md once typing settles", async () => {
       jest.useFakeTimers();
       try {
-        render(<BasicSettings section="instructions" />);
+        render(<BasicSettings />);
         const editor = await screen.findByRole("textbox", { name: "Custom vault instructions" });
         fireEvent.change(editor, { target: { value: "Always cite." } });
 
@@ -271,7 +165,7 @@ describe("BasicSettings", () => {
               settleFirst = resolve;
             })
         );
-        render(<BasicSettings section="instructions" />);
+        render(<BasicSettings />);
         const editor = await screen.findByRole("textbox", { name: "Custom vault instructions" });
 
         fireEvent.change(editor, { target: { value: "First" } });
@@ -301,7 +195,7 @@ describe("BasicSettings", () => {
     it("does not lose a pending edit when the tab closes mid-sentence", async () => {
       jest.useFakeTimers();
       try {
-        const { unmount } = render(<BasicSettings section="instructions" />);
+        const { unmount } = render(<BasicSettings />);
         const editor = await screen.findByRole("textbox", { name: "Custom vault instructions" });
         fireEvent.change(editor, { target: { value: "Half a thou" } });
         unmount();
@@ -316,7 +210,7 @@ describe("BasicSettings", () => {
     });
 
     it("keeps vault instructions without showing the retired chat-prompt notice", async () => {
-      render(<BasicSettings section="instructions" />);
+      render(<BasicSettings />);
       expect(await screen.findByRole("button", { name: /Open AGENTS.md/ })).toBeTruthy();
       expect(screen.queryByText(/saved system prompt/)).toBeNull();
     });

@@ -1,0 +1,134 @@
+import { observeProviderResponse } from "@/LLMProviders/providerResponse";
+
+const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/31";
+
+describe("providerResponse", () => {
+  describe("observeProviderResponse()", () => {
+    it("observes original usage fields and completes timing only after the response body ends https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+      let body!: ReadableStreamDefaultController<Uint8Array>;
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            body = controller;
+          },
+        })
+      );
+      const payload = jest.fn();
+      const ended = jest.fn();
+      const observed = await observeProviderResponse(
+        response,
+        jest.fn(),
+        undefined,
+        payload,
+        ended
+      );
+      const reading = observed.text();
+      body.enqueue(
+        new TextEncoder().encode('data: {"usage":{"prompt_tokens":7,"completion_tokens":0}}\n\n')
+      );
+      expect(ended).not.toHaveBeenCalled();
+      body.close();
+      expect(await reading).toContain('"prompt_tokens":7');
+      expect(payload).toHaveBeenCalledWith({ usage: { prompt_tokens: 7, completion_tokens: 0 } });
+      expect(ended).toHaveBeenCalledTimes(1);
+    });
+    it(`preserves response bytes and captures split, multiline error events (${issue})`, async () => {
+      const chunks = [
+        'event: error\ndata: {"error":\n',
+        'data: {"code":"insufficient_quota"}}\n\n',
+      ];
+      const original = chunks.join("");
+      const response = new Response(
+        new ReadableStream({
+          start(controller) {
+            chunks.forEach((chunk) => controller.enqueue(new TextEncoder().encode(chunk)));
+            controller.close();
+          },
+        })
+      );
+      const failed = jest.fn();
+      expect(await (await observeProviderResponse(response, failed)).text()).toBe(original);
+      expect(failed).toHaveBeenCalledWith(expect.objectContaining({ kind: "quota" }));
+    });
+
+    it(`observes NDJSON errors while leaving ordinary content untouched (${issue})`, async () => {
+      const body = '{"message":{"content":"Hello"}}\n{"error":{"code":"context_length_exceeded"}}';
+      const failed = jest.fn();
+      expect(await (await observeProviderResponse(new Response(body), failed)).text()).toBe(body);
+      expect(failed).toHaveBeenCalledWith(expect.objectContaining({ kind: "context" }));
+    });
+
+    it(`limits oversized error responses and does not infer a category from unstructured text (${issue})`, async () => {
+      const failed = jest.fn();
+      const response = await observeProviderResponse(
+        new Response("x".repeat(100000), { status: 429 }),
+        failed
+      );
+      expect((await response.text()).length).toBe(65536);
+      expect(failed).toHaveBeenCalledWith({ kind: "request", status: 429 });
+    });
+
+    it(`skips oversized stream records but still captures a later error (${issue})`, async () => {
+      const body = `data: ${"x".repeat(100000)}\n\ndata: {"error":{"code":"insufficient_quota"}}\n\n`;
+      const failed = jest.fn();
+      expect(await (await observeProviderResponse(new Response(body), failed)).text()).toBe(body);
+      expect(failed).toHaveBeenCalledWith(expect.objectContaining({ kind: "quota" }));
+    });
+
+    it(`classifies a bodyless error and leaves a bodyless successful response unchanged (${issue})`, async () => {
+      const failed = jest.fn();
+      const response = new Response(null, { status: 401 });
+      expect(await observeProviderResponse(response, failed)).toBe(response);
+      expect(failed).toHaveBeenCalledWith({ kind: "auth", status: 401 });
+      const empty = new Response(null, { status: 204 });
+      failed.mockClear();
+      expect(await observeProviderResponse(empty, failed)).toBe(empty);
+      expect(failed).not.toHaveBeenCalled();
+    });
+
+    it(`cancels the underlying response when its consumer stops (${issue})`, async () => {
+      const cancelled = jest.fn();
+      const response = await observeProviderResponse(
+        new Response(new ReadableStream({ cancel: cancelled })),
+        jest.fn()
+      );
+      await response.body!.cancel("Stopped");
+      expect(cancelled).toHaveBeenCalledWith("Stopped");
+    });
+
+    it(`reports a body-read failure as a transient network failure before erroring the stream (https://github.com/ItsDalk-Lane/Scribe/issues/58)`, async () => {
+      const failed = jest.fn();
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          pull(controller) {
+            controller.error(new TypeError("network error"));
+          },
+        })
+      );
+      const observed = await observeProviderResponse(response, failed);
+      await expect(observed.text()).rejects.toBeInstanceOf(TypeError);
+      expect(failed).toHaveBeenCalledWith({ kind: "transient" });
+    });
+
+    it(`keeps the first structured provider failure when a later body-read failure would clobber it (https://github.com/ItsDalk-Lane/Scribe/issues/58)`, async () => {
+      const failed = jest.fn();
+      let controller!: ReadableStreamDefaultController<Uint8Array>;
+      const response = new Response(
+        new ReadableStream<Uint8Array>({
+          start(streamController) {
+            controller = streamController;
+          },
+        })
+      );
+      const observed = await observeProviderResponse(response, failed);
+      const reading = observed.text();
+      controller.enqueue(
+        new TextEncoder().encode('data: {"error":{"code":"insufficient_quota"}}\n\n')
+      );
+      controller.error(new TypeError("network error"));
+      await expect(reading).rejects.toBeInstanceOf(TypeError);
+      expect(failed).toHaveBeenNthCalledWith(1, expect.objectContaining({ kind: "quota" }));
+      expect(failed).toHaveBeenLastCalledWith({ kind: "transient" });
+    });
+  });
+});

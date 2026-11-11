@@ -456,7 +456,21 @@ describe("ChatSingleMessage", () => {
       );
       expect(screen.getByText(timestamp)).toBeTruthy();
     });
-    it("collapses an oversized user message behind a Show more control", () => {
+    it("keeps supplementary usage directly beside the timestamp https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      render(
+        <TooltipProvider>
+          <ChatSingleMessage
+            message={baseMessage}
+            app={createAppStub()}
+            isStreaming={false}
+            footerAfterTimestamp={<span>16000 token</span>}
+          />
+        </TooltipProvider>
+      );
+      const usage = screen.getByText("16000 token");
+      expect(usage.parentElement?.textContent).toContain(baseMessage.timestamp?.display);
+    });
+    it("collapses an oversized user message behind a Show more control", async () => {
       const restoreContentHeight = stubContentDimensions(2000, 240);
 
       try {
@@ -474,7 +488,7 @@ describe("ChatSingleMessage", () => {
           true
         );
         expect(screen.getByRole("button", { name: /show more/i })).toBeTruthy();
-        expect(screen.getByText("A very long pasted prompt")).toBeTruthy();
+        expect(await screen.findByText("A very long pasted prompt")).toBeTruthy();
       } finally {
         restoreContentHeight();
       }

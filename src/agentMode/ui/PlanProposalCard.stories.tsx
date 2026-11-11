@@ -37,4 +37,6 @@ const meta = {
 } satisfies Meta<PlanProposalCardProps>;
 export default meta;
 
-export const Pending: StoryObj<PlanProposalCardProps> = {};
+export const Pending: StoryObj<PlanProposalCardProps> = {
+  args: { plan: { ...plan, title: "Review the proposed outline" } },
+};

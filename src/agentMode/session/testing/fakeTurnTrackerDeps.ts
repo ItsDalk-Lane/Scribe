@@ -42,7 +42,6 @@ export function fakeTurnTrackerDeps(): FakeTurnTrackerDeps {
       Parameters<TurnTrackerDeps["captureFileChanges"]>
     >(async () => false),
     onTurnCompleted: jest.fn(),
-    onTurnFailed: jest.fn(),
     whenSent(promptId) {
       if (sentPrompts.some((p) => p.promptId === promptId)) return Promise.resolve();
       return new Promise((resolve) => sentWaiters.set(promptId, resolve));

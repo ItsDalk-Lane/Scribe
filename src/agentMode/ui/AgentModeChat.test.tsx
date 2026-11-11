@@ -80,9 +80,7 @@ function makeManager({
 
 function renderChat(manager: AgentSessionManager) {
   const plugin = { app: {}, agentSessionManager: manager } as unknown as ScribePlugin;
-  return render(
-    <AgentModeChat plugin={plugin} onSaveChat={() => {}} updateUserMessageHistory={() => {}} />
-  );
+  return render(<AgentModeChat plugin={plugin} updateUserMessageHistory={() => {}} />);
 }
 
 function renderFallback(installState: InstallState, lastError: string | null, starting = false) {
@@ -127,7 +125,6 @@ describe("AgentModeChat", () => {
       rerender(
         <AgentModeChat
           plugin={{ app: {}, agentSessionManager: manager } as unknown as ScribePlugin}
-          onSaveChat={() => {}}
           updateUserMessageHistory={() => {}}
         />
       );
@@ -283,7 +280,6 @@ describe("AgentModeChat", () => {
         rerender(
           <AgentModeChat
             plugin={{ agentSessionManager: manager } as unknown as ScribePlugin}
-            onSaveChat={() => {}}
             updateUserMessageHistory={() => {}}
           />
         );
@@ -304,7 +300,6 @@ describe("AgentModeChat", () => {
         rerender(
           <AgentModeChat
             plugin={{ agentSessionManager: manager } as unknown as ScribePlugin}
-            onSaveChat={() => {}}
             updateUserMessageHistory={() => {}}
           />
         );

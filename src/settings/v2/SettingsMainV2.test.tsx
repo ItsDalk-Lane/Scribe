@@ -4,18 +4,21 @@ import SettingsMainV2 from "@/settings/v2/SettingsMainV2";
 import { render, screen, waitFor } from "@testing-library/react";
 import React from "react";
 
-jest.mock("@/settings/v2/components/GeneralSettings", () => ({ GeneralSettings: () => null }));
-jest.mock("@/settings/v2/components/QuickActionsSettings", () => ({
-  QuickActionsSettings: () => null,
+jest.mock("@/settings/v2/components/BasicSettings", () => ({ BasicSettings: () => null }));
+jest.mock("@/settings/v2/components/AboutSettingsPanel", () => ({
+  AboutSettingsPanel: () => null,
 }));
+jest.mock("@/settings/v2/components/CommandSettings", () => ({ CommandSettings: () => null }));
 jest.mock("@/settings/v2/components/DesktopOnlySettingsPanel", () => ({
   DesktopOnlySettingsPanel: () => null,
 }));
 const mockSkillManagerRefresh = jest.fn().mockResolvedValue(undefined);
 jest.mock("@/agentMode", () => ({
   SkillsSettings: () => null,
+  McpSettingsPanel: () => null,
 }));
 jest.mock("@/modelManagement", () => ({
+  ModelsAndProvidersPanel: () => null,
   ModelManagementProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 jest.mock("@/settings/model", () => ({ resetSettings: jest.fn() }));
@@ -40,16 +43,16 @@ describe("SettingsMainV2", () => {
       setInterfaceLocale("zh-CN");
       render(<SettingsMainV2 plugin={plugin} initialTab="quickActions" />);
       expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-        "通用",
-        "快捷操作",
-        "代理",
+        "Agent 配置",
+        "模型",
+        "我的指令",
         "技能",
         "命令",
         "子代理",
+        "MCP",
+        "关于",
       ]);
-      expect(screen.getByRole("tab", { name: "快捷操作" }).getAttribute("aria-selected")).toBe(
-        "true"
-      );
+      expect(screen.getByRole("tab", { name: "模型" }).getAttribute("aria-selected")).toBe("true");
     });
 
     beforeEach(() => {
@@ -69,16 +72,18 @@ describe("SettingsMainV2", () => {
       expect(screen.queryByText("v1.2.3")).toBeNull();
     });
 
-    it("lists the tabs in the agreed order", () => {
+    it("lists models and my commands as independent tabs without an agent page https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       render(<SettingsMainV2 plugin={plugin} />);
 
       expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
-        "Common",
-        "Quick actions",
-        "Agents",
+        "Agent configuration",
+        "Models",
+        "My commands",
         "Skills",
         "Commands",
         "Subagents",
+        "MCP",
+        "About",
       ]);
     });
 
@@ -102,7 +107,7 @@ describe("SettingsMainV2", () => {
     it("opens on a requested tab", () => {
       render(<SettingsMainV2 plugin={plugin} initialTab="quickActions" />);
 
-      expect(screen.getByRole("tab", { name: "Quick actions" }).getAttribute("aria-selected")).toBe(
+      expect(screen.getByRole("tab", { name: "Models" }).getAttribute("aria-selected")).toBe(
         "true"
       );
     });

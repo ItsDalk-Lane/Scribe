@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RotateCcw } from "lucide-react";
 import React from "react";
 import {
   AgentConfigurationHeader,
@@ -15,8 +15,8 @@ const meta = {
 export default meta;
 export const Skills: StoryObj<AgentConfigurationHeaderProps> = {
   args: {
-    agents: [{ id: "claude", label: "Claude Code" }],
-    selectedAgent: "claude",
+    agents: [{ id: "native", label: "Scribe" }],
+    selectedAgent: "native",
     query: "",
     onQueryChange: () => {},
     searchPlaceholder: "搜索技能…",
@@ -24,8 +24,8 @@ export const Skills: StoryObj<AgentConfigurationHeaderProps> = {
     count: 12,
   },
 };
-export const AgentOnly: StoryObj<AgentConfigurationHeaderProps> = {
-  args: { agents: [{ id: "claude", label: "Claude Code" }], selectedAgent: "claude" },
+export const WithoutExtraTabs: StoryObj<AgentConfigurationHeaderProps> = {
+  args: { agents: [{ id: "native", label: "Scribe" }], selectedAgent: "native" },
 };
 
 export const ConfigurationActions: StoryObj<AgentConfigurationHeaderProps> = {
@@ -33,13 +33,13 @@ export const ConfigurationActions: StoryObj<AgentConfigurationHeaderProps> = {
     ...Skills.args,
     actions: (
       <>
-        <Button size="icon" variant="secondary" aria-label="刷新并检查">
-          <RefreshCw className="tw-size-4" />
+        <Button variant="secondary">
+          <RotateCcw className="tw-size-4" />
+          恢复内置技能
         </Button>
-        <Button variant="secondary">导入</Button>
         <Button>
           <Plus className="tw-size-4" />
-          新建
+          添加技能
         </Button>
       </>
     ),

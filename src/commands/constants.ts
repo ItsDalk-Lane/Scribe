@@ -4,17 +4,17 @@ export const LEGACY_SELECTED_TEXT_PLACEHOLDER = "{scribe-selection}";
 export const EMPTY_COMMAND: CustomCommand = {
   title: "",
   enabled: true,
+  enableTemplating: true,
   content: "",
   showInContextMenu: true,
-  showInSlashMenu: true,
   order: 0,
   modelKey: "",
   lastUsedMs: 0,
 };
 
 export const SCRIBE_COMMAND_ENABLED = "scribe-command-enabled";
+export const SCRIBE_COMMAND_ENABLE_TEMPLATING = "scribe-command-enable-templating";
 export const SCRIBE_COMMAND_CONTEXT_MENU_ENABLED = "scribe-command-context-menu-enabled";
-export const SCRIBE_COMMAND_SLASH_ENABLED = "scribe-command-slash-enabled";
 export const SCRIBE_COMMAND_CONTEXT_MENU_ORDER = "scribe-command-context-menu-order";
 export const SCRIBE_COMMAND_MODEL_KEY = "scribe-command-model-key";
 export const SCRIBE_COMMAND_LAST_USED = "scribe-command-last-used";
@@ -23,7 +23,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     title: "Fix grammar and spelling",
     content: `Fix the grammar and spelling of {}. Preserve all formatting, line breaks, and special characters. Do not add or remove any content. Return only the corrected text.`,
     showInContextMenu: true,
-    showInSlashMenu: true,
     order: 1000,
     modelKey: "",
     lastUsedMs: 0,
@@ -36,7 +35,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     3. Keep formatting and structure
     Return only the translated text.`,
     showInContextMenu: true,
-    showInSlashMenu: true,
     order: 1010,
     modelKey: "",
     lastUsedMs: 0,
@@ -45,7 +43,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     title: "Summarize",
     content: `Create a bullet-point summary of {}. Each bullet point should capture a key point. Return only the bullet-point summary.`,
     showInContextMenu: true,
-    showInSlashMenu: true,
     order: 1020,
     modelKey: "",
     lastUsedMs: 0,
@@ -54,7 +51,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     title: "Simplify",
     content: `Simplify {} to a 6th-grade reading level (ages 11-12). Use simple sentences, common words, and clear explanations. Maintain the original key concepts. Return only the simplified text.`,
     showInContextMenu: true,
-    showInSlashMenu: true,
     order: 1030,
     modelKey: "",
     lastUsedMs: 0,
@@ -67,7 +63,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     3. Break down complex concepts
     Return only the simplified explanation.`,
     showInContextMenu: true,
-    showInSlashMenu: true,
     order: 1040,
     modelKey: "",
     lastUsedMs: 0,
@@ -81,7 +76,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     4. Choose emojis that match the context and tone
     Return only the emojified text.`,
     showInContextMenu: true,
-    showInSlashMenu: true,
     order: 1050,
     modelKey: "",
     lastUsedMs: 0,
@@ -94,7 +88,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     3. Original tone and style
     Return only the shortened text.`,
     showInContextMenu: true,
-    showInSlashMenu: true,
     order: 1060,
     modelKey: "",
     lastUsedMs: 0,
@@ -107,7 +100,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     3. Maintaining the original tone and style
     Return only the expanded text.`,
     showInContextMenu: true,
-    showInSlashMenu: true,
     order: 1070,
     modelKey: "",
     lastUsedMs: 0,
@@ -116,7 +108,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     title: "Generate table of contents",
     content: `Generate a hierarchical table of contents for {}. Use appropriate heading levels (H1, H2, H3, etc.). Include page numbers if present. Return only the table of contents.`,
     showInContextMenu: false,
-    showInSlashMenu: false,
     order: 1080,
     modelKey: "",
     lastUsedMs: 0,
@@ -125,7 +116,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     title: "Generate glossary",
     content: `Create a glossary of important terms, concepts, and phrases from {}. Format each entry as "Term: Definition". Sort entries alphabetically. Return only the glossary.`,
     showInContextMenu: false,
-    showInSlashMenu: false,
     order: 1090,
     modelKey: "",
     lastUsedMs: 0,
@@ -134,7 +124,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     title: "Remove URLs",
     content: `Remove all URLs from {}. Preserve all other content and formatting. URLs may be in various formats (http, https, www). Return only the text with URLs removed.`,
     showInContextMenu: false,
-    showInSlashMenu: false,
     order: 1100,
     modelKey: "",
     lastUsedMs: 0,
@@ -147,7 +136,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     3. Maintain the core message
     Return only the tweet text.`,
     showInContextMenu: false,
-    showInSlashMenu: false,
     order: 1110,
     modelKey: "",
     lastUsedMs: 0,
@@ -162,7 +150,6 @@ export const DEFAULT_COMMANDS: CustomCommand[] = [
     5. Make content engaging and clear
     Return only the formatted thread.`,
     showInContextMenu: false,
-    showInSlashMenu: false,
     order: 1120,
     modelKey: "",
     lastUsedMs: 0,
@@ -232,7 +219,6 @@ mindmap
 
 Return only the markdown content without any explanations or comments.`,
     showInContextMenu: false,
-    showInSlashMenu: true,
     order: 1130,
     modelKey: "",
     lastUsedMs: 0,
@@ -288,7 +274,6 @@ mindmap
 
 Return only the markdown content without any explanations or comments.`,
     showInContextMenu: false,
-    showInSlashMenu: true,
     order: 1140,
     modelKey: "",
     lastUsedMs: 0,

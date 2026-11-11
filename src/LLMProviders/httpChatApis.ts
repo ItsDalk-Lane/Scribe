@@ -1,3 +1,4 @@
+import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
 import type {
   Api,
   JsonObject,
@@ -8,14 +9,32 @@ import type {
   TranscriptContext,
 } from "@earendil-works/pi-ai";
 import { thinkingBudgetForLevel } from "@earendil-works/pi-ai/api/simple-options";
+import { transformMessages } from "@earendil-works/pi-ai/api/transform-messages";
 import {
   getCurrentSystemPrompt,
   collapseSystemMessages,
   getCurrentTools,
 } from "@earendil-works/pi-ai/utils/transcript";
 import { readJsonStream, streamHttpCompletion } from "@/LLMProviders/piHttpStream";
-import { retryProviderRequest } from "@earendil-works/pi-ai/utils/provider-retry";
+import { observeProviderResponse } from "@/LLMProviders/providerResponse";
+import {
+  classifyProviderFailure,
+  ProviderRequestError,
+  waitForProviderRetry,
+  type ProviderRequestFailure,
+} from "@/LLMProviders/providerRequestFailure";
 import { t } from "@/lib/i18n";
+import { abortSignalWithDeadline } from "@/utils/abortDeadline";
+import { sha256 } from "@/utils/hash";
+import { DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS } from "@/constants";
+
+// 与底层协议库的图片降级文案保持一致，模型看到的省略说明在所有适配路径上相同。https://github.com/ItsDalk-Lane/Scribe/issues/56
+const IMAGE_OMITTED_TEXT = "(image omitted: model does not support images)";
+const TOOL_IMAGE_OMITTED_TEXT = "(tool image omitted: model does not support images)";
+
+function acceptsImages(model: Model<Api>): boolean {
+  return model.input.includes("image");
+}
 
 interface GooglePart {
   text?: string;
@@ -82,27 +101,56 @@ export async function postChatRequest(
   if (!options?.fetch) throw new Error("A provider transport is required.");
   const fetch = options.fetch;
   const replacement: unknown = await options.onPayload?.(body, model);
-  return retryProviderRequest(async () => {
-    let response: Response;
+  for (let retries = 0; ; retries++) {
     try {
-      response = await fetch(`${model.baseUrl.replace(/\/+$/, "")}${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...options.headers },
-        signal: options.signal,
-        body: JSON.stringify(replacement === undefined ? body : replacement),
-      });
-    } catch (error) {
-      if (error instanceof TypeError)
-        throw Object.assign(error, { status: undefined, headers: undefined });
-      throw error;
-    }
-    if (!response.ok)
-      throw Object.assign(
-        new Error((await response.text()) || `${t("Unexpected response")} (${response.status})`),
-        { status: response.status, headers: response.headers }
+      // 响应头等待与正文空闲分开计时，正常长回复不会被头部期限截断。https://github.com/ItsDalk-Lane/Scribe/issues/59
+      const deadline = abortSignalWithDeadline(
+        options.signal,
+        options.timeoutMs ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS
       );
-    return response;
-  }, options);
+      let response: Response;
+      try {
+        response = await raceWithAbortSignal(
+          fetch(`${model.baseUrl.replace(/\/+$/, "")}${path}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...options.headers },
+            signal: deadline.signal,
+            body: JSON.stringify(replacement === undefined ? body : replacement),
+          }),
+          deadline.signal
+        );
+      } finally {
+        deadline.dispose();
+      }
+      if (!response.ok) {
+        let failure: ProviderRequestFailure | undefined;
+        const observed = await observeProviderResponse(
+          response,
+          (value) => {
+            failure = value;
+          },
+          options.signal
+        );
+        throw new ProviderRequestError(
+          (await observed.text()) || `${t("Unexpected response")} (${response.status})`,
+          failure ?? classifyProviderFailure({ status: response.status })
+        );
+      }
+      return response;
+    } catch (error) {
+      if (options.signal?.aborted) throw options.signal.reason;
+      const failure = classifyProviderFailure({ cause: error });
+      const delay = failure.retryAfterMs ?? Math.min(500 * 2 ** retries, 8000);
+      const maxDelay = options.maxRetryDelayMs ?? 60000;
+      if (
+        failure.kind !== "transient" ||
+        retries >= (options.maxRetries ?? 0) ||
+        (maxDelay > 0 && delay > maxDelay)
+      )
+        throw error;
+      await waitForProviderRetry(delay, options.signal);
+    }
+  }
 }
 
 export function textContent(message: Message): string {
@@ -115,38 +163,54 @@ export function streamGoogle(
   context: TranscriptContext,
   options?: SimpleStreamOptions
 ) {
+  const scopedOptions = options;
   return streamHttpCompletion(model, options, async function* () {
     const system = getCurrentSystemPrompt(context.messages);
+    const allowImages = acceptsImages(model);
     const contents: Array<{ role: string; parts: GooglePart[] }> = [];
-    for (const message of collapseSystemMessages(context).messages) {
+    // 外来推理状态不能重放，工具编号用完整原值计算，避免截断长编号后把不同调用混为一条。https://github.com/ItsDalk-Lane/Scribe/issues/60
+    const history = transformMessages(collapseSystemMessages(context).messages, model, sha256);
+    for (const message of history) {
       if (message.role === "system") continue;
       if (message.role === "toolResult") {
+        const toolImages = message.content.filter((part) => part.type === "image");
+        const omittedNote =
+          allowImages || toolImages.length === 0 ? "" : `\n${TOOL_IMAGE_OMITTED_TEXT}`;
         const part: GooglePart = {
           functionResponse: {
             id: message.toolCallId,
             name: message.toolName,
             response: message.isError
-              ? { error: textContent(message) }
-              : { output: textContent(message) },
+              ? { error: textContent(message) + omittedNote }
+              : { output: textContent(message) + omittedNote },
           },
         };
         const previous = contents.at(-1);
         if (previous?.role === "user" && previous.parts.some((part) => part.functionResponse))
           previous.parts.push(part);
         else contents.push({ role: "user", parts: [part] });
-        for (const image of message.content.filter((part) => part.type === "image"))
-          contents
-            .at(-1)!
-            .parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
+        if (allowImages)
+          for (const image of toolImages)
+            contents
+              .at(-1)!
+              .parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
         continue;
       }
       const parts: GooglePart[] =
         typeof message.content === "string"
           ? [{ text: message.content }]
           : (message.content ?? []).map((part) => {
-              if (part.type === "text") return { text: part.text };
+              if (part.type === "text")
+                return {
+                  text: part.text,
+                  ...(message.role === "assistant" && part.textSignature
+                    ? { thoughtSignature: part.textSignature }
+                    : {}),
+                };
               if (part.type === "image")
-                return { inlineData: { mimeType: part.mimeType, data: part.data } };
+                return allowImages
+                  ? { inlineData: { mimeType: part.mimeType, data: part.data } }
+                  : { text: IMAGE_OMITTED_TEXT };
               if (part.type === "toolCall")
                 return {
                   functionCall: { id: part.id, name: part.name, args: part.arguments },
@@ -158,7 +222,8 @@ export function streamGoogle(
                 ...(part.thinkingSignature ? { thoughtSignature: part.thinkingSignature } : {}),
               };
             });
-      contents.push({ role: message.role === "assistant" ? "model" : "user", parts });
+      if (parts.length)
+        contents.push({ role: message.role === "assistant" ? "model" : "user", parts });
     }
     const supportsSystemInstruction = !model.id.split("/").pop()?.startsWith("gemma-");
     if (system && !supportsSystemInstruction && contents[0]?.role === "user")
@@ -191,20 +256,25 @@ export function streamGoogle(
       ...(system && supportsSystemInstruction
         ? { systemInstruction: { parts: [{ text: system }] } }
         : {}),
-      ...(options?.maxTokens === undefined && options?.reasoning === undefined
+      ...(scopedOptions?.maxTokens === undefined && scopedOptions?.reasoning === undefined
         ? {}
         : {
             generationConfig: {
-              ...(options?.maxTokens !== undefined ? { maxOutputTokens: options.maxTokens } : {}),
-              ...(options?.reasoning !== undefined
+              ...(scopedOptions?.maxTokens !== undefined
+                ? { maxOutputTokens: scopedOptions.maxTokens }
+                : {}),
+              ...(scopedOptions?.reasoning !== undefined
                 ? {
                     thinkingConfig: {
                       includeThoughts: true,
                       thinkingBudget: Math.min(
-                        thinkingBudgetForLevel(options.reasoning, options.thinkingBudgets),
-                        options.maxTokens === undefined
+                        thinkingBudgetForLevel(
+                          scopedOptions.reasoning,
+                          scopedOptions.thinkingBudgets
+                        ),
+                        scopedOptions.maxTokens === undefined
                           ? Infinity
-                          : Math.max(0, options.maxTokens - 1024)
+                          : Math.max(0, scopedOptions.maxTokens - 1024)
                       ),
                     },
                   }
@@ -217,7 +287,7 @@ export function streamGoogle(
     let continuationToken: string | undefined;
     let toolIndex = 0;
     do {
-      if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+      if (scopedOptions?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
       const response = await postChatRequest(
         requestModel,
         `/${resourcePath}:streamGenerateContent?alt=sse`,
@@ -226,7 +296,7 @@ export function streamGoogle(
       );
       continuationToken = undefined;
       let requestUsage = { input: 0, output: 0, reasoning: 0, cacheRead: 0, totalTokens: 0 };
-      for await (const raw of readJsonStream(response, options?.signal)) {
+      for await (const raw of readJsonStream(response, scopedOptions?.signal)) {
         const chunk = raw as GoogleChunk;
         if (chunk.error || chunk.promptFeedback?.blockReason)
           throw new Error(
@@ -234,7 +304,10 @@ export function streamGoogle(
           );
         const candidate = chunk.candidates?.[0];
         for (const part of candidate?.content?.parts ?? []) {
-          if (part.text) yield part.thought ? { thinking: part.text } : { text: part.text };
+          if (part.text !== undefined || (part.thoughtSignature && !part.functionCall))
+            yield part.thought
+              ? { thinking: part.text ?? "", thinkingSignature: part.thoughtSignature }
+              : { text: part.text ?? "", textSignature: part.thoughtSignature };
           if (part.functionCall)
             yield {
               toolCall: {
@@ -296,6 +369,7 @@ export function streamCohere(
   context: TranscriptContext,
   options?: SimpleStreamOptions
 ) {
+  const scopedOptions = options;
   return streamHttpCompletion(model, options, async function* () {
     const messages = collapseSystemMessages(context).messages.map((message) => ({
       role: message.role === "toolResult" ? "tool" : message.role,
@@ -315,10 +389,12 @@ export function streamCohere(
         message.role === "user" && Array.isArray(message.content)
           ? message.content.map((part) =>
               part.type === "image"
-                ? {
-                    type: "image_url",
-                    image_url: { url: `data:${part.mimeType};base64,${part.data}` },
-                  }
+                ? acceptsImages(model)
+                  ? {
+                      type: "image_url",
+                      image_url: { url: `data:${part.mimeType};base64,${part.data}` },
+                    }
+                  : { type: "text", text: IMAGE_OMITTED_TEXT }
                 : { type: "text", text: part.text }
             )
           : textContent(message),
@@ -342,22 +418,24 @@ export function streamCohere(
             }
           : {}),
         stream: true,
-        ...(options?.reasoning !== undefined
+        ...(scopedOptions?.reasoning !== undefined
           ? {
               thinking: {
                 type: "enabled",
                 token_budget: Math.min(
-                  thinkingBudgetForLevel(options.reasoning, options.thinkingBudgets),
-                  options.maxTokens === undefined ? Infinity : Math.max(0, options.maxTokens - 1024)
+                  thinkingBudgetForLevel(scopedOptions.reasoning, scopedOptions.thinkingBudgets),
+                  scopedOptions.maxTokens === undefined
+                    ? Infinity
+                    : Math.max(0, scopedOptions.maxTokens - 1024)
                 ),
               },
             }
           : {}),
-        ...(options?.maxTokens === undefined ? {} : { max_tokens: options.maxTokens }),
+        ...(scopedOptions?.maxTokens === undefined ? {} : { max_tokens: scopedOptions.maxTokens }),
       },
       options
     );
-    for await (const raw of readJsonStream(response, options?.signal)) {
+    for await (const raw of readJsonStream(response, scopedOptions?.signal)) {
       const chunk = raw as CohereChunk;
       if (chunk.type === "error") throw new Error(chunk.message || t("Unexpected response"));
       if (chunk.delta?.message?.content?.text) yield { text: chunk.delta.message.content.text };
@@ -403,6 +481,7 @@ export function streamOllama(
   context: TranscriptContext,
   options?: SimpleStreamOptions
 ) {
+  const scopedOptions = options;
   return streamHttpCompletion(model, options, async function* () {
     const messages = collapseSystemMessages(context).messages.map((message) => ({
       role: message.role === "toolResult" ? "tool" : message.role,
@@ -423,9 +502,9 @@ export function streamOllama(
         : {}),
       ...(message.role === "user" && Array.isArray(message.content)
         ? {
-            images: message.content
-              .filter((part) => part.type === "image")
-              .map((part) => part.data),
+            images: message.content.flatMap((part) =>
+              part.type === "image" && acceptsImages(model) ? [part.data] : []
+            ),
           }
         : {}),
     }));
@@ -448,17 +527,19 @@ export function streamOllama(
             }
           : {}),
         stream: true,
-        think: options?.reasoning ?? model.reasoning,
+        think: scopedOptions?.reasoning ?? model.reasoning,
         options: {
           ...(model.contextWindow > 0 ? { num_ctx: model.contextWindow } : {}),
           repeat_penalty: 1.1,
-          ...(options?.maxTokens === undefined ? {} : { num_predict: options.maxTokens }),
+          ...(scopedOptions?.maxTokens === undefined
+            ? {}
+            : { num_predict: scopedOptions.maxTokens }),
         },
       },
       options
     );
     let toolIndex = 0;
-    for await (const raw of readJsonStream(response, options?.signal, true)) {
+    for await (const raw of readJsonStream(response, scopedOptions?.signal, true)) {
       const chunk = raw as OllamaChunk;
       if (chunk.error) throw new Error(chunk.error);
       yield { text: chunk.message?.content, thinking: chunk.message?.thinking };

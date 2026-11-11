@@ -1,3 +1,6 @@
+import { Platform } from "obsidian";
+import { clearProviderTokenCaches } from "@/LLMProviders/providerTransport";
+import { clearProviderResolverCaches } from "@/LLMProviders/createHttpProviderChatModel";
 import { randomBytes } from "node:crypto";
 import * as obsidian from "obsidian";
 import type { CustomModel } from "@/aiParams";
@@ -7,6 +10,11 @@ import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import { testProviderConnection } from "@/LLMProviders/testProviderConnection";
 import { configuredModelToCustomModel, type ModelInfo, type Provider } from "@/modelManagement";
 import { createChatChain, createChatMemory } from "@/commands/customCommandChatEngine";
+
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
 
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidian as unknown as {
   __setRequestUrlImpl: (impl: unknown) => void;
@@ -32,10 +40,8 @@ function wire(extra: Partial<CustomModel> = {}): CustomModel {
   };
 }
 
-function savedOpenAI(
-  enableCors: boolean,
-  reasoning = true
-): { provider: Provider; model: ModelInfo } {
+function savedOpenAI(mobile: boolean, reasoning = true): { provider: Provider; model: ModelInfo } {
+  Platform.isMobile = mobile;
   return {
     provider: {
       providerId: "fixture-openai",
@@ -44,7 +50,6 @@ function savedOpenAI(
       baseUrl: "https://api.openai.com/v1",
       origin: { kind: "byok", catalogProviderId: "openai" },
       addedAt: 0,
-      enableCors,
     },
     model: {
       id: reasoning ? "o3" : "gpt-4o",
@@ -110,6 +115,15 @@ function responseBody(url: string): string {
 }
 
 describe("createProviderChatModel", () => {
+  beforeEach(() => {
+    clearProviderTokenCaches();
+    clearProviderResolverCaches();
+    Platform.isMobile = true;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   describe("createProviderChatModel", () => {
     const requests: CapturedRequest[] = [];
     let rejectUnexpectedFields = false;
@@ -162,9 +176,43 @@ describe("createProviderChatModel", () => {
     });
 
     it.each([false, true])(
-      "verifies saved o3 with supplier-default effort over compatibility=%s",
-      async (enableCors) => {
-        const saved = savedOpenAI(enableCors);
+      "retries an ordinary host connection error and delivers the healthy reply on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/58)",
+      async (mobile) => {
+        Platform.isMobile = mobile;
+        let attempts = 0;
+        const connect = (url: string, init: RequestInit) => {
+          if (++attempts === 1) throw new Error("Connection reset");
+          return serve(url, init);
+        };
+        window.fetch = jest.fn(async (input, init) => {
+          const url =
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+          const reply = connect(url, init ?? {});
+          return new Response(reply.text, { status: reply.status, headers: reply.headers });
+        });
+        setRequestUrlImpl(
+          async (input: { url: string; body?: string; headers?: Record<string, string> }) => ({
+            ...connect(input.url, input),
+            arrayBuffer: new ArrayBuffer(0),
+          })
+        );
+        const client = await createProviderChatModel(wire());
+        jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+        try {
+          const result = collectText(client, "Question", { maxRetries: 1 });
+          await jest.runAllTimersAsync();
+          expect(await result).toBe("ok");
+          expect(attempts).toBe(2);
+        } finally {
+          jest.useRealTimers();
+        }
+      }
+    );
+
+    it.each([false, true])(
+      "verifies saved o3 with supplier-default effort on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51)",
+      async (mobile) => {
+        const saved = savedOpenAI(mobile);
         expect(await testProviderConnection({ ...saved, apiKey: key })).toMatchObject({ ok: true });
         expect(requests).toHaveLength(1);
         expect(requests[0].url).toBe("https://api.openai.com/v1/responses");
@@ -174,9 +222,9 @@ describe("createProviderChatModel", () => {
     );
 
     it.each([false, true])(
-      "keeps saved o3 Quick Tools instructions and follow-up history over compatibility=%s",
-      async (enableCors) => {
-        const saved = savedOpenAI(enableCors);
+      "keeps saved o3 Quick Tools instructions and follow-up history on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51)",
+      async (mobile) => {
+        const saved = savedOpenAI(mobile);
         const memory = createChatMemory();
         const chain = await createChatChain(
           bridge(saved.provider, saved.model),
@@ -229,7 +277,7 @@ describe("createProviderChatModel", () => {
 
     it("keeps compatible Responses reasoning instructions as system messages", async () => {
       const model = await createProviderChatModel(
-        wire({ apiShape: "responses", capabilities: [ModelCapability.REASONING], enableCors: true })
+        wire({ apiShape: "responses", capabilities: [ModelCapability.REASONING] })
       );
       expect(
         await collectText(model, {
@@ -245,7 +293,7 @@ describe("createProviderChatModel", () => {
 
     it("does not add reasoning or developer roles to a Chat Completions gateway", async () => {
       const model = await createProviderChatModel(
-        wire({ capabilities: [ModelCapability.REASONING], enableCors: true })
+        wire({ capabilities: [ModelCapability.REASONING] })
       );
       expect(
         await collectText(model, {
@@ -261,20 +309,86 @@ describe("createProviderChatModel", () => {
     });
 
     it.each([
+      ["@ai-sdk/anthropic", "https://api.anthropic.com", undefined, true],
+      ["@ai-sdk/anthropic", "https://api.anthropic.com", true, true],
+      ["@ai-sdk/anthropic", "https://api.anthropic.com", false, false],
+      ["@ai-sdk/google-vertex/anthropic", "https://aiplatform.googleapis.com", undefined, true],
+      ["@ai-sdk/google-vertex/anthropic", "https://aiplatform.googleapis.com", true, true],
+      ["@ai-sdk/google-vertex/anthropic", "https://aiplatform.googleapis.com", false, false],
+      ["@ai-sdk/anthropic", "https://anthropic-gateway.invalid/v1", undefined, false],
+      ["@ai-sdk/anthropic", "https://anthropic-gateway.invalid/v1", false, false],
+      ["@ai-sdk/anthropic", "https://anthropic-gateway.invalid/v1", true, true],
+    ] as const)(
+      "uses supported short caching for %s at %s with caching=%s without changing request content",
+      async (providerNpm, baseUrl, enablePromptCaching, expectedCache) => {
+        const direct = providerNpm === "@ai-sdk/anthropic";
+        const model = await createProviderChatModel(
+          wire({
+            providerNpm,
+            baseUrl,
+            enablePromptCaching,
+            providerOptions: {
+              GOOGLE_VERTEX_PROJECT: "synthetic-project",
+              GOOGLE_VERTEX_LOCATION: "global",
+            },
+          })
+        );
+        const question = "Read this synthetic note";
+        expect(
+          await collectText(model, {
+            systemPrompt,
+            tools: [
+              {
+                name: "read_note",
+                description: "Read a note",
+                parameters: { type: "object", properties: {} },
+              },
+            ],
+            messages: [{ role: "user", content: question, timestamp: 0 }],
+          })
+        ).toBe("ok");
+        const body = requests[0].body;
+        const system = body.system as Array<{ text: string; cache_control?: unknown }>;
+        const tools = body.tools as Array<{ name: string; cache_control?: unknown }>;
+        const messages = body.messages as Array<{
+          content: string | Array<{ text: string; cache_control?: unknown }>;
+        }>;
+        expect(system[0].text).toBe(systemPrompt);
+        expect(tools[0].name).toBe("read_note");
+        const content = messages[0].content;
+        expect(typeof content === "string" ? content : content[0].text).toBe(question);
+        const cache = expectedCache ? { type: "ephemeral" } : undefined;
+        expect(system[0].cache_control).toEqual(cache);
+        expect(tools[0].cache_control).toEqual(cache);
+        expect(typeof content === "string" ? undefined : content[0].cache_control).toEqual(cache);
+        expect(JSON.stringify(body)).not.toContain('"ttl"');
+        expect(body).not.toHaveProperty("prompt_cache_key");
+        if (!expectedCache) expect(JSON.stringify(body)).not.toContain("cache_control");
+        if (!direct) {
+          expect(requests[0].url).toContain(
+            "publishers/anthropic/models/fixture-model:streamRawPredict"
+          );
+          expect(body.anthropic_version).toBe("vertex-2023-10-16");
+          expect(requests[0].headers.get("Authorization")).toBe(`Bearer ${key}`);
+        }
+      }
+    );
+
+    it.each([
       [false, undefined],
       [true, undefined],
       [false, ReasoningEffort.HIGH],
       [true, ReasoningEffort.HIGH],
     ] as const)(
-      "preserves GitLab Responses instructions over compatibility=%s and selected effort=%s",
-      async (enableCors, reasoningEffort) => {
+      "preserves GitLab Responses instructions on mobile=%s and selected effort=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51)",
+      async (mobile, reasoningEffort) => {
+        Platform.isMobile = mobile;
         const model = await createProviderChatModel(
           wire({
             name: "duo-chat-gpt-6-astra",
             providerNpm: "gitlab-ai-provider",
             capabilities: [ModelCapability.REASONING],
             reasoningEffort,
-            enableCors,
             baseUrl: "https://gitlab.invalid",
             providerOptions: {
               GITLAB_INSTANCE_URL: "https://gitlab.invalid",
@@ -317,7 +431,6 @@ describe("createProviderChatModel", () => {
             baseUrl,
             enablePromptCaching,
             capabilities: [ModelCapability.REASONING],
-            enableCors: true,
           })
         );
         expect(await collectText(model, "Synthetic note", { maxRetries: 0 })).toBe("ok");
@@ -336,7 +449,6 @@ describe("createProviderChatModel", () => {
           providerNpm: "@openrouter/ai-sdk-provider",
           reasoningEffort: ReasoningEffort.MINIMAL,
           capabilities: [ModelCapability.REASONING],
-          enableCors: false,
         })
       );
       expect(await collectText(model, "Synthetic note", { maxRetries: 0 })).toBe("ok");
@@ -353,7 +465,6 @@ describe("createProviderChatModel", () => {
           providerNpm: undefined,
           useResponsesApi: false,
           baseUrl: "http://localhost:1234/v1",
-          enableCors: true,
         })
       );
       expect(await collectText(model, "Synthetic note", { maxRetries: 0 })).toBe("ok");
@@ -375,7 +486,6 @@ describe("createProviderChatModel", () => {
             name,
             providerNpm,
             maxTokens,
-            enableCors: true,
             providerOptions: {
               GOOGLE_VERTEX_PROJECT: "synthetic-project",
               GOOGLE_VERTEX_LOCATION: "global",

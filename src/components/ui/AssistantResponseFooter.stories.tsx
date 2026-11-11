@@ -53,3 +53,11 @@ const CompletedResponseVariantsDemo: React.FC = () => (
 export const CompletedResponseVariants: StoryObj<AssistantResponseFooterProps> = {
   render: CompletedResponseVariantsDemo,
 };
+
+export const UsageBesideTimestamp: StoryObj<AssistantResponseFooterProps> = {
+  args: {
+    timestamp: "2026/11/08 18:23:06",
+    afterTimestamp: <span className="tw-text-xs tw-text-muted">18.6k token · 68.4 token/秒</span>,
+    actions: <StoryActions />,
+  },
+};

@@ -1,9 +1,20 @@
 import type { EffortOption } from "@/lib/model-effort";
+import type {
+  ModelCallObservation,
+  UsageMetrics,
+  StopReason,
+} from "@/agentMode/session/usageMetrics";
 import type React from "react";
 import type { ModelCapability } from "@/constants";
 import type { FormattedDateTime, MessageContext } from "@/types/message";
 import type { PlanUsage } from "@/agentMode/session/planUsage";
 import type { ProjectScopeId } from "./scope";
+import type {
+  SubagentDispatchResult,
+  SubagentMessage,
+  SubagentSendInput,
+  SubagentSessionSnapshot,
+} from "@/agentMode/session/subagentTypes";
 
 export type { PlanUsage, UsageWindow } from "@/agentMode/session/planUsage";
 
@@ -29,7 +40,7 @@ export interface AgentBrand {
 
 export type SessionId = string;
 
-export type ScribeMode = "default" | "plan" | "auto";
+export type ScribeMode = "default" | "plan" | "auto" | "full";
 
 export interface ModeMapping {
   kind: "setMode" | "configOption";
@@ -58,13 +69,15 @@ export interface BackendModelCatalog {
   availableModels: readonly ModelEntry[] | null;
 }
 
-export type EnabledModelCredentialState = "ok" | "missing_key";
+export type EnabledModelCredentialState = "ok" | "missing_key" | "unavailable_key";
 
 export interface EnabledModelEntry {
   baseModelId: string;
   name: string;
   label?: string;
   description?: string;
+  // 供应商显示名，供选择器把后端名分组覆盖为供应商分组。https://github.com/ItsDalk-Lane/Scribe/issues/69
+  providerLabel?: string;
   credentialState: EnabledModelCredentialState;
   capabilities?: ModelCapability[];
   isFree?: boolean;
@@ -164,7 +177,7 @@ export type PromptContent =
   | { type: "image"; mimeType: string; data: string }
   | { type: "resource_link"; uri: string; name?: string };
 
-export type StopReason = "end_turn" | "cancelled" | "refusal" | "max_tokens" | "max_turn_requests";
+export type { StopReason } from "@/LLMProviders/modelUsageMetrics";
 
 export type AgentToolKind =
   | "read"
@@ -180,8 +193,17 @@ export type AgentToolKind =
 
 export type AgentToolStatus = "pending" | "in_progress" | "completed" | "failed" | "cancelled";
 
+export interface AgentToolContentBlock {
+  [key: string]: unknown;
+  type: string;
+  text?: string;
+  data?: string;
+  mimeType?: string;
+}
+
 export type AgentToolCallOutput =
   | { type: "text"; text: string }
+  | { type: "content"; content: AgentToolContentBlock }
   | { type: "diff"; path: string; oldText: string | null; newText: string };
 
 export interface AgentPlanEntry {
@@ -235,7 +257,7 @@ export interface ToolCallDelta {
 }
 
 export type ToolCallContent =
-  | { type: "content"; content: { type: "text"; text: string } }
+  | { type: "content"; content: AgentToolContentBlock }
   | { type: "diff"; path: string; oldText?: string | null; newText: string };
 
 export interface PlanSummary {
@@ -247,18 +269,57 @@ export type CompactionStatus = "in_progress" | "completed" | "failed" | "cancell
 export type CompactionTrigger = "manual" | "auto";
 
 export interface CompactionSnapshot {
+  summary?: string;
+  fromIndex?: number;
+  toIndex?: number;
   id: string;
   status: CompactionStatus;
   trigger: CompactionTrigger;
   error?: string;
   preTokens?: number;
   postTokens?: number;
+  contextWindow?: number;
+  subagentId?: string;
+  runId?: string;
+  preservedIndices?: readonly number[];
+  reason?: string;
+  commitSeq?: number;
+}
+
+export interface AgentSegmentBlock {
+  kind: "text" | "thought";
+  text: string;
+  contentIndex: number;
 }
 
 export type SessionUpdate =
   | { sessionUpdate: "user_message_chunk"; content: PromptContent; messageId?: string }
-  | { sessionUpdate: "agent_message_chunk"; content: PromptContent; messageId?: string }
-  | { sessionUpdate: "agent_thought_chunk"; content: PromptContent; messageId?: string }
+  | {
+      sessionUpdate: "agent_message_chunk";
+      content: PromptContent;
+      messageId?: string;
+      segmentSeq?: number;
+      contentIndex?: number;
+    }
+  | {
+      sessionUpdate: "agent_thought_chunk";
+      content: PromptContent;
+      messageId?: string;
+      segmentSeq?: number;
+      contentIndex?: number;
+    }
+  | { sessionUpdate: "agent_segment_started" }
+  | {
+      sessionUpdate: "agent_thought_ended";
+      segmentSeq: number;
+      contentIndex?: number;
+    }
+  | {
+      sessionUpdate: "agent_segment_finalized";
+      segmentSeq: number;
+      blocks: AgentSegmentBlock[];
+      finalResponse?: boolean;
+    }
   | ({ sessionUpdate: "tool_call" } & ToolCallSnapshot)
   | ({ sessionUpdate: "tool_call_update" } & ToolCallDelta)
   | { sessionUpdate: "plan"; entries: AgentPlanEntry[] }
@@ -267,14 +328,23 @@ export type SessionUpdate =
   | { sessionUpdate: "current_mode_update"; currentModeId: string }
   | { sessionUpdate: "config_option_update"; configOptions: BackendConfigOption[] }
   | { sessionUpdate: "state_changed"; state: BackendState }
-  | { sessionUpdate: "usage_update"; usage: SessionUsage }
+  | { sessionUpdate: "usage_update"; usage: SessionUsage; subagentId?: string }
   | { sessionUpdate: "plan_usage_update"; planUsage: PlanUsage | null }
-  | { sessionUpdate: "message_delivered"; promptId: string }
+  | { sessionUpdate: "message_delivered"; promptId: string; messageSeq?: number }
   | { sessionUpdate: "messages_withdrawn"; promptIds: string[] }
-  | { sessionUpdate: "turn_started"; turnId: string; startedAt?: number }
+  | { sessionUpdate: "turn_started"; turnId: string; startedAt?: number; roundId?: string }
+  | { sessionUpdate: "model_call_metrics"; observation: ModelCallObservation }
+  | {
+      sessionUpdate: "tool_execution_started";
+      roundId: string;
+      sourceId: string;
+      toolCallId: string;
+    }
   | ({ sessionUpdate: "turn_ended" } & TurnEnd)
   | { sessionUpdate: "busy_changed"; busy: boolean }
   | { sessionUpdate: "session_disconnected"; error: Error }
+  | { sessionUpdate: "subagents_updated"; subagents: readonly SubagentSessionSnapshot[] }
+  | { sessionUpdate: "subagent_message"; message: SubagentMessage; name: string }
   | ({ sessionUpdate: "task_started" } & TaskStart)
   | {
       sessionUpdate: "task_progress";
@@ -290,6 +360,9 @@ export type TaskKind = "subagent" | "command";
 export type TaskEndStatus = "completed" | "failed" | "stopped";
 
 export interface TaskStart {
+  roundId?: string;
+  subagentId?: string;
+  runId?: string;
   taskId?: string;
   toolCallId: string;
   kind: TaskKind;
@@ -300,6 +373,7 @@ export interface TaskStart {
 }
 
 export interface TaskEnd {
+  stopReason?: StopReason;
   taskId: string;
   status: TaskEndStatus;
   summary?: string;
@@ -307,6 +381,9 @@ export interface TaskEnd {
 }
 
 export interface TurnEnd {
+  roundId?: string;
+  subagentId?: string;
+  taskGenerationId?: string;
   turnId: string;
   stopReason: StopReason;
   error?: Error;
@@ -314,7 +391,13 @@ export interface TurnEnd {
 }
 
 export interface SessionUsage {
+  metrics?: UsageMetrics;
   usedTokens: number;
+  cumulativeInputTokens?: number;
+  cumulativeOutputTokens?: number;
+  cumulativeCacheReadTokens?: number;
+  cumulativeCacheWriteTokens?: number;
+  cumulativeTotalTokens?: number;
   contextWindow?: number;
   inputTokens?: number;
   outputTokens?: number;
@@ -324,6 +407,8 @@ export interface SessionUsage {
 }
 
 export interface SessionEvent {
+  seq?: number;
+  origin?: "observed" | "synthetic" | "derived";
   sessionId: SessionId;
   update: SessionUpdate;
   occurredAt?: number;
@@ -356,7 +441,9 @@ export interface PermissionOption {
   kind: PermissionOptionKind;
 }
 
-export type PermissionRequester = "main" | { taskId: string };
+export type PermissionRequester =
+  | "main"
+  | { taskId: string; subagentId?: string; runId?: string; subagentName?: string };
 
 export interface PermissionPrompt {
   sessionId: SessionId;
@@ -395,7 +482,10 @@ export interface AgentMcpServer {
   headers: Readonly<Record<string, string>>;
 }
 
+export type AgentSessionPurpose = "skill-authoring";
+
 export interface OpenSessionInput {
+  purpose?: AgentSessionPurpose;
   cwd: string;
   modelId?: string;
   projectId?: ProjectScopeId;
@@ -403,8 +493,12 @@ export interface OpenSessionInput {
 }
 
 export interface OpenSessionOutput {
+  purpose?: AgentSessionPurpose;
   sessionId: SessionId;
   state: BackendState;
+  historyFormat?: 2;
+  historyWarnings?: string[];
+  historyReadOnly?: boolean;
 }
 
 export interface ResumeSessionInput {
@@ -429,6 +523,7 @@ export interface PromptInput {
   sessionId: SessionId;
   promptId: string;
   prompt: PromptContent[];
+  displayMessage?: StoredAgentDisplayMessage;
 }
 
 export interface QueuedPrompt {
@@ -448,6 +543,10 @@ export interface ListSessionsInput {
 }
 
 export interface ListedSessionInfo {
+  hasMessages?: boolean;
+  lastSeq?: number;
+  projectId?: ProjectScopeId;
+  pinnedAt?: number | null;
   sessionId: SessionId;
   cwd: string;
   title?: string | null;
@@ -475,7 +574,37 @@ export interface StopTaskInput {
 
 export type SessionUpdateHandler = (event: SessionEvent) => void;
 
+export interface RequestContextPreview {
+  requestId: string;
+  modelId: string;
+  provider: string;
+  content: string;
+}
+
 export interface BackendProcess {
+  getRequestContextPreview?(params: {
+    sessionId: SessionId;
+  }): Promise<RequestContextPreview | null>;
+  continueTaskBudget?(params: {
+    sessionId: SessionId;
+    taskGenerationId?: string;
+    requestId?: string;
+  }): Promise<void>;
+  confirmSubagentRecovery?(params: { sessionId: SessionId; subagentId: string }): Promise<void>;
+  startIndependentTask?(params: { sessionId: SessionId }): Promise<void>;
+  listSubagentSessions?(params: {
+    sessionId: SessionId;
+  }): Promise<readonly SubagentSessionSnapshot[]>;
+  sendSubagentMessage?(params: SubagentSendInput): Promise<SubagentDispatchResult>;
+  setSubagentArchived?(params: {
+    sessionId: SessionId;
+    subagentId: string;
+    archived: boolean;
+  }): Promise<void>;
+  deleteSubagentSession?(params: { sessionId: SessionId; subagentId: string }): Promise<void>;
+  stopSubagent?(params: { sessionId: SessionId; subagentId: string }): Promise<void>;
+  appendDisplayFacts?(params: { sessionId: SessionId; facts: AgentDisplayFact[] }): Promise<void>;
+  readDisplayFacts?(params: { sessionId: SessionId }): Promise<SequencedAgentDisplayFact[]>;
   refreshSessionConfiguration?(sessionId: SessionId): void;
   getExtensionRuntime?(params: {
     sessionId: SessionId;
@@ -517,7 +646,7 @@ export interface BackendProcess {
   shutdown(): Promise<void>;
 }
 
-export type AgentMessagePart =
+export type AgentMessagePart = (
   | {
       kind: "tool_call";
       id: string;
@@ -537,6 +666,7 @@ export type AgentMessagePart =
       kind: "thought";
       text: string;
       startedAtMs?: number;
+      endedAtMs?: number;
       durationMs?: number;
     }
   | {
@@ -547,14 +677,20 @@ export type AgentMessagePart =
       kind: "plan";
       entries: AgentPlanEntry[];
     }
-  | ({ kind: "compaction"; startedAtMs: number } & CompactionSnapshot);
+  | ({ kind: "compaction"; startedAtMs: number } & CompactionSnapshot)
+) & { seq?: number; synthetic?: boolean; segmentSeq?: number; contentIndex?: number };
 
 export interface AgentChatMessage {
+  turnMetrics?: UsageMetrics;
+  taskGenerationId?: string;
+  seq?: number;
+  synthetic?: boolean;
   id: string;
   sender: string;
   timestamp: FormattedDateTime | null;
   isVisible: boolean;
   isErrorMessage?: boolean;
+  errorText?: string;
   message: string;
   parts?: AgentMessagePart[];
   context?: MessageContext;
@@ -575,3 +711,36 @@ export interface TurnFileChange {
 }
 
 export type NewAgentChatMessage = Omit<AgentChatMessage, "id"> & { id?: string };
+
+export interface StoredAgentDisplayMessage extends Omit<AgentChatMessage, "context"> {
+  context?: Omit<MessageContext, "notes"> & { notes: string[] };
+}
+
+export type AgentDisplayFact =
+  | { kind: "pin"; pinnedAt: number | null }
+  | { kind: "inherited_message"; message: StoredAgentDisplayMessage }
+  | { kind: "user_message"; message: StoredAgentDisplayMessage }
+  | {
+      kind: "message_metadata";
+      messageId: string;
+      metadata: Pick<AgentChatMessage, "fileChanges" | "missingAttachments">;
+    }
+  | { kind: "message_deleted"; messageId: string }
+  | { kind: "messages_cleared" }
+  | {
+      kind: "branch";
+      branch: import("./AgentSession").AgentBranchState | null;
+      messages?: StoredAgentDisplayMessage[];
+    }
+  | {
+      kind: "task";
+      task: import("./AgentSession").AgentTask;
+      messages: StoredAgentDisplayMessage[];
+    }
+  | { kind: "session_metadata"; chatId: string; label: string | null };
+
+export interface SequencedAgentDisplayFact {
+  seq: number;
+  origin?: "observed" | "synthetic" | "derived";
+  payload: AgentDisplayFact;
+}

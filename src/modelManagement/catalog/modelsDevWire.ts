@@ -4,9 +4,12 @@ export interface WireModel {
   family?: string;
   provider?: { npm?: string; api?: string; shape?: "responses" | "completions" };
   reasoning?: boolean;
+  reasoning_options?: unknown;
   tool_call?: boolean;
   attachment?: boolean;
+  structured_output?: boolean;
   temperature?: boolean;
+  status?: string;
   knowledge?: string;
   release_date?: string;
   last_updated?: string;

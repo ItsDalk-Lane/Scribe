@@ -15,17 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { useSettingsValue } from "@/settings/model";
 import { safeAsyncHandler } from "@/utils/safeAsyncHandler";
-import {
-  Bookmark,
-  Bug,
-  Download,
-  History,
-  Link,
-  MessageCirclePlus,
-  MoreHorizontal,
-} from "lucide-react";
+import { Bookmark, FileText, History, Link, MessageCirclePlus, MoreHorizontal } from "lucide-react";
 import React, { useCallback, useState } from "react";
 
 const resolveDeleteSummary = describeChatDelete;
@@ -46,7 +37,6 @@ const NeedsMessageMenuItem: React.FC<{ children: React.ReactNode }> = ({ childre
 
 interface AgentChatControlsProps {
   onNewChat?: () => void;
-  onSaveAsNote?: () => void | Promise<void>;
   chatHistoryItems?: ChatHistoryItem[];
   onLoadHistory?: () => void | Promise<void>;
   onLoadChat?: (id: string) => Promise<void>;
@@ -55,18 +45,16 @@ interface AgentChatControlsProps {
   onCloseSession?: (id: string) => Promise<void>;
   openChatIds?: ReadonlySet<string>;
   runningChatIds?: ReadonlySet<string>;
-  onOpenSourceFile?: (id: string) => Promise<void>;
   onCopyChatLink?: () => void | Promise<void>;
+  onPreviewRequest?: () => void;
   getChatBookmarkState?: () => Promise<ChatBookmarkState>;
   onSetChatBookmarked?: (bookmarked: boolean) => Promise<void>;
-  onReportError?: () => void;
   usageMeter?: React.ReactNode;
   tasksIndicator?: React.ReactNode;
 }
 
 export const AgentChatControls: React.FC<AgentChatControlsProps> = ({
   onNewChat,
-  onSaveAsNote,
   chatHistoryItems,
   onLoadHistory,
   onLoadChat,
@@ -75,15 +63,13 @@ export const AgentChatControls: React.FC<AgentChatControlsProps> = ({
   onCloseSession,
   openChatIds,
   runningChatIds,
-  onOpenSourceFile,
   onCopyChatLink,
+  onPreviewRequest,
   getChatBookmarkState,
   onSetChatBookmarked,
-  onReportError,
   usageMeter,
   tasksIndicator,
 }) => {
-  const settings = useSettingsValue();
   const historyAvailable = Boolean(
     chatHistoryItems && onLoadChat && onUpdateChatTitle && onDeleteChat
   );
@@ -110,21 +96,6 @@ export const AgentChatControls: React.FC<AgentChatControlsProps> = ({
             <TooltipContent>{t("New chat")}</TooltipContent>
           </Tooltip>
         )}
-        {!settings.autosaveChat && onSaveAsNote && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost2"
-                size="icon"
-                title={t("Save chat as note")}
-                onClick={() => void onSaveAsNote()}
-              >
-                <Download className="tw-size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{t("Save chat as note")}</TooltipContent>
-          </Tooltip>
-        )}
         {historyAvailable && (
           <Tooltip>
             <ChatHistoryPopover
@@ -135,7 +106,6 @@ export const AgentChatControls: React.FC<AgentChatControlsProps> = ({
               openChatIds={openChatIds}
               runningChatIds={runningChatIds}
               onLoadChat={onLoadChat}
-              onOpenSourceFile={onOpenSourceFile}
               getIcon={resolveHistoryIcon}
               getDeleteSummary={resolveDeleteSummary}
             >
@@ -168,6 +138,12 @@ export const AgentChatControls: React.FC<AgentChatControlsProps> = ({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" container={moreActionsBody}>
+              {onPreviewRequest && (
+                <DropdownMenuItem onSelect={onPreviewRequest}>
+                  <FileText />
+                  {t("View last request")}
+                </DropdownMenuItem>
+              )}
               {onCopyChatLink ? (
                 <DropdownMenuItem onSelect={() => void onCopyChatLink()}>
                   <Link />
@@ -194,14 +170,6 @@ export const AgentChatControls: React.FC<AgentChatControlsProps> = ({
                     {t("Add to bookmarks")}
                   </NeedsMessageMenuItem>
                 ))}
-
-              {onReportError && (
-                <DropdownMenuItem onSelect={onReportError}>
-                  <Bug />
-
-                  {t("Report an issue")}
-                </DropdownMenuItem>
-              )}
             </DropdownMenuContent>
           </DropdownMenu>
         )}

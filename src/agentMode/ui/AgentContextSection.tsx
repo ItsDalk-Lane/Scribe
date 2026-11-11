@@ -3,11 +3,12 @@ import { ContextManageModal } from "@/components/modals/project/context-manage-m
 import { buildBadgeItems } from "@/components/project/ProjectContextBadgeList";
 import { ProjectContextSourceEditor } from "@/components/project/ProjectContextSourceEditor";
 import { cn } from "@/lib/utils";
+import { t } from "@/lib/i18n";
 import { logWarn } from "@/logger";
 import { ProjectFileManager } from "@/projects/ProjectFileManager";
 import { getCachedProjectRecordById, useProjects } from "@/projects/state";
 import { parseProjectUrls } from "@/utils/urlTagUtils";
-import { App } from "obsidian";
+import { App, Notice } from "obsidian";
 import * as React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePersistentContextDrop } from "./hooks/usePersistentContextDrop";
@@ -93,9 +94,14 @@ export default function AgentContextSection({
       return;
     }
     ProjectFileManager.getInstance(app)
-      .updateProject(projectId, { ...base, contextSource: { ...base.contextSource, ...patch } })
+      .updateProject(
+        projectId,
+        { ...base, contextSource: { ...base.contextSource, ...patch } },
+        base
+      )
       .catch((err) => {
         logWarn("[project-context] failed to save context changes", err);
+        new Notice(t("Failed to save project context. Check the result and try again."));
         if (!pendingRef.current) {
           setDraft(getCachedProjectRecordById(projectId)?.project.contextSource);
         }
@@ -123,9 +129,21 @@ export default function AgentContextSection({
     const modal = new ContextManageModal(
       app,
       (updated) => {
-        ProjectFileManager.getInstance(app)
-          .updateProject(projectId, updated)
-          .catch((err) => logWarn("[project-context] failed to save context changes", err));
+        const current = getCachedProjectRecordById(projectId)?.project ?? updated;
+        return ProjectFileManager.getInstance(app).updateProject(
+          projectId,
+          {
+            ...current,
+            contextSource: {
+              ...current.contextSource,
+              inclusions: updated.contextSource.inclusions,
+              exclusions: updated.contextSource.exclusions,
+              webUrls: updated.contextSource.webUrls,
+              youtubeUrls: updated.contextSource.youtubeUrls,
+            },
+          },
+          project
+        );
       },
       project
     );

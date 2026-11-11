@@ -98,5 +98,61 @@ describe("ModelEffortPicker", () => {
       fireEvent.keyDown(await screen.findByRole("dialog"), { key: "Escape" });
       expect(onChange).not.toHaveBeenCalled();
     });
+    it("keeps the chosen draft effort when Enter reselects the already selected model", async () => {
+      const onChange = jest.fn();
+      const reasoningOptions = ["default", "low", "high", "max"].map((value) => ({
+        value,
+        label: value,
+      }));
+      render(
+        <ModelEffortPicker
+          override={{
+            models,
+            value: "model|agent",
+            effort: { options: reasoningOptions, value: "default", onChange },
+            effortOptionsByModelKey: { "model|agent": reasoningOptions },
+            commitSelection: jest.fn(),
+          }}
+        />
+      );
+      fireEvent.click(screen.getByTitle("Model · effort"));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.keyDown(dialog, { key: "ArrowRight" });
+      expect(screen.getByRole("slider").getAttribute("aria-valuenow")).toBe("1");
+      fireEvent.keyDown(dialog, { key: "Enter" });
+      expect(screen.getByRole("slider").getAttribute("aria-valuenow")).toBe("1");
+      fireEvent.keyDown(dialog, { key: "Escape" });
+      expect(onChange).toHaveBeenCalledWith("low");
+    });
+    it("keeps an uncommitted effort when equivalent model props are refreshed while the menu is open", async () => {
+      const onChange = jest.fn();
+      const reasoningOptions = ["default", "low", "high", "max"].map((value) => ({
+        value,
+        label: value,
+      }));
+      const override = {
+        models,
+        value: "model|agent",
+        effort: { options: reasoningOptions, value: "default", onChange },
+        effortOptionsByModelKey: { "model|agent": reasoningOptions },
+        commitSelection: jest.fn(),
+      };
+      const view = render(<ModelEffortPicker override={override} />);
+      fireEvent.click(screen.getByTitle("Model · effort"));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.keyDown(dialog, { key: "ArrowRight" });
+      view.rerender(
+        <ModelEffortPicker
+          override={{
+            ...override,
+            models: [...models],
+            effortOptionsByModelKey: { "model|agent": [...reasoningOptions] },
+          }}
+        />
+      );
+      expect(screen.getByRole("slider").getAttribute("aria-valuenow")).toBe("1");
+      fireEvent.keyDown(dialog, { key: "Escape" });
+      expect(onChange).toHaveBeenCalledWith("low");
+    });
   });
 });

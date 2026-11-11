@@ -1,3 +1,5 @@
+import { useApp } from "@/context";
+import { FolderSearchModal } from "@/components/modals/FolderSearchModal";
 import { t } from "@/lib/i18n";
 import { AgentProjectCreateForm } from "@/agentMode/ui/AgentProjectCreateForm";
 import { computeVerticalPlacement } from "@/utils/panelPlacement";
@@ -8,7 +10,7 @@ import { createPortal } from "react-dom";
 interface CreateProjectPanelProps {
   anchorEl: HTMLElement;
   onClose: () => void;
-  onSave: (data: { name: string }) => Promise<void>;
+  onSave: (data: { name: string; workspacePath?: string }) => Promise<void>;
 }
 
 const MARGIN = 12;
@@ -26,6 +28,8 @@ export function CreateProjectPanel({
   onClose,
   onSave,
 }: CreateProjectPanelProps): React.ReactPortal {
+  const app = useApp();
+  const [choosingWorkspace, setChoosingWorkspace] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const doc = anchorEl.ownerDocument;
   const win = doc.defaultView ?? window;
@@ -61,14 +65,19 @@ export function CreateProjectPanel({
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !e.defaultPrevented) {
+      if (!choosingWorkspace && e.key === "Escape" && !e.defaultPrevented) {
         e.preventDefault();
         onClose();
       }
     };
     const onPointerDown = (e: MouseEvent) => {
       const target = e.target as Node | null;
-      if (target && !panelRef.current?.contains(target) && !anchorEl.contains(target)) {
+      if (
+        !choosingWorkspace &&
+        target &&
+        !panelRef.current?.contains(target) &&
+        !anchorEl.contains(target)
+      ) {
         onClose();
       }
     };
@@ -78,7 +87,7 @@ export function CreateProjectPanel({
       win.removeEventListener("keydown", onKeyDown);
       doc.removeEventListener("mousedown", onPointerDown, true);
     };
-  }, [anchorEl, doc, win, onClose]);
+  }, [anchorEl, doc, win, onClose, choosingWorkspace]);
 
   return createPortal(
     <div
@@ -91,6 +100,19 @@ export function CreateProjectPanel({
       <AgentProjectCreateForm
         title={t("New project")}
         subtitle={t("Create a new project in your vault")}
+        onChooseWorkspace={(select) => {
+          setChoosingWorkspace(true);
+          const picker = new FolderSearchModal(app, select, {
+            includeRoot: true,
+            forWorkspace: true,
+          });
+          const close = picker.onClose.bind(picker);
+          picker.onClose = () => {
+            close();
+            setChoosingWorkspace(false);
+          };
+          picker.open();
+        }}
         onSave={onSave}
         onCancel={onClose}
       />

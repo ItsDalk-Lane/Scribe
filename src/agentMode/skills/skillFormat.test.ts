@@ -42,6 +42,17 @@ describe("skillFormat", () => {
       expect(parsed.body).toBe("body text");
     });
 
+    it("validates the descriptor name itself when parsing a complete draft without a folder", () => {
+      expect(parseSkillFile(minimalSkill()).frontmatter.name).toBe("review-prose");
+      expect(() => parseSkillFile(minimalSkill({ name: "Invalid Name" }))).toThrow(
+        SkillFormatError
+      );
+      expect(() => parseSkillFile(minimalSkill({ name: "a".repeat(65) }))).toThrow(
+        SkillFormatError
+      );
+      expect(() => parseSkillFile(minimalSkill(), "different-folder")).toThrow(SkillFormatError);
+    });
+
     it("reads Claude-only top-level flags", () => {
       const parsed = parseSkillFile(
         frontmatterOf(
@@ -94,6 +105,81 @@ describe("skillFormat", () => {
       expect(parseSkillFile(content, "review-prose").frontmatter.description).toBe(
         "用于审阅笔记：检查清晰度和结构"
       );
+    });
+
+    // 依赖声明是可选元数据：三类依赖、可选说明，字段不合法即拒收。https://github.com/ItsDalk-Lane/Scribe/issues/46
+    it("reads declared dependencies with notes and rejects malformed entries", () => {
+      const content = frontmatterOf(
+        "name: media-notes",
+        "description: Works",
+        "dependencies:",
+        "  - type: command",
+        "    name: ffmpeg",
+        "    note: Converts audio",
+        "  - type: obsidian-plugin",
+        "    name: obsidian-excalidraw",
+        "  - type: python-package",
+        "    name: pandas"
+      );
+      expect(parseSkillFile(content, "media-notes").frontmatter.dependencies).toEqual([
+        { type: "command", name: "ffmpeg", note: "Converts audio" },
+        { type: "obsidian-plugin", name: "obsidian-excalidraw" },
+        { type: "python-package", name: "pandas" },
+      ]);
+      expect(
+        parseSkillFile(frontmatterOf("name: plain-skill", "description: Works"), "plain-skill")
+          .frontmatter.dependencies
+      ).toBeUndefined();
+      expect(() =>
+        parseSkillFile(
+          frontmatterOf(
+            "name: bad-deps",
+            "description: Works",
+            "dependencies:",
+            "  - type: shell",
+            "    name: anything"
+          ),
+          "bad-deps"
+        )
+      ).toThrow(/one of/);
+    });
+
+    // 界面元数据存于 metadata.*，全部可选；无元数据技能行为不变。https://github.com/ItsDalk-Lane/Scribe/issues/47
+    it("reads optional interface metadata and validates the icon path and brand color", () => {
+      const content = frontmatterOf(
+        "name: branded-skill",
+        "description: Works",
+        "metadata:",
+        "  display-name: Branded Skill",
+        "  short-description: Short",
+        "  icon: assets/icon.svg",
+        '  brand-color: "#7c3aed"',
+        "  default-prompt: Summarize this note"
+      );
+      expect(parseSkillFile(content, "branded-skill").frontmatter.uiMetadata).toEqual({
+        displayName: "Branded Skill",
+        shortDescription: "Short",
+        icon: "assets/icon.svg",
+        brandColor: "#7c3aed",
+        defaultPrompt: "Summarize this note",
+      });
+      expect(() =>
+        parseSkillFile(
+          frontmatterOf(
+            "name: bad-icon",
+            "description: Works",
+            "metadata:",
+            "  icon: ../outside.svg"
+          ),
+          "bad-icon"
+        )
+      ).toThrow(/relative path inside the skill folder/);
+      expect(() =>
+        parseSkillFile(
+          frontmatterOf("name: bad-color", "description: Works", "metadata:", "  brand-color: red"),
+          "bad-color"
+        )
+      ).toThrow(/#RRGGBB/);
     });
 
     it.each([
@@ -217,6 +303,45 @@ describe("skillFormat", () => {
       expect(parseSkillFile(out, "foo").frontmatter.enabledAgents).toEqual(["claude", "opencode"]);
     });
 
+    // 依赖与界面元数据补丁：写入可往返，未触及字段保持原文字节。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/46
+    // https://github.com/ItsDalk-Lane/Scribe/issues/47
+    it("round-trips dependency and interface metadata patches without touching other fields", () => {
+      const original = frontmatterOf(
+        "name: foo",
+        "description: A skill",
+        "allowed-tools: Write",
+        "metadata:",
+        "  keep-me: original",
+        "  display-name: Old Name"
+      );
+      const parsed = parseSkillFile(original, "foo");
+      const out = serializeSkillFile(parsed, {
+        dependencies: [{ type: "command", name: "ffmpeg" }],
+        uiMetadata: { displayName: "New Name" },
+      });
+      const reparsed = parseSkillFile(out, "foo");
+      expect(reparsed.frontmatter.dependencies).toEqual([{ type: "command", name: "ffmpeg" }]);
+      expect(reparsed.frontmatter.uiMetadata).toEqual({ displayName: "New Name" });
+      expect(out).toContain("allowed-tools: Write");
+      expect(out).toContain("keep-me: original");
+    });
+
+    it("clears an interface metadata field when its patch key is present but undefined", () => {
+      const original = frontmatterOf(
+        "name: foo",
+        "description: A skill",
+        "metadata:",
+        "  display-name: Old Name",
+        "  keep-me: original"
+      );
+      const out = serializeSkillFile(parseSkillFile(original, "foo"), {
+        uiMetadata: { displayName: undefined },
+      });
+      expect(out).not.toContain("display-name");
+      expect(out).toContain("keep-me: original");
+    });
+
     it("preserves unknown top-level keys", () => {
       const parsed = parseSkillFile(
         frontmatterOf(
@@ -232,6 +357,45 @@ describe("skillFormat", () => {
       expect(out).toContain("another-foreign: 42");
     });
 
+    it("edits optional metadata and flow mappings without changing unrelated number spelling", () => {
+      const original =
+        "---\nname: test\ndescription: Test\nmetadata: { author: Jane, revision: 900719925474099312345 }\n---\nBody";
+      const parsed = parseSkillFile(original, "test");
+      const result = serializeSkillFile(parsed, {
+        author: "Jill",
+        version: "1.2",
+        tags: ["writing"],
+        enabledAgents: ["native"],
+      });
+      expect(result).toContain("900719925474099312345");
+      expect(parseSkillFile(result, "test").doc.getIn(["metadata", "author"])).toBe("Jill");
+      expect(parseSkillFile(result, "test").frontmatter.enabledAgents).toEqual(["native"]);
+    });
+    it("removes an optional flow field and fills a null optional field without invalidating other properties", () => {
+      const flow =
+        "---\n{name: test, description: Test, model: old, custom: 12345678901234567890}\n---\nBody";
+      const removed = serializeSkillFile(parseSkillFile(flow, "test"), { model: undefined });
+      expect(parseSkillFile(removed, "test").frontmatter.model).toBeUndefined();
+      expect(removed).toContain("12345678901234567890");
+      const empty = "---\nname: test\ndescription: Test\nmodel:\n---\nBody";
+      expect(
+        parseSkillFile(
+          serializeSkillFile(parseSkillFile(empty, "test"), { model: "chosen" }),
+          "test"
+        ).frontmatter.model
+      ).toBe("chosen");
+    });
+    it("preserves high-precision unknown numbers when enablement changes", () => {
+      const original =
+        "---\nname: test\ndescription: Test\nmetadata:\n  revision: 900719925474099312345\n  fraction: 1.234567890123456789\n---\nBody";
+      const parsed = parseSkillFile(original, "test");
+      expect(serializeSkillFile(parsed, { enabledAgents: ["native"] })).toContain(
+        "900719925474099312345"
+      );
+      expect(serializeSkillFile(parsed, { enabledAgents: ["native"] })).toContain(
+        "1.234567890123456789"
+      );
+    });
     it("preserves unknown metadata keys", () => {
       const parsed = parseSkillFile(
         frontmatterOf(

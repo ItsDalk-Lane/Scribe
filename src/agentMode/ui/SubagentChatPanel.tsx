@@ -1,0 +1,323 @@
+import { t } from "@/lib/i18n";
+import { listBackendDescriptors } from "@/agentMode/backends/registry";
+import { buildAgentModelPicker } from "@/agentMode/ui/agentModelPickerHelpers";
+import type { AgentTask } from "@/agentMode/session/AgentSession";
+import type { QueuedPrompt } from "@/agentMode/session/types";
+import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
+import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
+import {
+  SubagentChatBackend,
+  SUBAGENT_RUN_MESSAGE_PREFIX,
+} from "@/agentMode/session/SubagentChatBackend";
+import { SUBAGENT_CHAT_DRAFT_PREFIX } from "@/agentMode/session/AgentInputDraftStore";
+import { AgentChatInput } from "@/agentMode/ui/AgentChatInput";
+import AgentChatMessages from "@/agentMode/ui/AgentChatMessages";
+import AgentContextMeter from "@/agentMode/ui/AgentContextMeter";
+import { AgentTurnDurationIndicator } from "@/agentMode/ui/AgentTurnDurationIndicator";
+import { USER_SENDER } from "@/constants";
+import { AgentTasksProvider } from "@/agentMode/ui/AgentTasksContext";
+import { QueuedMessageList } from "@/agentMode/ui/QueuedMessageList";
+import { subagentRunStatusLabel } from "@/agentMode/ui/subagentDisplay";
+import { useAgentChatRuntimeState } from "@/agentMode/ui/hooks/useAgentChatRuntimeState";
+import { useAgentInputDrafts } from "@/agentMode/ui/hooks/useAgentInputDrafts";
+import { useSessionBackendDescriptor } from "@/agentMode/ui/useBackendDescriptor";
+import { Button } from "@/components/ui/button";
+import { ChatInputProvider } from "@/context/ChatInputContext";
+import { logError } from "@/logger";
+import { useSettingsValue } from "@/settings/model";
+import { ArrowLeft } from "lucide-react";
+import { TFile, type App } from "obsidian";
+import type ScribePlugin from "@/main";
+import React, { useMemo, useState } from "react";
+
+const EMPTY_TASKS = Object.freeze([]) as unknown as AgentTask[];
+const EMPTY_PROMPTS = Object.freeze([]) as readonly QueuedPrompt[];
+
+const resolveModelEntry = (
+  modelId: string,
+  manager: AgentSessionManager,
+  settings: ReturnType<typeof useSettingsValue>
+) => {
+  const picker = buildAgentModelPicker({
+    manager,
+    descriptors: listBackendDescriptors(),
+    settings,
+  });
+  return picker?.models.find((candidate) => candidate.name === modelId);
+};
+
+export interface SubagentChatPanelProps {
+  app: App;
+  plugin: ScribePlugin;
+  manager: AgentSessionManager;
+  parentBackend: AgentChatBackend;
+  subagentId: string;
+  onBack: () => void;
+}
+
+interface SubagentTranscriptProps {
+  backend: SubagentChatBackend;
+  plugin: ScribePlugin;
+  subagentId: string;
+  isLoading: boolean;
+}
+
+const SubagentTranscript: React.FC<SubagentTranscriptProps> = ({
+  backend,
+  plugin,
+  subagentId,
+  isLoading,
+}) => {
+  const runtime = useAgentChatRuntimeState(backend, (current) => {
+    const snapshot = backend.getSnapshot();
+    const activeRun = backend.getActiveRun();
+    const latestInput = snapshot?.messages.findLast(
+      (message) =>
+        message.runId === activeRun?.id &&
+        message.direction === "to_child" &&
+        message.deliveredAt !== undefined
+    );
+    return {
+      messages: current.getMessages(),
+      pendingToolPermissions: current.getPendingToolPermissions(),
+      pendingAskUserQuestions: current.getPendingAskUserQuestions(),
+      isReplyRunning: current.isReplyRunning(),
+      activeRunId: activeRun?.id,
+      pendingStartedAtMs: latestInput?.deliveredAt ?? activeRun?.startedAt,
+    };
+  });
+  const latestAssistant = runtime.messages.findLast(
+    (message) => message.sender !== USER_SENDER && !message.synthetic
+  );
+  // 子输入接收后即返回，但模型仍可持续输出；消息区须跟随真实子执行，不能借用旧回复的身份。https://github.com/ItsDalk-Lane/Scribe/issues/52
+  const hasCurrentReply =
+    runtime.activeRunId !== undefined &&
+    latestAssistant?.id.startsWith(`${SUBAGENT_RUN_MESSAGE_PREFIX}${runtime.activeRunId}:`) &&
+    !latestAssistant.turnStopReason &&
+    ((latestAssistant.parts?.length ?? 0) > 0 || latestAssistant.message.length > 0);
+  return (
+    <>
+      <AgentChatMessages
+        key={subagentId}
+        messages={runtime.messages}
+        plugin={plugin}
+        currentPlan={null}
+        pendingToolPermissions={runtime.pendingToolPermissions}
+        pendingAskUserQuestions={runtime.pendingAskUserQuestions}
+        chatBackend={backend}
+        isLoading={isLoading || (runtime.isReplyRunning && !!hasCurrentReply)}
+      />
+      {/* 首片内容到达前只展示真实开始时间，不制造助手消息或把旧答案重新标为运行中。https://github.com/ItsDalk-Lane/Scribe/issues/52 */}
+      {runtime.isReplyRunning && !hasCurrentReply && runtime.pendingStartedAtMs !== undefined ? (
+        <div className="tw-shrink-0 tw-px-3 tw-py-2">
+          <AgentTurnDurationIndicator status="running" startedAtMs={runtime.pendingStartedAtMs} />
+        </div>
+      ) : null}
+    </>
+  );
+};
+
+export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
+  app,
+  plugin,
+  manager,
+  parentBackend,
+  subagentId,
+  onBack,
+}) => {
+  const backend = useMemo(
+    () =>
+      new SubagentChatBackend(parentBackend, subagentId, (path) => {
+        const file = app.vault.getAbstractFileByPath(path);
+        return file instanceof TFile ? file : null;
+      }),
+    [app, parentBackend, subagentId]
+  );
+  const settings = useSettingsValue();
+  const descriptor = useSessionBackendDescriptor(manager);
+  const runtime = useAgentChatRuntimeState(backend, (current) => {
+    const snapshot = backend.getSnapshot();
+    return {
+      hasSession: snapshot !== null,
+      name: snapshot?.name,
+      cwd: snapshot?.cwd,
+      modelId: snapshot?.modelId,
+      archived: snapshot?.retention === "archived",
+      recoveryBlocked: snapshot?.recoveryBlocked,
+      runStatus: backend.getActiveRun()?.status,
+      isStarting: current.isStarting(),
+      isTurnInFlight: current.isTurnInFlight(),
+      isReplyRunning: current.isReplyRunning(),
+      queuedPrompts: current.getQueuedPrompts(),
+    };
+  });
+  const draft = useAgentInputDrafts({
+    store: manager.drafts,
+    chatInputId: `${SUBAGENT_CHAT_DRAFT_PREFIX}${subagentId}`,
+  });
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
+  const isReplyRunning = runtime.isReplyRunning;
+  const archived = runtime.archived;
+  const recoveryBlocked = !!runtime.recoveryBlocked;
+  const blocked = !runtime.hasSession || archived || recoveryBlocked;
+  const isLoading = draft.loading || runtime.isTurnInFlight;
+  const delivering = isReplyRunning ? runtime.queuedPrompts : EMPTY_PROMPTS;
+  const held = isReplyRunning ? EMPTY_PROMPTS : runtime.queuedPrompts;
+
+  const runAction = (operation: () => Promise<void>): void => {
+    setActionError(null);
+    operation().catch((failure: unknown) => {
+      logError("[SubagentChatPanel] action failed", failure);
+      setActionError(failure instanceof Error ? failure.message : String(failure));
+    });
+  };
+
+  const statusLabel = archived
+    ? t("Archived")
+    : recoveryBlocked
+      ? t("Recovery blocked")
+      : runtime.runStatus
+        ? subagentRunStatusLabel(runtime.runStatus)
+        : undefined;
+
+  const modelEntry = runtime.modelId
+    ? resolveModelEntry(runtime.modelId, manager, settings)
+    : undefined;
+  const modelLabel = modelEntry?.displayName || runtime.modelId || "";
+
+  const heldMessages = held.map((prompt) => ({ ...prompt, rawInput: prompt.text }));
+  const queuedNode =
+    delivering.length > 0 || held.length > 0 ? (
+      <div>
+        <QueuedMessageList
+          delivering={delivering}
+          held={heldMessages}
+          heldCaption={t("Waiting for the child to start.")}
+        />
+        {held.length > 0 && !blocked && (
+          <Button
+            variant="secondary"
+            size="fit"
+            className="tw-mx-2 tw-mb-1"
+            disabled={retrying}
+            onClick={() => {
+              setRetrying(true);
+              setActionError(null);
+              void backend
+                .sendWaitingNow()
+                .catch((failure: unknown) => {
+                  logError("[SubagentChatPanel] retry failed", failure);
+                  setActionError(failure instanceof Error ? failure.message : String(failure));
+                })
+                .finally(() => setRetrying(false));
+            }}
+          >
+            {t("Retry waiting messages")}
+          </Button>
+        )}
+      </div>
+    ) : null;
+
+  return (
+    <div className="tw-flex tw-size-full tw-flex-col tw-overflow-hidden">
+      <div className="scribe-divider-b tw-flex tw-shrink-0 tw-items-center tw-gap-2 tw-px-2 tw-py-1.5">
+        <Button variant="ghost2" size="icon" aria-label={t("Back to chat")} onClick={onBack}>
+          <ArrowLeft className="tw-size-4" />
+        </Button>
+        <div className="tw-min-w-0 tw-flex-1 tw-truncate tw-text-sm tw-font-medium">
+          {runtime.name ?? t("This child session no longer exists.")}
+        </div>
+        {statusLabel ? (
+          <span className="tw-shrink-0 tw-rounded tw-bg-secondary tw-px-2 tw-py-0.5 tw-text-xs tw-text-muted">
+            {statusLabel}
+          </span>
+        ) : null}
+        {modelLabel ? (
+          <span className="tw-shrink-0 tw-text-xs tw-text-muted">{modelLabel}</span>
+        ) : null}
+      </div>
+      {actionError ? (
+        <div
+          role="alert"
+          className="tw-shrink-0 tw-whitespace-pre-wrap tw-break-words tw-px-3 tw-py-1 tw-text-sm tw-text-error"
+        >
+          {actionError}
+        </div>
+      ) : null}
+      {recoveryBlocked ? (
+        <div className="tw-flex tw-shrink-0 tw-flex-col tw-gap-2 tw-px-3 tw-py-2">
+          <div
+            role="alert"
+            className="tw-whitespace-pre-wrap tw-break-words tw-text-sm tw-text-warning"
+          >
+            {t("Recovery blocked")}: {runtime.recoveryBlocked}
+          </div>
+          <Button
+            variant="secondary"
+            size="fit"
+            className="tw-self-start"
+            onClick={() => runAction(() => backend.confirmRecovery())}
+          >
+            {t("I checked the actual files and tasks")}
+          </Button>
+        </div>
+      ) : null}
+      {!runtime.hasSession ? (
+        <div className="tw-flex tw-flex-1 tw-flex-col tw-items-center tw-justify-center tw-gap-3 tw-px-6">
+          <p className="tw-m-0 tw-text-sm tw-text-muted">
+            {t("This child session no longer exists.")}
+          </p>
+          <Button variant="secondary" size="fit" onClick={onBack}>
+            {t("Back to chat")}
+          </Button>
+        </div>
+      ) : (
+        <ChatInputProvider>
+          <AgentTasksProvider tasks={EMPTY_TASKS} openTask={() => {}}>
+            <div className="tw-flex tw-min-h-0 tw-flex-1 tw-flex-col">
+              <SubagentTranscript
+                key={subagentId}
+                backend={backend}
+                plugin={plugin}
+                subagentId={subagentId}
+                isLoading={isLoading}
+              />
+              {queuedNode}
+              <div className="tw-flex tw-shrink-0 tw-justify-end tw-px-2">
+                <AgentContextMeter backend={backend} />
+              </div>
+              <AgentChatInput
+                backend={backend}
+                plugin={plugin}
+                chatInputId={`${SUBAGENT_CHAT_DRAFT_PREFIX}${subagentId}`}
+                skillScope={{
+                  cwd: runtime.cwd ?? null,
+                  projectDirectory: descriptor.skillsProjectDir,
+                }}
+                draft={draft}
+                app={app}
+                updateUserMessageHistory={(message) => plugin.updateUserMessageHistory(message)}
+                isStarting={runtime.isStarting}
+                isLoading={isLoading}
+                isReplyRunning={isReplyRunning}
+                queuedPrompts={runtime.queuedPrompts}
+                acceptsMidTurnMessages={true}
+                hasPendingPlanPermission={false}
+                modelPickerOverride={undefined}
+                modePickerOverride={undefined}
+                showModelPicker={false}
+                acceptanceOnly
+                modelIdOverride={runtime.modelId}
+                modelEntryOverride={modelEntry}
+                onCycleMode={() => {}}
+                disabled={blocked}
+                sendDisabled={blocked}
+              />
+            </div>
+          </AgentTasksProvider>
+        </ChatInputProvider>
+      )}
+    </div>
+  );
+};

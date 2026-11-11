@@ -2,18 +2,18 @@ import { t } from "@/lib/i18n";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
 import { filterSkillsForScope } from "@/agentMode/session/scopedSkills";
 import { useManagedSkills } from "@/agentMode/skills/SkillManager";
-import { expandCustomCommandPrefix } from "@/agentMode/session/expandCustomCommandPrefix";
 import { resolveActiveNoteToken } from "@/agentMode/session/resolveActiveNoteToken";
 import type { QueuedAgentMessage } from "@/agentMode/session/AgentInputDraftStore";
 import type { AgentInputDraftControls } from "@/agentMode/ui/hooks/useAgentInputDrafts";
-import { isCompactCommand } from "@/commands/compactCommand";
+import { isCompactCommand, COMPACT_COMMAND_NAME } from "@/commands/compactCommand";
+import { parseSubagentCommand } from "@/commands/subagentCommand";
+import { getSubagents } from "@/agentMode/subagents/SubagentManager";
+import { isBuiltinCommandEnabled } from "@/agentMode/agentCommands/builtinAgentCommands";
 import {
   clearSelection,
   dismissSelection,
   useSelectedTextContexts,
 } from "@/selection/selectionStore";
-import { CustomCommandManager } from "@/commands/customCommandManager";
-import { getCachedCustomCommands } from "@/commands/state";
 import ChatInput, {
   type ChatInputHandle,
   type ChatInputProps,
@@ -25,13 +25,9 @@ import { logError, logWarn } from "@/logger";
 import type { PromptContent, QueuedPrompt } from "@/agentMode/session/types";
 import type ScribePlugin from "@/main";
 import { buildWebTabsWithActiveSnapshot } from "@/services/webViewerService/activeWebTabSnapshot";
-import {
-  isNoteSelectedTextContext,
-  type MessageContext,
-  type SelectedTextContext,
-  type WebTabContext,
-} from "@/types/message";
-import { getModelKeyFromModel } from "@/settings/model";
+import type { MessageContext, SelectedTextContext, WebTabContext } from "@/types/message";
+import { getModelKeyFromModel, getSettings } from "@/settings/model";
+import { SecretStore } from "@/services/secretStore";
 import { modelSupportsVision } from "@/utils";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "@/utils/base64";
 import { mergeWebTabContexts } from "@/utils/urlNormalization";
@@ -56,8 +52,13 @@ interface AgentChatInputProps {
   hasPendingPlanPermission: boolean;
   modelPickerOverride: ChatInputProps["modelPickerOverride"];
   modePickerOverride: ChatInputProps["modePickerOverride"];
+  showModelPicker?: boolean;
+  acceptanceOnly?: boolean;
+  modelIdOverride?: string;
+  modelEntryOverride?: NonNullable<ChatInputProps["modelPickerOverride"]>["models"][number];
   onCycleMode: () => void;
   disabled?: boolean;
+  sendDisabled?: boolean;
 }
 
 interface MessagePreparationQueue {
@@ -112,11 +113,21 @@ const combineQueuedMessages = (items: QueuedAgentMessage[]): QueuedAgentMessage 
   };
 };
 
+// /compact 只有在用户未关闭内置命令开关时才算压缩指令；关闭后按普通文字处理。https://github.com/ItsDalk-Lane/Scribe/issues/53
+const isCompactSend = (text: string): boolean =>
+  isCompactCommand(text) && isBuiltinCommandEnabled(getSettings(), COMPACT_COMMAND_NAME);
+
+// 子代理斜杠委派与 /compact 一样按命令发送：不作为 mid-turn 插话、不携带图片，排队时也独立成回合。https://github.com/ItsDalk-Lane/Scribe/issues/54
+const isSubagentSend = (text: string): boolean =>
+  parseSubagentCommand(text, getSubagents()) !== undefined;
+
+const isCommandSend = (text: string): boolean => isCompactSend(text) || isSubagentSend(text);
+
 const takeNextQueuedBatch = (
   items: QueuedAgentMessage[]
 ): { batch: QueuedAgentMessage[]; rest: QueuedAgentMessage[] } => {
-  const nextCompact = items.findIndex((item) => isCompactCommand(item.text));
-  const end = nextCompact === 0 ? 1 : nextCompact === -1 ? items.length : nextCompact;
+  const nextCommand = items.findIndex((item) => isCommandSend(item.text));
+  const end = nextCommand === 0 ? 1 : nextCommand === -1 ? items.length : nextCommand;
   return { batch: items.slice(0, end), rest: items.slice(end) };
 };
 
@@ -155,8 +166,13 @@ export const AgentChatInput = memo(function AgentChatInput({
   hasPendingPlanPermission,
   modelPickerOverride,
   modePickerOverride,
+  showModelPicker = true,
+  acceptanceOnly = false,
+  modelIdOverride,
+  modelEntryOverride,
   onCycleMode,
   disabled = false,
+  sendDisabled = false,
 }: AgentChatInputProps) {
   const eventTarget = useContext(EventTargetContext);
   const managedSkills = useManagedSkills();
@@ -174,7 +190,7 @@ export const AgentChatInput = memo(function AgentChatInput({
   const activeChatInputId = useRef(chatInputId);
   activeChatInputId.current = chatInputId;
 
-  const selectedTextContexts = useSelectedTextContexts();
+  const currentSelection = useSelectedTextContexts();
   const { activeWebTabForMentions } = useActiveWebTabState();
 
   const previousChatInputIdRef = useRef(chatInputId);
@@ -190,6 +206,7 @@ export const AgentChatInput = memo(function AgentChatInput({
     setInput: setInputMessage,
     setContextNotes,
     setWebTabs,
+    setDraftSelectedText,
     setSelectedImages,
     addImages,
     setIncludeActiveNote,
@@ -198,9 +215,15 @@ export const AgentChatInput = memo(function AgentChatInput({
     setQueue: setQueuedMessages,
     resetCompose,
   } = draft;
-  const activeModelEntry = modelPickerOverride?.models.find(
-    (model) => getModelKeyFromModel(model) === modelPickerOverride.value
+  const selectedTextContexts = dedupeBy(
+    [...(draft.selectedTextContexts ?? []), ...currentSelection],
+    (selection) => selection.id
   );
+  const activeModelEntry =
+    modelEntryOverride ??
+    modelPickerOverride?.models.find(
+      (model) => getModelKeyFromModel(model) === modelPickerOverride.value
+    );
   const unsupportedImageModelLabel =
     Array.isArray(activeModelEntry?.capabilities) && !modelSupportsVision(activeModelEntry)
       ? activeModelEntry.displayName || activeModelEntry.name
@@ -214,7 +237,7 @@ export const AgentChatInput = memo(function AgentChatInput({
 
   const restoreToComposer = useCallback(
     (items: QueuedAgentMessage[], originalImages: File[] = []) => {
-      const nonCompact = items.filter((item) => !isCompactCommand(item.text));
+      const nonCompact = items.filter((item) => !isCompactSend(item.text));
       const restored = combineQueuedMessages(nonCompact.length > 0 ? nonCompact : items);
       const currentInput = activeChatInputId.current === chatInputId ? chatInputRef.current : null;
       const activeUrl = currentInput ? activeWebTabForMentions?.url : undefined;
@@ -238,6 +261,9 @@ export const AgentChatInput = memo(function AgentChatInput({
       if (notes.length > 0) {
         setContextNotes((previous) => dedupeBy([...notes, ...previous], (note) => note.path));
       }
+      const selected = restored.context?.selectedTextContexts ?? [];
+      if (selected.length > 0)
+        setDraftSelectedText((previous) => dedupeBy([...selected, ...previous], (item) => item.id));
       const images = [
         ...(restored.promptContent ?? [])
           .map(imageBlockToFile)
@@ -253,6 +279,7 @@ export const AgentChatInput = memo(function AgentChatInput({
       setContextNotes,
       setInputMessage,
       setWebTabs,
+      setDraftSelectedText,
       setIncludeActiveNote,
       setIncludeActiveWebTab,
       setSelectedImages,
@@ -278,6 +305,8 @@ export const AgentChatInput = memo(function AgentChatInput({
       await backend.cancel();
     } catch (e) {
       logError("[AgentMode] cancel failed", e);
+      // 主输入区的停止失败也必须可见，不能只在后台日志留下记录。https://github.com/ItsDalk-Lane/Scribe/issues/50
+      new Notice(t("Stopping could not be confirmed. Check background work and try again."));
     }
   }, [backend, queuedMessages, restoreToComposer, setQueuedMessages]);
 
@@ -299,18 +328,25 @@ export const AgentChatInput = memo(function AgentChatInput({
       } catch (error) {
         logError("Error sending agent message:", error);
         new Notice(t("Failed to send message. Please try again."));
-        if (!accepted) restoreToComposer([item]);
+        if (!accepted || acceptanceOnly) restoreToComposer([item]);
       } finally {
         setLoading(false);
       }
     },
-    [backend, restoreToComposer, setLoading, updateUserMessageHistory]
+    [acceptanceOnly, backend, restoreToComposer, setLoading, updateUserMessageHistory]
   );
 
   const sendMidTurn = useCallback(
     (item: QueuedAgentMessage) => {
       try {
-        backend.sendMessage(item.text, item.context, item.promptContent);
+        const { turn } = backend.sendMessage(item.text, item.context, item.promptContent);
+        if (acceptanceOnly) {
+          void turn.catch((error) => {
+            logError("Error sending agent message:", error);
+            new Notice(t("Failed to send message. Please try again."));
+            restoreToComposer([item]);
+          });
+        }
         if (item.rawInput) updateUserMessageHistory(item.rawInput);
       } catch (error) {
         logError("Error sending agent message:", error);
@@ -318,12 +354,13 @@ export const AgentChatInput = memo(function AgentChatInput({
         restoreToComposer([item]);
       }
     },
-    [backend, restoreToComposer, updateUserMessageHistory]
+    [acceptanceOnly, backend, restoreToComposer, updateUserMessageHistory]
   );
 
+  const unlocking = useRef(false);
   const handleSendMessage = useCallback(
     async (webTabs?: WebTabContext[]) => {
-      if (disabled) return;
+      if (disabled || sendDisabled) return;
       const text = inputMessage.trim();
       if (!text && selectedImages.length === 0) return;
       const rawInput = inputMessage;
@@ -337,17 +374,7 @@ export const AgentChatInput = memo(function AgentChatInput({
       candidateNotes.push(...contextNotes);
       const notes = dedupeBy(candidateNotes, (n) => n.path);
 
-      const noteSelection = selectedTextContexts.find(isNoteSelectedTextContext);
-      const expanded = await expandCustomCommandPrefix(
-        text,
-        getCachedCustomCommands(),
-        noteSelection?.content ?? "",
-        activeFile
-      );
-      if (expanded.matched) {
-        void CustomCommandManager.getInstance().recordUsage(expanded.matched);
-      }
-      const resolvedText = resolveActiveNoteToken(expanded.text, activeFile);
+      const resolvedText = resolveActiveNoteToken(text, activeFile);
 
       const shouldIncludeActiveWebTab =
         includeActiveWebTab || resolvedText.includes(ACTIVE_WEB_TAB_MARKER);
@@ -357,7 +384,7 @@ export const AgentChatInput = memo(function AgentChatInput({
         shouldIncludeActiveWebTab
       );
 
-      const images = isCompactCommand(resolvedText) ? [] : selectedImages;
+      const images = isCommandSend(resolvedText) ? [] : selectedImages;
       if (images.length > 0 && unsupportedImageModelLabel) {
         new Notice(
           t("{p0} doesn't support images. Switch to a vision-capable model to send images.", {
@@ -367,6 +394,30 @@ export const AgentChatInput = memo(function AgentChatInput({
         return;
       }
 
+      if (unlocking.current) return;
+      const settings = getSettings();
+      const selectedModelId =
+        modelIdOverride ?? backend.getBackendState()?.model?.current.baseModelId;
+      const selectedModel = settings.configuredModels.find(
+        (model) => model.configuredModelId === selectedModelId
+      );
+      const reference = selectedModel && settings.providers[selectedModel.providerId]?.apiKeyRef;
+      if (reference) {
+        unlocking.current = true;
+        try {
+          await SecretStore.getInstance(app).withSecret(reference, async () => undefined);
+        } catch (error) {
+          if (!(error instanceof Error && error.name === "AbortError"))
+            new Notice(
+              error instanceof Error
+                ? error.message
+                : t("Failed to send message. Please try again.")
+            );
+          return;
+        } finally {
+          unlocking.current = false;
+        }
+      }
       resetCompose();
       clearSelection();
 
@@ -408,7 +459,7 @@ export const AgentChatInput = memo(function AgentChatInput({
 
         const starting = backend.isStarting();
         if (starting || backend.isTurnInFlight() || backend.getQueuedPrompts().length > 0) {
-          if (!starting && acceptsMidTurnMessages && !isCompactCommand(item.text)) {
+          if (!starting && acceptsMidTurnMessages && !isCommandSend(item.text)) {
             sendMidTurn(item);
             return;
           }
@@ -427,6 +478,7 @@ export const AgentChatInput = memo(function AgentChatInput({
       backend,
       inputMessage,
       selectedImages,
+      modelIdOverride,
       contextNotes,
       includeActiveNote,
       includeActiveWebTab,
@@ -435,6 +487,7 @@ export const AgentChatInput = memo(function AgentChatInput({
       sendMidTurn,
       unsupportedImageModelLabel,
       disabled,
+      sendDisabled,
       resetCompose,
       restoreToComposer,
       runSend,
@@ -445,11 +498,28 @@ export const AgentChatInput = memo(function AgentChatInput({
   useEffect(() => {
     if (
       disabled ||
+      sendDisabled ||
       loading ||
       isStarting ||
       queuedPrompts.length > 0 ||
       queuedMessages.length === 0
     ) {
+      return;
+    }
+    const stopReason = backend
+      .getMessages()
+      .findLast((message) => message.turnStopReason)?.turnStopReason;
+    // 自动停止后保留排队文本供用户确认，不能因空闲状态立即发出下一次请求。https://github.com/ItsDalk-Lane/Scribe/issues/31 https://github.com/ItsDalk-Lane/Scribe/issues/50
+    if (
+      stopReason === "quota_exhausted" ||
+      stopReason === "authentication_error" ||
+      stopReason === "context_limit" ||
+      stopReason === "request_error" ||
+      stopReason === "max_turn_requests" ||
+      stopReason === "max_task_requests"
+    ) {
+      setQueuedMessages([]);
+      restoreToComposer(queuedMessages);
       return;
     }
     const { batch, rest } = takeNextQueuedBatch(queuedMessages);
@@ -469,10 +539,13 @@ export const AgentChatInput = memo(function AgentChatInput({
     void runSend(combined);
   }, [
     disabled,
+    sendDisabled,
     loading,
     isStarting,
     queuedPrompts.length,
     queuedMessages,
+    backend,
+    restoreToComposer,
     runSend,
     setQueuedMessages,
     unsupportedImageModelLabel,
@@ -505,6 +578,7 @@ export const AgentChatInput = memo(function AgentChatInput({
           setInputMessage={setInputMessage}
           handleSendMessage={safeAsyncHandler((meta) => handleSendMessage(meta?.webTabs))}
           isGenerating={isReplyRunning}
+          sendDisabled={disabled || sendDisabled}
           onStopGenerating={safeAsyncHandler(handleStopGenerating)}
           onEscape={isReplyRunning ? safeAsyncHandler(handleStopGenerating) : undefined}
           onShiftTab={modePickerOverride ? onCycleMode : undefined}
@@ -522,10 +596,14 @@ export const AgentChatInput = memo(function AgentChatInput({
           onAddImage={addImages}
           setSelectedImages={setSelectedImages}
           disableModelSwitch={!modelPickerOverride}
+          showModelPicker={showModelPicker}
           modelPickerOverride={modelPickerOverride ?? undefined}
           modePickerOverride={modePickerOverride ?? undefined}
           selectedTextContexts={selectedTextContexts}
-          onRemoveSelectedText={dismissSelection}
+          onRemoveSelectedText={(id) => {
+            dismissSelection(id);
+            setDraftSelectedText((previous) => previous.filter((item) => item.id !== id));
+          }}
         />
       </div>
     </>

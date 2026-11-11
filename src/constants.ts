@@ -1,17 +1,18 @@
-import { DEFAULT_BUILTIN_PREFERENCES } from "@/builtinSkills/builtinSkills";
+import { DEFAULT_MCP_TOOL_LOADING_THRESHOLD_CHARS } from "@/agentMode/mcp/toolLoadingPolicy";
 import { type ScribeSettings } from "@/settings/model";
-import { PromptSortStrategy } from "./types";
 
 export const BREVILABS_API_BASE_URL = "https://api.brevilabs.com/v1";
 export const CHAT_AGENT_VIEWTYPE = "scribe-agent-chat-view";
 export const AGENT_CHAT_MODE = "agent";
 export const PLAN_PREVIEW_VIEW_TYPE = "scribe-plan-preview-view";
 export const TURN_DIFF_VIEW_TYPE = "scribe-turn-diff-view";
+export const SUBAGENT_CHAT_VIEW_TYPE = "scribe-subagent-chat-view";
 export const SHARED_VIEW_TYPES = Object.freeze([]);
 export const DESKTOP_VIEW_TYPES = [
   ...SHARED_VIEW_TYPES,
   CHAT_AGENT_VIEWTYPE,
   PLAN_PREVIEW_VIEW_TYPE,
+  SUBAGENT_CHAT_VIEW_TYPE,
 ] as const;
 
 export const SCRIBE_AGENT_ICON_ID = "scribe-agent";
@@ -25,15 +26,18 @@ export const SCRIBE_AGENT_ICON_SVG = `<g transform="${SCRIBE_AGENT_ICON_TRANSFOR
 export const USER_SENDER = "user";
 export const AI_SENDER = "ai";
 
-export const SCRIBE_FOLDER_ROOT = "scribe";
+export const SCRIBE_FOLDER_ROOT = ".scribe";
 export const DEFAULT_SCRIBE_FOLDER = SCRIBE_FOLDER_ROOT;
-const DEFAULT_CHAT_HISTORY_FOLDER = `${SCRIBE_FOLDER_ROOT}/scribe-conversations`;
-const DEFAULT_CUSTOM_PROMPTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/scribe-custom-prompts`;
-const DEFAULT_MEMORY_FOLDER = `${SCRIBE_FOLDER_ROOT}/memory`;
-const DEFAULT_SYSTEM_PROMPTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/system-prompts`;
-const DEFAULT_PROJECTS_FOLDER = `${SCRIBE_FOLDER_ROOT}/projects`;
 export const DEFAULT_SKILLS_FOLDER = `${SCRIBE_FOLDER_ROOT}/skills`;
-export const SCRIBE_CONVERSATION_TAG = "scribe-conversation";
+// 模型可见技能目录的预算默认值（百分比与绝对上限均可被设置覆盖）。
+// https://github.com/ItsDalk-Lane/Scribe/issues/40
+export const DEFAULT_SKILL_CATALOG_BUDGET_PERCENT = 2;
+export const DEFAULT_SKILL_CATALOG_BUDGET_MAX_TOKENS = 10000;
+export const DEFAULT_SUBAGENT_LIMITS = Object.freeze({
+  maxConcurrent: 3,
+  maxQueued: 20,
+  maxTaskRequests: 100,
+});
 export const DEFAULT_QA_EXCLUSIONS_SETTING = SCRIBE_FOLDER_ROOT;
 export const NOTE_CONTEXT_PROMPT_TAG = "note_context";
 export const SELECTED_TEXT_TAG = "selected_text";
@@ -54,6 +58,11 @@ export enum ReasoningEffort {
 }
 
 export const DEFAULT_MAX_OUTPUT_TOKENS = 20_000;
+
+// 供应商调用的统一等待期限：发出请求后等待响应的期限，以及流式过程中相邻事件间的空闲期限。
+// https://github.com/ItsDalk-Lane/Scribe/issues/59
+export const DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS = 600_000;
+export const DEFAULT_PROVIDER_STREAM_IDLE_TIMEOUT_MS = 300_000;
 
 export enum ChatModelProviders {
   OPENROUTERAI = "openrouterai",
@@ -196,7 +205,6 @@ export enum SEND_SHORTCUT {
 
 export const COMMAND_IDS = {
   TRIGGER_QUICK_COMMAND: "trigger-quick-command",
-  CLEAR_SCRIBE_CACHE: "clear-scribe-cache",
   COUNT_WORD_AND_TOKENS_SELECTION: "count-word-and-tokens-selection",
   COUNT_TOTAL_VAULT_TOKENS: "count-total-vault-tokens",
   NEW_AGENT_CHAT: "new-agent-chat",
@@ -215,7 +223,6 @@ export const COMMAND_IDS = {
 
 export const COMMAND_NAMES: Record<CommandId, string> = {
   [COMMAND_IDS.TRIGGER_QUICK_COMMAND]: "Trigger quick command",
-  [COMMAND_IDS.CLEAR_SCRIBE_CACHE]: "Clear Scribe cache",
   [COMMAND_IDS.COUNT_TOTAL_VAULT_TOKENS]: "Count total tokens in your vault",
   [COMMAND_IDS.COUNT_WORD_AND_TOKENS_SELECTION]: "Count words and tokens in selection",
   [COMMAND_IDS.NEW_AGENT_CHAT]: "New Scribe Agent Chat",
@@ -244,7 +251,6 @@ export const COMMAND_ICONS: Partial<Record<CommandId, string>> = {
   [COMMAND_IDS.ADD_WEB_SELECTION_TO_CHAT_CONTEXT]: "globe",
   [COMMAND_IDS.ADD_CUSTOM_COMMAND]: "plus-circle",
   [COMMAND_IDS.APPLY_CUSTOM_COMMAND]: "play-circle",
-  [COMMAND_IDS.CLEAR_SCRIBE_CACHE]: "eraser",
   [COMMAND_IDS.COUNT_TOTAL_VAULT_TOKENS]: "calculator",
   [COMMAND_IDS.COUNT_WORD_AND_TOKENS_SELECTION]: "hash",
   [COMMAND_IDS.OPEN_LOG_FILE]: "file-text",
@@ -258,7 +264,6 @@ export const ALLOWED_NOTE_CONTEXT_EXTENSIONS = [...TEXT_READABLE_EXTENSIONS, "pd
 export const DEFAULT_SETTINGS: ScribeSettings = {
   openAIApiKey: "",
   openAIOrgId: "",
-  huggingfaceApiKey: "",
   cohereApiKey: "",
   anthropicApiKey: "",
   googleApiKey: "",
@@ -268,53 +273,42 @@ export const DEFAULT_SETTINGS: ScribeSettings = {
   deepseekApiKey: "",
   siliconflowApiKey: "",
   defaultModelKey: "",
-  userSystemPrompt: "",
-  openAIProxyBaseUrl: "",
   scribeFolder: DEFAULT_SCRIBE_FOLDER,
   scribeRootHistory: [],
-  defaultSaveFolder: DEFAULT_CHAT_HISTORY_FOLDER,
-  defaultConversationTag: "scribe-conversation",
-  autosaveChat: true,
   autoAttachActiveNote: true,
+  secretsRememberOnDevice: true,
   defaultOpenArea: DEFAULT_OPEN_AREA.VIEW,
   defaultSendShortcut: SEND_SHORTCUT.ENTER,
-  customPromptsFolder: DEFAULT_CUSTOM_PROMPTS_FOLDER,
   qaExclusions: DEFAULT_QA_EXCLUSIONS_SETTING,
   qaInclusions: "",
   debug: false,
   enableInlineCitations: true,
   groqApiKey: "",
   activeModels: [],
-  promptUsageTimestamps: {},
-  promptSortStrategy: PromptSortStrategy.TIMESTAMP,
   chatHistorySortStrategy: "recent",
-  projectsFolder: DEFAULT_PROJECTS_FOLDER,
-  defaultConversationNoteName: "{$topic}@{$date}_{$time}",
   inlineEditCommands: [],
-  projectList: [],
-  enableCustomPromptTemplating: true,
-  memoryFolderName: DEFAULT_MEMORY_FOLDER,
   quickCommandModelKey: undefined,
   quickCommandIncludeNoteContext: true,
-  userSystemPromptsFolder: DEFAULT_SYSTEM_PROMPTS_FOLDER,
-  defaultSystemPromptTitle: "",
   agentMode: {
-    byok: {},
     activeBackend: "native",
     backends: {},
-    debugFullFrames: true,
-    offerFeedbackCards: true,
     notificationSound: true,
     notificationSoundId: "piano",
     welcomeDismissed: false,
+    subagentChatOpenArea: "right",
+    disabledBuiltinCommands: [],
+    subagents: DEFAULT_SUBAGENT_LIMITS,
     skills: {
-      folder: DEFAULT_SKILLS_FOLDER,
-      builtinPreferences: DEFAULT_BUILTIN_PREFERENCES,
+      catalogBudgetPercent: DEFAULT_SKILL_CATALOG_BUDGET_PERCENT,
+      catalogBudgetMaxTokens: DEFAULT_SKILL_CATALOG_BUDGET_MAX_TOKENS,
     },
+    mcpToolLoading: "auto",
+    mcpToolLoadingThresholdChars: DEFAULT_MCP_TOOL_LOADING_THRESHOLD_CHARS,
   },
   providers: {},
   configuredModels: [],
   backends: {},
+  mcp: { servers: [] },
 };
 
 export const EVENT_NAMES = {

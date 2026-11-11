@@ -1,8 +1,13 @@
 import * as agentWelcomeStories from "@/agentMode/ui/AgentWelcomeCard.stories";
+import * as skillStories from "@/agentMode/skills/ui/SkillRowLayout.stories";
 import * as galleryHostStories from "@/components/gallery-hosts.stories";
 import * as badgeStories from "@/components/ui/badge.stories";
 import * as buttonStories from "@/components/ui/button.stories";
+import * as modePickerStories from "@/components/ui/ModePicker.stories";
+import * as providerListStories from "@/modelManagement/ui/components/ProviderModelTable.stories";
+import * as stepLimitStories from "@/settings/v2/components/ui/AgentStepLimitSetting.stories";
 import { AppContext } from "@/context";
+import { setInterfaceLocale } from "@/lib/i18n";
 import { act, fireEvent, render, type RenderResult, within } from "@testing-library/react";
 import type { App } from "obsidian";
 import * as React from "react";
@@ -780,6 +785,95 @@ describe("Gallery", () => {
       )?.[1];
       act(() => closeSettings?.());
       expect(gallery.queryByText("Settings example")).toBeNull();
+    });
+
+    it("renders independent canonical skill enabled, unconfirmed and error states at each preset width (https://github.com/ItsDalk-Lane/Scribe/issues/6)", () => {
+      const catalog = createGalleryCatalog(
+        [{ componentId: "@/agentMode/skills/ui/SkillRowLayout", storyModule: skillStories }],
+        1
+      );
+      const gallery = render(<GalleryHarness catalog={catalog} />);
+      selectStoryInTree(gallery, "Skills/Custom skill row/Canonical");
+
+      for (const width of ["300", "340", "400", "600"]) {
+        fireEvent.click(gallery.getByRole("button", { name: width }));
+        const canvas = gallery.container.querySelector<HTMLElement>(".scribe-gallery-canvas");
+        expect(canvas?.dataset.galleryWidth).toBe(width);
+        expect(canvas?.style.width).toBe(`${width}px`);
+
+        selectStoryInTree(gallery, "Skills/Custom skill row/Canonical");
+        const enabled = gallery.getByRole("switch", { name: "Enable writing-review" });
+        expect(enabled.getAttribute("aria-checked")).toBe("true");
+        expect(enabled.getAttribute("aria-disabled")).toBe("false");
+        expect(gallery.queryByRole("alert")).toBeNull();
+
+        selectStoryInTree(gallery, "Skills/Custom skill row/UnconfirmedPreference");
+        const unconfirmed = gallery.getByRole("switch", { name: "Enable writing-review" });
+        expect(unconfirmed.getAttribute("aria-checked")).toBe("true");
+        expect(unconfirmed.getAttribute("aria-disabled")).toBe("true");
+        expect(unconfirmed.getAttribute("aria-description")).toBe(
+          "Availability could not be confirmed. Check again."
+        );
+        expect(gallery.queryByRole("alert")).toBeNull();
+
+        selectStoryInTree(gallery, "Skills/Custom skill row/PersonalSkillsWithLoadError");
+        const loadError = gallery.getByRole("alert", { name: "1 skill could not be loaded" });
+        expect(within(loadError).getByText("The skills have format errors.")).toBeTruthy();
+        expect(within(loadError).getByRole("button", { name: "View details" })).toBeTruthy();
+        const disabled = gallery.getByRole("switch", { name: "Enable obsidian-markdown" });
+        expect(disabled.getAttribute("aria-checked")).toBe("false");
+        expect(disabled.getAttribute("aria-disabled")).toBe("false");
+        expect(gallery.queryByRole("switch", { name: "Enable writing-review" })).toBeNull();
+      }
+    });
+
+    it("renders explicit unlimited settings and a remote keyless provider at each preset width https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+      const catalog = createGalleryCatalog(
+        [
+          {
+            componentId: "@/settings/v2/components/ui/AgentStepLimitSetting",
+            storyModule: stepLimitStories,
+          },
+          {
+            componentId: "@/modelManagement/ui/components/ProviderModelTable",
+            storyModule: providerListStories,
+          },
+        ],
+        2
+      );
+      const gallery = render(<GalleryHarness catalog={catalog} />);
+      selectStoryInTree(gallery, "Settings/Agent step limit/Unlimited");
+
+      for (const width of ["300", "340", "400", "600"]) {
+        fireEvent.click(gallery.getByRole("button", { name: width }));
+        expect(gallery.getByRole("option", { name: "Unlimited" })).toBeTruthy();
+        expect(gallery.queryByText("Step limit")).toBeNull();
+      }
+
+      selectStoryInTree(gallery, "Settings/Provider List/KeylessRemote");
+      for (const width of ["300", "340", "400", "600"]) {
+        fireEvent.click(gallery.getByRole("button", { name: width }));
+        expect(gallery.getByText("No API key required")).toBeTruthy();
+        expect(gallery.getByText("Sends requests to: Public gateway")).toBeTruthy();
+      }
+    });
+
+    it("renders the Chinese plan mode in the gallery at each preset width", () => {
+      setInterfaceLocale("zh-CN");
+      try {
+        const catalog = createGalleryCatalog(
+          [{ componentId: "@/components/ui/ModePicker", storyModule: modePickerStories }],
+          1
+        );
+        const gallery = render(<GalleryHarness catalog={catalog} />);
+        selectStoryInTree(gallery, "UI/Mode Picker/Plan");
+        for (const width of ["300", "340", "400", "600"]) {
+          fireEvent.click(gallery.getByRole("button", { name: width }));
+          expect(gallery.getByRole("button", { name: "计划" })).toBeTruthy();
+        }
+      } finally {
+        setInterfaceLocale("en");
+      }
     });
 
     it("applies a preset width to the canvas and the rendered story", () => {

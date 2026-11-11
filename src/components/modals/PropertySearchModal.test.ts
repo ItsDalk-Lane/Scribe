@@ -64,13 +64,14 @@ describe("PropertySearchModal", () => {
         expect(modal.getItems()).toEqual(["Subject"]);
       });
 
-      it("omits keys that only exist under a system Scribe root", () => {
+      it("omits plugin data properties while keeping properties in former data folders", () => {
         const app = makeApp([
           { path: "Notes/a.md", frontmatter: { Topics: "Physics" } },
-          { path: "scribe/scribe-conversations/chat.md", frontmatter: { mode: "agent" } },
+          { path: ".scribe/scribe-conversations/chat.md", frontmatter: { mode: "agent" } },
+          { path: "scribe/ordinary.md", frontmatter: { FormerFolder: "User note" } },
         ]);
         const modal = new PropertySearchModal(app, jest.fn());
-        expect(modal.getItems()).toEqual(["Topics"]);
+        expect(modal.getItems()).toEqual(["FormerFolder", "Topics"]);
       });
 
       it("returns an empty list when no note has frontmatter", () => {
@@ -134,14 +135,15 @@ describe("PropertySearchModal", () => {
 
         expect(modal.getItems()).toEqual([null, "Chemistry", "Physics"]);
       });
-      it("omits values that only exist under a system Scribe root", () => {
+      it("omits plugin data values while keeping values in former data folders", () => {
         const app = makeApp([
           { path: "Notes/a.md", frontmatter: { Topics: "Physics" } },
-          { path: "scribe/scribe-conversations/chat.md", frontmatter: { Topics: "ChatOnly" } },
+          { path: ".scribe/scribe-conversations/chat.md", frontmatter: { Topics: "ChatOnly" } },
+          { path: "scribe/ordinary.md", frontmatter: { Topics: "FormerFolder" } },
         ]);
         const modal = new PropertyValueModal(app, "Topics", jest.fn());
 
-        expect(modal.getItems()).toEqual([null, "Physics"]);
+        expect(modal.getItems()).toEqual([null, "FormerFolder", "Physics"]);
       });
     });
 

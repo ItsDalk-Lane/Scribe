@@ -46,17 +46,6 @@ describe("denyListComposer", () => {
       expect(deny(all, "codex")).toEqual([]);
     });
 
-    it("denies a disabled built-in despite its empty agent list", () => {
-      const disabled = { ...skill("disabled", []), builtin: true };
-      expect(deny([disabled], "opencode")).toEqual(["disabled"]);
-      expect(deny([disabled], "claude")).toEqual([]);
-    });
-
-    it("keeps a built-in usable for its enabled backend", () => {
-      const enabled = { ...skill("enabled", ["opencode"]), builtin: true };
-      expect(deny([enabled], "opencode")).toEqual([]);
-    });
-
     it("returns denied names sorted alphabetically from a mixed skill list", () => {
       const all = [
         skill("z-task", ["claude"]),

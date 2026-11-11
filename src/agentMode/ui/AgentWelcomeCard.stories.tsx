@@ -15,4 +15,6 @@ const meta = {
 } satisfies Meta<AgentWelcomeCardProps>;
 export default meta;
 
-export const Default: StoryObj<AgentWelcomeCardProps> = {};
+export const Default: StoryObj<AgentWelcomeCardProps> = {
+  name: "Project references and chat history",
+};

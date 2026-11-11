@@ -1,11 +1,15 @@
 import type { Skill } from "@/agentMode";
-import type { CustomCommand } from "@/commands/type";
+import type { SubagentDefinition } from "@/agentMode/subagents/SubagentManager";
 import { $createParagraphNode, $createTextNode, $getRoot, createEditor } from "lexical";
 import {
   $slashStartsPrompt,
   composeSlashMenuItems,
   filterSlashMenuOptions,
+  slashMenuItemGroup,
+  slashMenuItemSourceLabel,
 } from "./slashMenuItems";
+
+const SUBAGENT_ISSUE_URL = "https://github.com/ItsDalk-Lane/Scribe/issues/54";
 
 function makeSkill(overrides: Partial<Skill> & { name: string }): Skill {
   const name = overrides.name;
@@ -20,14 +24,12 @@ function makeSkill(overrides: Partial<Skill> & { name: string }): Skill {
   };
 }
 
-function makeCommand(overrides: Partial<CustomCommand> & { title: string }): CustomCommand {
+function makeSubagent(overrides: Partial<SubagentDefinition> & { id: string }): SubagentDefinition {
   return {
-    content: `# ${overrides.title}\n\nbody`,
-    showInContextMenu: false,
-    showInSlashMenu: true,
-    order: 0,
-    modelKey: "",
-    lastUsedMs: 0,
+    name: overrides.id,
+    description: `desc for ${overrides.id}`,
+    instructions: `instructions for ${overrides.id}`,
+    enabled: true,
     ...overrides,
   };
 }
@@ -40,7 +42,7 @@ describe("slashMenuItems", () => {
         makeSkill({ name: "only-codex", enabledAgents: ["codex"] }),
         makeSkill({ name: "both", enabledAgents: ["claude", "codex"] }),
       ];
-      const items = composeSlashMenuItems(skills, [], "claude");
+      const items = composeSlashMenuItems(skills, "claude");
       const names = items.map((i) => i.name);
       expect(names).toEqual(["summarize", "both"]);
       expect(items.every((i) => i.kind === "skill")).toBe(true);
@@ -52,7 +54,7 @@ describe("slashMenuItems", () => {
         makeSkill({ name: "summarize", enabledAgents: ["claude"], userInvocable: true }),
         makeSkill({ name: "default-invocable", enabledAgents: ["claude"] }),
       ];
-      const items = composeSlashMenuItems(skills, [], "claude");
+      const items = composeSlashMenuItems(skills, "claude");
       expect(items.map((i) => i.name)).toEqual(["summarize", "default-invocable"]);
     });
 
@@ -62,97 +64,207 @@ describe("slashMenuItems", () => {
         makeSkill({ name: "untoggled", enabledAgents: [] }),
         makeSkill({ name: "hidden", enabledAgents: [], userInvocable: false }),
       ];
-      const commands = [makeCommand({ title: "old-cmd" })];
-      const items = composeSlashMenuItems(skills, commands, null);
-      const names = items.map((i) => i.name);
-      expect(names).toEqual(["summarize", "untoggled", "old-cmd"]);
+      const items = composeSlashMenuItems(skills, null);
+      expect(items.map((i) => i.name)).toEqual(["summarize", "untoggled"]);
     });
 
-    it("name collision: managed skill wins and the command is shadowed", () => {
-      const skills = [
-        makeSkill({ name: "dup", enabledAgents: ["claude"] }),
-        makeSkill({ name: "summarize", enabledAgents: ["claude"] }),
-      ];
-      const commands = [makeCommand({ title: "dup" }), makeCommand({ title: "unique-cmd" })];
-      const items = composeSlashMenuItems(skills, commands, "claude");
-      expect(items.map((i) => i.name)).toEqual(["dup", "summarize", "unique-cmd"]);
-      expect(items.find((i) => i.name === "dup")?.kind).toBe("skill");
-    });
-
-    it("collision detection is case-insensitive", () => {
+    it("offers only skills and the built-in compact item, so saved commands never reach the menu", () => {
       const skills = [makeSkill({ name: "summarize", enabledAgents: ["claude"] })];
-      const commands = [makeCommand({ title: "Summarize" })];
-      const items = composeSlashMenuItems(skills, commands, "claude");
-      expect(items.map((i) => i.name)).toEqual(["summarize"]);
+      const kinds = new Set(composeSlashMenuItems(skills, "claude", true).map((i) => i.kind));
+      expect([...kinds].sort()).toEqual(["builtin", "skill"]);
     });
 
-    it("omits disabled commands even when their slash-menu preference is on", () => {
-      const commands = [
-        makeCommand({ title: "Disabled", enabled: false, showInSlashMenu: true }),
-        makeCommand({ title: "Enabled" }),
-      ];
-      expect(composeSlashMenuItems([], commands, "claude").map((item) => item.name)).toEqual([
-        "Enabled",
-      ]);
-    });
-
-    it("respects showInSlashMenu on commands", () => {
-      const commands = [
-        makeCommand({ title: "visible" }),
-        makeCommand({ title: "hidden", showInSlashMenu: false }),
-      ];
-      const items = composeSlashMenuItems([], commands, "claude");
-      expect(items.map((i) => i.name)).toEqual(["visible"]);
-    });
-
-    it("preserves caller-supplied order within each group", () => {
+    it("preserves caller-supplied skill order", () => {
       const skills = [
         makeSkill({ name: "b-skill", enabledAgents: ["claude"] }),
         makeSkill({ name: "a-skill", enabledAgents: ["claude"] }),
       ];
-      const commands = [makeCommand({ title: "z-cmd" }), makeCommand({ title: "m-cmd" })];
-      const items = composeSlashMenuItems(skills, commands, "claude");
-      expect(items.map((i) => i.name)).toEqual(["b-skill", "a-skill", "z-cmd", "m-cmd"]);
+      expect(composeSlashMenuItems(skills, "claude").map((i) => i.name)).toEqual([
+        "b-skill",
+        "a-skill",
+      ]);
     });
 
     it("lists the built-in compact item first in agent mode", () => {
       const skills = [makeSkill({ name: "summarize", enabledAgents: ["claude"] })];
-      const commands = [makeCommand({ title: "polish" })];
-      const items = composeSlashMenuItems(skills, commands, "claude", true);
+      const items = composeSlashMenuItems(skills, "claude", true);
       expect(items.map((i) => [i.kind, i.name])).toEqual([
         ["builtin", "compact"],
         ["skill", "summarize"],
-        ["command", "polish"],
       ]);
     });
 
     it("lists compact in agent mode before the backend is known", () => {
-      const items = composeSlashMenuItems([], [], null, true);
+      const items = composeSlashMenuItems([], null, true);
       expect(items.map((i) => i.name)).toEqual(["compact"]);
     });
 
     it("omits the built-in compact item outside agent mode", () => {
       const skills = [makeSkill({ name: "compact", enabledAgents: ["claude"] })];
-      const commands = [makeCommand({ title: "polish" })];
-      const items = composeSlashMenuItems(skills, commands, null, false);
+      const items = composeSlashMenuItems(skills, null, false);
+      expect(items.map((i) => [i.kind, i.name])).toEqual([["skill", "compact"]]);
+    });
+
+    it("shadows a skill named exactly compact with the built-in in agent mode, leaving other casings listed because /Compact still expands them", () => {
+      const skills = [
+        makeSkill({ name: "compact", enabledAgents: ["claude"] }),
+        makeSkill({ name: "Compact", enabledAgents: ["claude"] }),
+      ];
+      const items = composeSlashMenuItems(skills, "claude", true);
       expect(items.map((i) => [i.kind, i.name])).toEqual([
-        ["skill", "compact"],
-        ["command", "polish"],
+        ["builtin", "compact"],
+        ["skill", "Compact"],
       ]);
     });
 
-    it("shadows a skill or command named exactly compact with the built-in in agent mode, leaving other casings listed because /Compact still expands them", () => {
-      const skills = [makeSkill({ name: "compact", enabledAgents: ["claude"] })];
-      const commands = [
-        makeCommand({ title: "compact" }),
-        makeCommand({ title: "Compact" }),
-        makeCommand({ title: "polish" }),
+    it("lists enabled Agent commands as insertable items carrying their content and hides disabled ones", () => {
+      const agentCommands = [
+        {
+          id: "translate",
+          name: "翻译",
+          description: "译成英文",
+          content: "请翻译",
+          enabled: true,
+        },
+        { id: "draft", name: "草稿", description: "", content: "写草稿", enabled: false },
       ];
-      const items = composeSlashMenuItems(skills, commands, "claude", true);
-      expect(items.map((i) => [i.kind, i.name])).toEqual([
+      expect(composeSlashMenuItems([], "native", false, { agentCommands })).toEqual([
+        expect.objectContaining({
+          kind: "agentCommand",
+          name: "翻译",
+          description: "译成英文",
+          body: "请翻译",
+        }),
+      ]);
+    });
+
+    it("hides the built-in compact command once it is turned off, even when the slash starts the prompt", () => {
+      expect(
+        composeSlashMenuItems([], null, true, { disabledBuiltinCommands: ["compact"] })
+      ).toEqual([]);
+      expect(composeSlashMenuItems([], null, true).map((item) => item.name)).toEqual(["compact"]);
+    });
+
+    it(`lists enabled subagents after commands and skills, keyed by definition id and carrying instructions ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems(
+        [makeSkill({ name: "summarize", enabledAgents: ["native"] })],
+        "native",
+        true,
+        {
+          agentCommands: [
+            { id: "c1", name: "翻译", description: "", content: "请翻译", enabled: true },
+          ],
+          subagents: [makeSubagent({ id: "research", name: "研究助理" })],
+        }
+      );
+      expect(items.map((item) => [item.kind, item.name])).toEqual([
         ["builtin", "compact"],
-        ["command", "Compact"],
-        ["command", "polish"],
+        ["agentCommand", "翻译"],
+        ["skill", "summarize"],
+        ["subagent", "研究助理"],
+      ]);
+      const subagent = items[3];
+      expect(subagent.key).toMatch(/^subagent:research:/);
+      expect(subagent).toMatchObject({
+        description: "desc for research",
+        body: "instructions for research",
+      });
+    });
+
+    it(`hides disabled subagents ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems([], "native", true, {
+        subagents: [makeSubagent({ id: "off", enabled: false }), makeSubagent({ id: "on" })],
+      });
+      const ids = items
+        .filter((item) => item.kind === "subagent")
+        .map((item) => (item.kind === "subagent" ? item.subagent.id : ""));
+      expect(ids).toEqual(["on"]);
+    });
+
+    it(`omits the whole subagent group outside agent mode or without an active backend ${SUBAGENT_ISSUE_URL}`, () => {
+      const subagents = [makeSubagent({ id: "research" })];
+      expect(composeSlashMenuItems([], "native", false, { subagents })).toEqual([]);
+      expect(composeSlashMenuItems([], null, true, { subagents })).toEqual(
+        composeSlashMenuItems([], null, true)
+      );
+    });
+
+    it(`keeps subagents listed when compact is turned off ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems([], "native", true, {
+        disabledBuiltinCommands: ["compact"],
+        subagents: [makeSubagent({ id: "research" })],
+      });
+      expect(items.map((item) => item.kind)).toEqual(["subagent"]);
+    });
+
+    it(`shadows a subagent whose command token collides with compact and drops later duplicate tokens ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems([], "native", true, {
+        subagents: [
+          makeSubagent({ id: "c1", name: "compact" }),
+          makeSubagent({ id: "dup-a", name: "research" }),
+          makeSubagent({ id: "dup-b", name: "research" }),
+          makeSubagent({ id: "fallback", name: "research helper" }),
+        ],
+      });
+      const ids = items
+        .filter((item) => item.kind === "subagent")
+        .map((item) => (item.kind === "subagent" ? item.subagent.id : ""));
+      expect(ids).toEqual(["dup-a", "fallback"]);
+    });
+  });
+
+  describe("slashMenuItemGroup", () => {
+    it(`maps builtin and agent commands to Commands, skills to Skills, subagents to Subagents ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems(
+        [makeSkill({ name: "summarize", enabledAgents: ["native"] })],
+        "native",
+        true,
+        {
+          agentCommands: [
+            { id: "c1", name: "翻译", description: "", content: "请翻译", enabled: true },
+          ],
+          subagents: [makeSubagent({ id: "research" })],
+        }
+      );
+      expect(items.map(slashMenuItemGroup)).toEqual([
+        "Commands",
+        "Commands",
+        "Skills",
+        "Subagents",
+      ]);
+    });
+  });
+
+  describe("slashMenuItemSourceLabel", () => {
+    it(`labels compact and built-in-source skills as Built-in, everything else as Custom ${SUBAGENT_ISSUE_URL}`, () => {
+      const items = composeSlashMenuItems(
+        [
+          makeSkill({
+            name: "builtin-skill",
+            enabledAgents: ["native"],
+            source: { kind: "builtin" },
+          }),
+          makeSkill({ name: "local-skill", enabledAgents: ["native"], source: { kind: "local" } }),
+          makeSkill({ name: "agent-skill", enabledAgents: ["native"], source: { kind: "agent" } }),
+          makeSkill({ name: "sourceless-skill", enabledAgents: ["native"] }),
+        ],
+        "native",
+        true,
+        {
+          agentCommands: [
+            { id: "c1", name: "翻译", description: "", content: "请翻译", enabled: true },
+          ],
+          subagents: [makeSubagent({ id: "research" })],
+        }
+      );
+      expect(items.map(slashMenuItemSourceLabel)).toEqual([
+        "Built-in",
+        "Custom",
+        "Built-in",
+        "Custom",
+        "Custom",
+        "Custom",
+        "Custom",
       ]);
     });
   });
@@ -180,8 +292,7 @@ describe("slashMenuItems", () => {
         makeSkill({ name: "compactor", enabledAgents: ["claude"] }),
         makeSkill({ name: "compact-notes", enabledAgents: ["claude"] }),
       ];
-      const commands = [makeCommand({ title: "a-compact" }), makeCommand({ title: "compact" })];
-      const options = composeSlashMenuItems(skills, commands, "claude", true).map((item) => ({
+      const options = composeSlashMenuItems(skills, "claude", true).map((item) => ({
         title: item.name,
         content: item.body,
         item,
@@ -190,12 +301,41 @@ describe("slashMenuItems", () => {
       const ranked = filterSlashMenuOptions(options, "compact");
 
       expect(ranked[0].item.kind).toBe("builtin");
-      expect(ranked.map((o) => o.title)).toEqual([
-        "compact",
-        "compactor",
-        "a-compact",
-        "compact-notes",
+      expect(ranked.map((o) => o.title)).toEqual(["compact", "compactor", "compact-notes"]);
+    });
+
+    it(`filters each group independently and preserves the command/skill/subagent group order ${SUBAGENT_ISSUE_URL}`, () => {
+      const options = [
+        { title: "compact", content: "", group: "Commands" },
+        { title: "translate", content: "", group: "Commands" },
+        { title: "compactor", content: "", group: "Skills" },
+        { title: "compact-notes", content: "", group: "Skills" },
+        { title: "compact-checker", content: "", group: "Subagents" },
+      ];
+      expect(filterSlashMenuOptions(options, "compact").map((o) => [o.title, o.group])).toEqual([
+        ["compact", "Commands"],
+        ["compactor", "Skills"],
+        ["compact-notes", "Skills"],
+        ["compact-checker", "Subagents"],
       ]);
+    });
+
+    it(`drops groups whose options all miss the query so their headers disappear ${SUBAGENT_ISSUE_URL}`, () => {
+      const options = [
+        { title: "compact", content: "", group: "Commands" },
+        { title: "research", content: "", group: "Subagents" },
+      ];
+      expect(filterSlashMenuOptions(options, "res")).toEqual([
+        { title: "research", content: "", group: "Subagents" },
+      ]);
+    });
+
+    it(`falls back to content matching within each group ${SUBAGENT_ISSUE_URL}`, () => {
+      const options = [
+        { title: "polish", content: "make the prose tighter", group: "Commands" },
+        { title: "other", content: "unrelated", group: "Skills" },
+      ];
+      expect(filterSlashMenuOptions(options, "prose").map((o) => o.title)).toEqual(["polish"]);
     });
   });
 

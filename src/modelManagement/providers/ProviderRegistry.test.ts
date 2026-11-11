@@ -1,491 +1,304 @@
-import { resetSettings, getSettings, setSettings } from "@/settings/model";
-import { KeychainService } from "@/services/keychainService";
+import { createTestRegistries } from "@/modelManagement/testRegistries";
+import { ProviderAdapterRegistry } from "@/modelManagement/providers/adapters/ProviderAdapterRegistry";
+import { ProviderRegistry } from "@/modelManagement/providers/ProviderRegistry";
+import { SecretStore } from "@/services/secretStore";
+import { getSettings } from "@/settings/model";
+import { logError } from "@/logger";
 
-import type { ProviderAdapter } from "./adapters/ProviderAdapter";
-import { ProviderAdapterRegistry } from "./adapters/ProviderAdapterRegistry";
-import { ProviderRegistry } from "./ProviderRegistry";
+jest.mock("@/logger", () => ({ logInfo: jest.fn(), logWarn: jest.fn(), logError: jest.fn() }));
 
-import type { App } from "obsidian";
-import { z } from "zod";
-
-jest.mock("@/logger", () => ({
-  logInfo: jest.fn(),
-  logWarn: jest.fn(),
-  logError: jest.fn(),
-}));
-
-type SecretStore = Map<string, string>;
-
-function makeFakeApp(): { app: App; secrets: SecretStore } {
-  const secrets: SecretStore = new Map();
-  const app = {
-    secretStorage: {
-      setSecret: (id: string, value: string) => {
-        secrets.set(id, value);
-      },
-      getSecret: (id: string) => (secrets.has(id) ? secrets.get(id)! : null),
-      listSecrets: () => Array.from(secrets.keys()),
-      deleteSecret: (id: string) => {
-        secrets.delete(id);
-      },
-    },
-    vault: {
-      adapter: {},
-    },
-  } as unknown as App;
-  return { app, secrets };
+function providerInput() {
+  return {
+    providerType: "anthropic" as const,
+    displayName: "Example",
+    origin: { kind: "byok" as const },
+  };
 }
 
-const anthropicStub: ProviderAdapter = {
-  providerType: "anthropic",
-  extrasSchema: z.object({}).strict(),
-  verifyCredentials: async () => ({
-    ok: true,
-    message: "stub-ok",
-    checkedAt: 42,
-  }),
-};
-
 describe("ProviderRegistry", () => {
-  let app: App;
-  let secrets: SecretStore;
-  let adapters: ProviderAdapterRegistry;
-  let registry: ProviderRegistry;
-
-  beforeEach(() => {
-    resetSettings();
-    setSettings({ providers: {} });
-    KeychainService.resetInstance();
-    const fake = makeFakeApp();
-    app = fake.app;
-    secrets = fake.secrets;
-    KeychainService.getInstance(app);
-    adapters = new ProviderAdapterRegistry();
-    adapters.register(anthropicStub);
-    registry = new ProviderRegistry(app, adapters);
-  });
-
-  describe("add", () => {
-    it("persists a new provider with a minted id, its addedAt time, and no API key pointer", async () => {
-      const before = Date.now();
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "Anthropic (prod)",
-        origin: { kind: "byok" },
-      });
-      expect(typeof id).toBe("string");
-      expect(id.length).toBeGreaterThan(0);
-
-      const row = registry.get(id);
-      expect(row).toBeDefined();
-      expect(row?.displayName).toBe("Anthropic (prod)");
-      expect(row?.providerType).toBe("anthropic");
-      expect(row?.origin).toEqual({ kind: "byok" });
-      expect(row?.addedAt).toBeGreaterThanOrEqual(before);
-      expect(row?.apiKeyKeychainId).toBeNull();
+  describe("ProviderRegistry", () => {
+    let registry: ProviderRegistry;
+    let store: SecretStore;
+    let adapters: ProviderAdapterRegistry;
+    beforeEach(() => {
+      const { app } = createTestRegistries();
+      store = SecretStore.getInstance();
+      adapters = new ProviderAdapterRegistry();
+      jest
+        .spyOn(adapters, "verifyCredentials")
+        .mockResolvedValue({ ok: true, checkedAt: 42, message: "Verified" });
+      registry = new ProviderRegistry(app, adapters);
     });
-  });
-
-  describe("get", () => {
-    it("returns the persisted row and undefined for an unknown provider", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
-      });
-      expect(registry.get(id)).toBe(getSettings().providers[id]);
-      expect(registry.get("unknown")).toBeUndefined();
-    });
-  });
-
-  describe("listByOrigin", () => {
-    it("returns stable references while settings are unchanged", async () => {
-      await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
-      });
-      await registry.add({
-        providerType: "anthropic",
-        displayName: "B",
-        origin: { kind: "agent", agentType: "claude" },
-      });
-      const rows = registry.listByOrigin("byok");
-      expect(registry.listByOrigin("byok")).toBe(rows);
-      expect(rows).toHaveLength(1);
-    });
-    it("returns the same empty list for every origin that has no providers", () => {
-      const empty1 = registry.listByOrigin("byok");
-      const empty2 = registry.listByOrigin("agent");
-      expect(empty1).toBe(empty2);
-      expect(empty1.length).toBe(0);
-    });
-  });
-
-  describe("update", () => {
-    it("applies the patch but keeps providerId, addedAt, providerType, and origin unchanged", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "Original",
-        origin: { kind: "byok" },
-      });
-      const originalAddedAt = registry.get(id)!.addedAt;
-
-      await registry.update(id, {
-        displayName: "Renamed",
-        baseUrl: "https://example.test",
-        ...({
-          providerId: "hacked",
-          addedAt: 1,
-          providerType: "openai",
-          origin: { kind: "agent", agentType: "claude" },
-        } as Record<string, unknown>),
-      });
-      const row = registry.get(id)!;
-      expect(row.displayName).toBe("Renamed");
-      expect(row.baseUrl).toBe("https://example.test");
-      expect(row.providerId).toBe(id);
-      expect(row.addedAt).toBe(originalAddedAt);
-      expect(row.providerType).toBe("anthropic");
-      expect(row.origin).toEqual({ kind: "byok" });
-    });
-    it("rejects an unknown providerId", async () => {
-      await expect(registry.update("nope", { displayName: "x" })).rejects.toThrow(/unknown/);
-    });
-    it("ignores an attempt to overwrite apiKeyKeychainId", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
-      });
-      await registry.setApiKey(id, "sk-real");
-      const realKeychainId = registry.get(id)!.apiKeyKeychainId;
-      expect(realKeychainId).not.toBeNull();
-
-      await registry.update(id, {
-        ...({ apiKeyKeychainId: "scribe-v0-provider-attacker" } as Record<string, unknown>),
-      });
-      expect(registry.get(id)!.apiKeyKeychainId).toBe(realKeychainId);
-      expect(await registry.getApiKey(id)).toBe("sk-real");
-    });
-  });
-
-  describe("setApiKey", () => {
-    it("mints a stable keychain name for the vault on the first key and reuses it when the key is rotated", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok", catalogProviderId: "anthropic" },
-      });
-      expect(registry.get(id)!.apiKeyKeychainId).toBeNull();
-
-      await registry.setApiKey(id, "sk-first");
-      expect(registry.get(id)!.apiKeyKeychainId).toBe(
-        `scribe-v${KeychainService.getInstance(app).getVaultId()}-provider-anthropic-api-key`
-      );
-      expect(await registry.getApiKey(id)).toBe("sk-first");
-
-      await registry.setApiKey(id, "sk-rotated");
-      expect(registry.get(id)!.apiKeyKeychainId).toBe(
-        `scribe-v${KeychainService.getInstance(app).getVaultId()}-provider-anthropic-api-key`
-      );
-      expect(await registry.getApiKey(id)).toBe("sk-rotated");
-    });
-
-    it("mints the same name for the same provider configured independently on two devices, so a synced pointer resolves on both", async () => {
-      const input = {
-        providerType: "anthropic" as const,
-        displayName: "Anthropic",
-        origin: { kind: "byok" as const, catalogProviderId: "anthropic" },
-      };
-      const deviceA = await registry.add(input);
-      await registry.setApiKey(deviceA, "sk-shared");
-      const nameOnA = registry.get(deviceA)!.apiKeyKeychainId;
-
-      setSettings({ providers: {} });
-      const deviceB = await registry.add(input);
-      await registry.setApiKey(deviceB, "sk-shared");
-
-      expect(deviceB).not.toBe(deviceA);
-      expect(registry.get(deviceB)!.apiKeyKeychainId).toBe(nameOnA);
-    });
-
-    it("suffixes the name when another provider already holds it", async () => {
-      const first = await registry.add({
-        providerType: "openai-compatible",
-        displayName: "OpenRouter",
-        origin: { kind: "byok", catalogProviderId: "openrouter" },
-      });
-      const second = await registry.add({
-        providerType: "openai-compatible",
-        displayName: "OpenRouter (work)",
-        origin: { kind: "byok", catalogProviderId: "openrouter" },
-      });
-
-      await registry.setApiKey(first, "sk-personal");
-      await registry.setApiKey(second, "sk-work");
-
-      expect(registry.get(first)!.apiKeyKeychainId).toBe(
-        `scribe-v${KeychainService.getInstance(app).getVaultId()}-provider-openrouter-api-key`
-      );
-      expect(registry.get(second)!.apiKeyKeychainId).toBe(
-        `scribe-v${KeychainService.getInstance(app).getVaultId()}-provider-openrouter-api-key-2`
-      );
-      expect(await registry.getApiKey(first)).toBe("sk-personal");
-      expect(await registry.getApiKey(second)).toBe("sk-work");
-    });
-
-    it("re-writes a key whose keychain entry went missing behind a live pointer", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
-      });
-      await registry.setApiKey(id, "sk-live");
-      const keychainId = registry.get(id)!.apiKeyKeychainId!;
-
-      secrets.delete(keychainId);
-
-      await registry.setApiKey(id, "sk-live");
-      expect(await registry.getApiKey(id)).toBe("sk-live");
-    });
-  });
-
-  describe("getApiKey", () => {
-    it("returns null when the provider has no stored key", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "Ollama-like",
-        origin: { kind: "byok" },
-      });
-      expect(await registry.getApiKey(id)).toBeNull();
-    });
-  });
-
-  describe("clearApiKey", () => {
-    it("deletes the stored key and clears the keychain pointer", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
-      });
-      await registry.setApiKey(id, "sk-x");
-      await registry.clearApiKey(id);
-      expect(registry.get(id)!.apiKeyKeychainId).toBeNull();
-      expect(await registry.getApiKey(id)).toBeNull();
-    });
-  });
-
-  describe("remove", () => {
-    it("deletes the provider row and its stored key", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
-      });
-      await registry.setApiKey(id, "sk-x");
-      const keychainId = registry.get(id)!.apiKeyKeychainId!;
-      await registry.remove(id);
-      expect(registry.get(id)).toBeUndefined();
-      expect(KeychainService.getInstance(app).getSecretById(keychainId)).toBeNull();
-    });
-
-    it("removes a row pointing at a foreign keychain entry without deleting that entry (https://github.com/ItsDalk-Lane/Scribe/issues/25)", async () => {
-      const foreignId = "anthropic-api-key";
-      KeychainService.getInstance(app).setSecretById(foreignId, "someone-elses-key");
-      setSettings({
-        providers: {
-          "prov-x": {
-            providerId: "prov-x",
-            providerType: "anthropic",
-            displayName: "X",
-            origin: { kind: "byok" },
-            addedAt: 0,
-            apiKeyKeychainId: foreignId,
-          },
-        },
-      });
-
-      await registry.remove("prov-x");
-
-      expect(registry.get("prov-x")).toBeUndefined();
-      expect(KeychainService.getInstance(app).getSecretById(foreignId)).toBe("someone-elses-key");
-    });
-  });
-
-  describe("list", () => {
-    it("returns stable references while settings are unchanged", async () => {
-      await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
-      });
-      await registry.add({
-        providerType: "anthropic",
-        displayName: "B",
-        origin: { kind: "agent", agentType: "claude" },
-      });
-      const rows = registry.list();
-      expect(registry.list()).toBe(rows);
-      expect(rows).toHaveLength(2);
-    });
-  });
-
-  describe("verify", () => {
-    it("returns the adapter result for the provider's type", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
-      });
-      await registry.setApiKey(id, "sk-x");
-      const result = await registry.verify(id);
-      expect(result.ok).toBe(true);
-      expect(result.message).toBe("stub-ok");
-    });
-
-    it("rejects an unknown providerId", async () => {
-      await expect(registry.verify("nope")).rejects.toThrow(/unknown/);
-    });
-
-    it.each([null, "", "   "])(
-      "rejects a missing stored key (%p) without probing a public endpoint",
-      async (secret) => {
-        const id = await registry.add({
-          providerType: "anthropic",
-          displayName: "A",
-          origin: { kind: "byok" },
-          requiresApiKey: true,
+    afterEach(() => jest.restoreAllMocks());
+    describe("add()", () => {
+      it("saves a provider with a stable identity and no credential reference", async () => {
+        const id = await registry.add(providerInput());
+        expect(registry.get(id)).toMatchObject({
+          ...providerInput(),
+          providerId: id,
+          apiKeyRef: null,
         });
-        await registry.setApiKey(id, "old-key");
-        const pointer = registry.get(id)!.apiKeyKeychainId!;
-        if (secret === null) KeychainService.getInstance(app).deleteSecretById(pointer);
-        else KeychainService.getInstance(app).setSecretById(pointer, secret);
-        const probe = jest.spyOn(adapters, "verifyCredentials");
-        expect(await registry.verify(id)).toMatchObject({ ok: false, code: "missing_api_key" });
-        expect(probe).not.toHaveBeenCalled();
-        expect(registry.get(id)!.apiKeyKeychainId).toBe(pointer);
-      }
-    );
-
-    it("verifies an optional-auth endpoint without a key but rejects its dangling stored credential", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "Local",
-        origin: { kind: "byok" },
-        requiresApiKey: false,
+        expect(registry.get(id)?.addedAt).toEqual(expect.any(Number));
       });
-      expect(await registry.verify(id)).toMatchObject({ ok: true });
-      await registry.setApiKey(id, "old-key");
-      KeychainService.getInstance(app).deleteSecretById(registry.get(id)!.apiKeyKeychainId!);
-      expect(await registry.verify(id)).toMatchObject({ ok: false, code: "missing_api_key" });
     });
-  });
-
-  describe("subscribe", () => {
-    it("identifies the changed provider on add/update/remove and key changes", async () => {
-      const listener = jest.fn();
-      const unsubscribe = registry.subscribe(listener);
-
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
+    describe("get()", () => {
+      it("returns the matching provider and returns undefined for an unknown identity", async () => {
+        const id = await registry.add(providerInput());
+        expect(registry.get(id)?.displayName).toBe("Example");
+        expect(registry.get("missing")).toBeUndefined();
       });
-      expect(listener).toHaveBeenCalledTimes(1);
-
-      await registry.update(id, { displayName: "A-renamed" });
-      expect(listener).toHaveBeenCalledTimes(2);
-
-      await registry.setApiKey(id, "sk-first");
-      expect(listener).toHaveBeenCalledTimes(3);
-
-      await registry.setApiKey(id, "sk-rotated");
-      expect(listener).toHaveBeenCalledTimes(4);
-
-      await registry.clearApiKey(id);
-      expect(listener).toHaveBeenCalledTimes(5);
-
-      await registry.remove(id);
-      expect(listener).toHaveBeenCalledTimes(6);
-      expect(listener.mock.calls).toEqual(Array.from({ length: 6 }, () => [id]));
-
-      unsubscribe();
-      await registry.add({
-        providerType: "anthropic",
-        displayName: "B",
-        origin: { kind: "byok" },
-      });
-      expect(listener).toHaveBeenCalledTimes(6);
     });
-
-    it("stays silent when a provider is re-registered with the key it already has", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
+    describe("list()", () => {
+      it("returns all saved providers without allocating a new unchanged list", async () => {
+        expect(registry.list()).toBe(registry.list());
+        await registry.add(providerInput());
+        await registry.add({ ...providerInput(), displayName: "Second" });
+        expect(registry.list().map((row) => row.displayName)).toEqual(["Example", "Second"]);
+        expect(registry.list()).toBe(registry.list());
       });
-      await registry.setApiKey(id, "sk-same");
-
-      const listener = jest.fn();
-      registry.subscribe(listener);
-
-      await registry.setApiKey(id, "sk-same");
-
-      expect(listener).not.toHaveBeenCalled();
-      expect(await registry.getApiKey(id)).toBe("sk-same");
     });
-
-    it("does not notify Agent consumers for a Quick tools-only CORS update", async () => {
-      const id = await registry.add({
-        providerType: "openai-compatible",
-        displayName: "Work endpoint",
-        origin: { kind: "byok" },
+    describe("listByOrigin()", () => {
+      it("returns a stable list containing only providers from the requested source", async () => {
+        await registry.add(providerInput());
+        await registry.add({ ...providerInput(), origin: { kind: "agent", agentType: "native" } });
+        expect(registry.listByOrigin("byok")).toHaveLength(1);
+        expect(registry.listByOrigin("byok")).toBe(registry.listByOrigin("byok"));
+        expect(registry.listByOrigin("agent")[0].origin.kind).toBe("agent");
       });
-      const listener = jest.fn();
-      registry.subscribe(listener);
-
-      await registry.update(id, { enableCors: true });
-
-      expect(registry.get(id)?.enableCors).toBe(true);
-      expect(listener).not.toHaveBeenCalled();
     });
-
-    it("lets a setApiKey listener read the new key rather than the stale one", async () => {
-      const id = await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
+    describe("update()", () => {
+      it("updates editable connection fields while preserving the identity and credential reference", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "synthetic-secret");
+        const reference = registry.get(id)?.apiKeyRef;
+        await registry.update(id, {
+          displayName: "Changed",
+          ...({
+            providerId: "other",
+            apiKeyRef: "other",
+            providerType: "google",
+            origin: { kind: "agent" },
+          } as object),
+        });
+        expect(registry.get(id)).toMatchObject({
+          providerId: id,
+          displayName: "Changed",
+          providerType: "anthropic",
+          apiKeyRef: reference,
+          origin: { kind: "byok" },
+        });
       });
-      await registry.setApiKey(id, "sk-old");
-
-      const seenInListener: Array<string | null> = [];
-      registry.subscribe(() => {
-        const row = getSettings().providers[id];
-        const keychainId = row?.apiKeyKeychainId ?? null;
-        seenInListener.push(
-          keychainId ? KeychainService.getInstance(app).getSecretById(keychainId) : null
+      it("rejects an unknown provider and leaves unchanged updates silent", async () => {
+        await expect(registry.update("missing", {})).rejects.toThrow("unknown providerId");
+        const id = await registry.add(providerInput());
+        const listener = jest.fn();
+        registry.subscribe(listener);
+        await registry.update(id, { displayName: "Example" });
+        expect(listener).not.toHaveBeenCalled();
+      });
+      it("notifies consumers when the provider endpoint changes https://github.com/ItsDalk-Lane/Scribe/issues/51", async () => {
+        const id = await registry.add(providerInput());
+        const listener = jest.fn();
+        registry.subscribe(listener);
+        await registry.update(id, { baseUrl: "https://changed.example/v1" });
+        expect(registry.get(id)?.baseUrl).toBe("https://changed.example/v1");
+        expect(listener).toHaveBeenCalledWith(id);
+      });
+      it("persists the selector-inclusion switch and skips unchanged repeats https://github.com/ItsDalk-Lane/Scribe/issues/69", async () => {
+        const id = await registry.add(providerInput());
+        const listener = jest.fn();
+        registry.subscribe(listener);
+        await registry.update(id, { enabled: false });
+        expect(registry.get(id)?.enabled).toBe(false);
+        expect(listener).toHaveBeenCalledWith(id);
+        listener.mockClear();
+        await registry.update(id, { enabled: false });
+        expect(listener).not.toHaveBeenCalled();
+        await registry.update(id, { enabled: true });
+        expect(registry.get(id)?.enabled).toBe(true);
+      });
+    });
+    describe("setApiKey()", () => {
+      it("finishes encrypted saving before publishing a new credential reference", async () => {
+        const id = await registry.add(providerInput());
+        let finish!: () => void;
+        jest.spyOn(store, "setSecret").mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              finish = resolve;
+            })
+        );
+        const saving = registry.setApiKey(id, "synthetic-secret");
+        expect(registry.get(id)?.apiKeyRef).toBeNull();
+        finish();
+        await saving;
+        expect(registry.get(id)?.apiKeyRef).toEqual(expect.any(String));
+        expect(JSON.stringify(getSettings().providers)).not.toContain("synthetic-secret");
+      });
+      it("replaces an existing key without decrypting it or changing its reference", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "first");
+        const reference = registry.get(id)?.apiKeyRef;
+        const read = jest.spyOn(store, "withSecret");
+        await registry.setApiKey(id, "replacement");
+        expect(registry.get(id)?.apiKeyRef).toBe(reference);
+        expect(read).not.toHaveBeenCalled();
+        expect(await registry.withApiKey(id, async (key) => key)).toBe("replacement");
+      });
+      it("keeps the original reference when encrypted saving fails", async () => {
+        const id = await registry.add(providerInput());
+        jest.spyOn(store, "setSecret").mockRejectedValue(new Error("Disk full"));
+        await expect(registry.setApiKey(id, "secret")).rejects.toThrow("Disk full");
+        expect(registry.get(id)?.apiKeyRef).toBeNull();
+      });
+      it("rejects an unknown provider without saving a secret", async () => {
+        const write = jest.spyOn(store, "setSecret");
+        await expect(registry.setApiKey("missing", "secret")).rejects.toThrow("unknown providerId");
+        expect(write).not.toHaveBeenCalled();
+      });
+    });
+    describe("getApiKeyStatus()", () => {
+      it("reports credential presence using metadata without reading its plaintext", async () => {
+        const id = await registry.add(providerInput());
+        expect(registry.getApiKeyStatus(id)).toBe("missing");
+        await registry.setApiKey(id, "secret");
+        const read = jest.spyOn(store, "withSecret");
+        expect(registry.getApiKeyStatus(id)).toBe("available");
+        expect(read).not.toHaveBeenCalled();
+      });
+    });
+    describe("withApiKey()", () => {
+      it("resolves only the selected provider during its requested operation", async () => {
+        const first = await registry.add(providerInput());
+        const second = await registry.add(providerInput());
+        await registry.setApiKey(first, "first-secret");
+        await registry.setApiKey(second, "second-secret");
+        const read = jest.spyOn(store, "withSecret");
+        expect(
+          await registry.withApiKey(first, async (key) => `request:${key}`, { interactive: false })
+        ).toBe("request:first-secret");
+        expect(read).toHaveBeenCalledWith(registry.get(first)?.apiKeyRef, expect.any(Function), {
+          interactive: false,
+        });
+        expect(read).toHaveBeenCalledTimes(1);
+      });
+      it("passes null to an operation when no key was configured", async () => {
+        const id = await registry.add(providerInput());
+        expect(await registry.withApiKey(id, async (key) => key)).toBeNull();
+      });
+    });
+    describe("clearApiKey()", () => {
+      it("removes the encrypted key before clearing its reference", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "secret");
+        await registry.clearApiKey(id);
+        expect(registry.get(id)?.apiKeyRef).toBeNull();
+        expect(registry.getApiKeyStatus(id)).toBe("missing");
+      });
+      it("retains the reference when removal fails and ignores an unknown provider", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "secret");
+        const reference = registry.get(id)?.apiKeyRef;
+        jest.spyOn(store, "deleteSecret").mockRejectedValue(new Error("Read only"));
+        await expect(registry.clearApiKey(id)).rejects.toThrow("Read only");
+        expect(registry.get(id)?.apiKeyRef).toBe(reference);
+        await registry.clearApiKey("missing");
+      });
+    });
+    describe("remove()", () => {
+      it("removes a provider and its encrypted credential", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "secret");
+        const reference = registry.get(id)!.apiKeyRef!;
+        await registry.remove(id);
+        expect(registry.get(id)).toBeUndefined();
+        expect(store.getStatus(reference)).toBe("missing");
+        await registry.remove(id);
+      });
+      it("keeps the provider when its encrypted key cannot be removed", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "secret");
+        jest.spyOn(store, "deleteSecret").mockRejectedValue(new Error("Read only"));
+        await expect(registry.remove(id)).rejects.toThrow("Read only");
+        expect(registry.get(id)).toBeDefined();
+      });
+    });
+    describe("verify()", () => {
+      it("uses the credential only inside the provider verification request", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "secret");
+        expect(await registry.verify(id)).toMatchObject({ ok: true, message: "Verified" });
+        expect(adapters.verifyCredentials).toHaveBeenCalledWith(
+          "anthropic",
+          expect.objectContaining({ apiKey: "secret" })
         );
       });
-
-      await registry.setApiKey(id, "sk-new");
-      expect(seenInListener).toEqual(["sk-new"]);
+      it("masks echoed saved credentials in verification results and thrown errors", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "saved-private-credential");
+        jest.mocked(adapters.verifyCredentials).mockResolvedValueOnce({
+          ok: false,
+          checkedAt: 0,
+          message: "Rejected saved-private-credential",
+        });
+        expect(await registry.verify(id)).toMatchObject({ message: "Rejected [redacted]" });
+        jest
+          .mocked(adapters.verifyCredentials)
+          .mockRejectedValueOnce(new Error("Rejected saved-private-credential"));
+        await expect(registry.verify(id)).rejects.toThrow("Rejected [redacted]");
+      });
+      it("does not unlock or send a background probe for a locked saved key", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "secret");
+        jest.spyOn(store, "getStatus").mockReturnValue("locked");
+        jest.spyOn(store, "tryDeviceUnlock").mockResolvedValue(false);
+        const read = jest.spyOn(store, "withSecret");
+        expect(await registry.verify(id)).toMatchObject({ ok: false, code: "credentials_locked" });
+        expect(read).not.toHaveBeenCalled();
+        expect(adapters.verifyCredentials).not.toHaveBeenCalled();
+      });
+      it("verifies with the saved key after a silent device-unlock restore succeeds (https://github.com/ItsDalk-Lane/Scribe/issues/37)", async () => {
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "secret");
+        jest.spyOn(store, "getStatus").mockReturnValue("locked");
+        jest.spyOn(store, "tryDeviceUnlock").mockResolvedValue(true);
+        expect(await registry.verify(id)).toMatchObject({ ok: true, message: "Verified" });
+        expect(adapters.verifyCredentials).toHaveBeenCalledWith(
+          "anthropic",
+          expect.objectContaining({ apiKey: "secret" })
+        );
+      });
+      it("reports a missing required key and permits a deliberately keyless provider", async () => {
+        const id = await registry.add(providerInput());
+        expect(await registry.verify(id)).toMatchObject({ ok: false, code: "missing_api_key" });
+        await registry.update(id, { requiresApiKey: false });
+        expect(await registry.verify(id)).toMatchObject({ ok: true });
+      });
+      it("rejects an unknown provider before verification", async () => {
+        await expect(registry.verify("missing")).rejects.toThrow("unknown providerId");
+      });
     });
-
-    it("still notifies other listeners when one listener throws", async () => {
-      const bad = jest.fn(() => {
-        throw new Error("boom");
+    describe("subscribe()", () => {
+      it("announces successful changes and stops after unsubscribe", async () => {
+        const listener = jest.fn();
+        const off = registry.subscribe(listener);
+        const id = await registry.add(providerInput());
+        await registry.setApiKey(id, "secret");
+        expect(listener.mock.calls).toEqual([[id], [id]]);
+        off();
+        await registry.update(id, { displayName: "Changed" });
+        expect(listener).toHaveBeenCalledTimes(2);
       });
-      const good = jest.fn();
-      registry.subscribe(bad);
-      registry.subscribe(good);
-      await registry.add({
-        providerType: "anthropic",
-        displayName: "A",
-        origin: { kind: "byok" },
+      it("continues notifying subscribers when another subscriber throws", async () => {
+        registry.subscribe(() => {
+          throw new Error("Listener failure");
+        });
+        const listener = jest.fn();
+        registry.subscribe(listener);
+        const id = await registry.add(providerInput());
+        expect(listener).toHaveBeenCalledWith(id);
+        expect(logError).toHaveBeenCalled();
       });
-      expect(bad).toHaveBeenCalledTimes(1);
-      expect(good).toHaveBeenCalledTimes(1);
     });
   });
 });

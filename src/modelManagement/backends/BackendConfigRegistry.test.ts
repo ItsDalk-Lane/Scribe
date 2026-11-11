@@ -40,20 +40,23 @@ describe("BackendConfigRegistry", () => {
       expect(registry.get("chat").enabledModels).toEqual([]);
       expect(registry.get("chat")).toBe(registry.get("chat"));
     });
-    it("returns the persisted configuration for the selected backend", async () => {
+    it("returns the selected configuration and leaves current and retired backend entries empty", async () => {
       await registry.setEnabledModels("chat", ["a"]);
       expect(registry.get("chat")).toEqual({ enabledModels: ["a"] });
+      expect(registry.get("native").enabledModels).toEqual([]);
       expect(registry.get("claude").enabledModels).toEqual([]);
     });
   });
 
   describe("setEnabledModels()", () => {
-    it("replaces one backend's model order while preserving other backends and the input array", async () => {
+    it("replaces model order while preserving current and retired backend entries and the input array", async () => {
+      await registry.setEnabledModels("native", ["current"]);
       await registry.setEnabledModels("claude", ["other"]);
       const ids = ["b", "a"];
       await registry.setEnabledModels("chat", ids);
       ids.push("later");
       expect(registry.get("chat").enabledModels).toEqual(["b", "a"]);
+      expect(registry.get("native").enabledModels).toEqual(["current"]);
       expect(registry.get("claude").enabledModels).toEqual(["other"]);
     });
     it("does not replace stored configurations when the model list is unchanged", async () => {
@@ -93,11 +96,13 @@ describe("BackendConfigRegistry", () => {
   });
 
   describe("removeRefs()", () => {
-    it("removes matching models from every backend and preserves unrelated models", async () => {
+    it("removes matching models from current and retired backend entries while preserving unrelated models", async () => {
       await registry.setEnabledModels("chat", ["a", "b"]);
+      await registry.setEnabledModels("native", ["b", "current"]);
       await registry.setEnabledModels("claude", ["b", "c"]);
       await registry.removeRefs(["b"]);
       expect(registry.get("chat").enabledModels).toEqual(["a"]);
+      expect(registry.get("native").enabledModels).toEqual(["current"]);
       expect(registry.get("claude").enabledModels).toEqual(["c"]);
     });
     it("does not replace settings for an empty list or references absent from all backends", async () => {

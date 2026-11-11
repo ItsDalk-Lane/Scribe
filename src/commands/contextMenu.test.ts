@@ -56,7 +56,6 @@ function customCommand(title: string, order: number, showInContextMenu: boolean)
     content: "",
     modelKey: "",
     showInContextMenu,
-    showInSlashMenu: false,
     order,
     lastUsedMs: 0,
   };

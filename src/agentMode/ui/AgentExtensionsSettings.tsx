@@ -1,3 +1,4 @@
+import { SubagentsSettings } from "@/agentMode/subagents/ui/SubagentsSettings";
 import { backendDisplayOrder } from "@/agentMode/backends/registry";
 import type {
   AgentExtensionGroup,
@@ -20,9 +21,7 @@ import {
   storeCachedExtensionView,
 } from "@/agentMode/session/extensionCheckCache";
 import { resolveScopeCwd } from "@/agentMode/session/sessionScope";
-import { useManagedSkills } from "@/agentMode/skills/SkillManager";
-import { BUILTIN_SKILLS } from "@/builtinSkills/builtinSkills";
-import { openNewSkillModal, SkillsSettings } from "@/agentMode/skills/ui/SkillsSettings";
+import { SkillsSettings } from "@/agentMode/skills/ui/SkillsSettings";
 import { AgentExtensionsPanel, EXTENSION_LABELS } from "@/agentMode/ui/AgentExtensionsPanel";
 import { ExtensionEditor } from "@/agentMode/ui/ExtensionEditor";
 import { ExtensionDetailsView, ExtensionModal } from "@/agentMode/ui/ExtensionDialogs";
@@ -94,14 +93,21 @@ function mergeScopeInventories(
   });
 }
 
-export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSettingsProps) {
+export function AgentExtensionsSettings(props: AgentExtensionsSettingsProps) {
+  if (props.kind === "subagent") return <SubagentsSettings />;
+  if (!props.kind || props.kind === "skill") return <SkillsSettings />;
+  return <RuntimeExtensionsSettings {...props} />;
+}
+
+function RuntimeExtensionsSettings({ kind = "skill" }: AgentExtensionsSettingsProps) {
   const plugin = usePlugin();
   const settings = useSettingsValue();
   const projects = useProjects();
-  const managedSkills = useManagedSkills();
   const descriptors = backendDisplayOrder();
   const [selectedAgent, setSelectedAgent] = React.useState(descriptors[0].id);
   const descriptor = descriptors.find((item) => item.id === selectedAgent) ?? descriptors[0];
+  // 旧视图可能误认同名项目，读取当前身份且不重写可能含未知数据的旧缓存。https://github.com/ItsDalk-Lane/Scribe/issues/6
+  const usePersistentCache = descriptor.id !== "native" || kind !== "skill";
   const [query, setQuery] = React.useState("");
   const [operation, setOperation] = React.useState<{
     context: string;
@@ -161,17 +167,21 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
   const context = JSON.stringify([descriptor.id, scanScopes, kind]);
   const cacheIdentity = React.useMemo(
     () =>
-      extensionCheckCacheIdentity({
-        backendId: descriptor.id,
-        scopeKind: scope.kind,
-        cwd: scope.kind === "user" ? null : cwd,
-        vaultBase,
-      }),
-    [descriptor.id, scope.kind, cwd, vaultBase]
+      // 项目清单改变后，旧页面可能把其他项目的状态显示给当前用户。https://github.com/ItsDalk-Lane/Scribe/issues/6
+      JSON.stringify([
+        extensionCheckCacheIdentity({
+          backendId: descriptor.id,
+          scopeKind: scope.kind,
+          cwd: scope.kind === "user" ? null : cwd,
+          vaultBase,
+        }),
+        scanScopes,
+      ]),
+    [descriptor.id, scope.kind, cwd, vaultBase, scanScopes]
   );
   const [state, setState] = React.useState<InventoryState>(
     () =>
-      savedInventoryState(plugin.app, cacheIdentity, context) ?? {
+      (usePersistentCache ? savedInventoryState(plugin.app, cacheIdentity, context) : null) ?? {
         context,
         groups: null,
         loading: true,
@@ -195,7 +205,9 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
       controller.current?.abort();
       const abort = new AbortController();
       controller.current = abort;
-      const savedView = readCachedExtensionView(plugin.app, cacheIdentity);
+      const savedView = usePersistentCache
+        ? readCachedExtensionView(plugin.app, cacheIdentity)
+        : null;
       setState((current) => {
         if (current.context === context)
           return { ...current, loading: current.groups === null, error: false };
@@ -243,8 +255,11 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
           },
           inventory
         );
-        const cached = enabled && !force ? readCachedExtensionCheck(plugin.app, key) : null;
-        const mergeOptions = { appendRuntimeEntries: true };
+        const cached =
+          usePersistentCache && enabled && !force
+            ? readCachedExtensionCheck(plugin.app, key)
+            : null;
+        const mergeOptions = { appendRuntimeEntries: true, runtimeScope: scope };
         let runtime: AgentExtensionRuntimeSnapshot | null = cached;
         let failed = false;
         if (!cached && enabled && descriptor.checkExtensions) {
@@ -252,17 +267,18 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
             current.context === context ? { ...current, loading: true } : current
           );
           const applyUpdate = (snapshot: AgentExtensionRuntimeSnapshot) => {
-            storeCachedExtensionCheck(plugin.app, key, snapshot);
+            if (usePersistentCache) storeCachedExtensionCheck(plugin.app, key, snapshot);
             const mergedSnapshot = mergeExtensionRuntime(
               inventoryWithWarnings,
               snapshot,
               mergeOptions
             );
             const runtimeState = snapshot.checkErrors?.length ? "partial" : "checked";
-            storeCachedExtensionView(plugin.app, cacheIdentity, {
-              groups: mergedSnapshot,
-              runtimeState,
-            });
+            if (usePersistentCache)
+              storeCachedExtensionView(plugin.app, cacheIdentity, {
+                groups: mergedSnapshot,
+                runtimeState,
+              });
             if (id !== requestId.current || abort.signal.aborted) return;
             setState((current) =>
               current.context === context
@@ -278,7 +294,7 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
               signal: abort.signal,
               onUpdate: applyUpdate,
             });
-            if (runtime) storeCachedExtensionCheck(plugin.app, key, runtime);
+            if (runtime && usePersistentCache) storeCachedExtensionCheck(plugin.app, key, runtime);
           } catch {
             failed = true;
             runtime = null;
@@ -294,7 +310,8 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
               : "not_started";
         if (id === requestId.current && !abort.signal.aborted) {
           setState({ context, groups: merged, loading: false, runtimeState });
-          storeCachedExtensionView(plugin.app, cacheIdentity, { groups: merged, runtimeState });
+          if (usePersistentCache)
+            storeCachedExtensionView(plugin.app, cacheIdentity, { groups: merged, runtimeState });
         }
       } catch (error) {
         if (id === requestId.current && !abort.signal.aborted) {
@@ -315,6 +332,7 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
       plugin,
       context,
       cacheIdentity,
+      usePersistentCache,
     ]
   );
   const loadRef = React.useRef(load);
@@ -423,42 +441,25 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
   const currentState: InventoryState =
     state.context === context
       ? state
-      : (savedInventoryState(plugin.app, cacheIdentity, context) ?? {
+      : ((usePersistentCache ? savedInventoryState(plugin.app, cacheIdentity, context) : null) ?? {
           context,
           groups: null,
           loading: true,
           runtimeState: "not_started" as const,
         });
-  const managedFiles = new Set(managedSkills.map((item) => normalizeAbsPath(item.filePath)));
-  const managedNames = new Set([
-    ...managedSkills.map((item) => item.name),
-    ...BUILTIN_SKILLS.map((item) => item.name),
-  ]);
   const groups =
     currentState.groups
       ?.filter((group) => group.kind === kind)
       .map((group) => ({
         ...group,
-        items: group.items.filter((item) => {
-          if (kind === "skill" && !item.parentPluginId && item.source !== "plugin") {
-            if (managedFiles.has(normalizeAbsPath(item.target?.path ?? item.location ?? "")))
-              return false;
-            if (item.source === "runtime" && managedNames.has(item.name)) return false;
-          }
-          return `${item.name} ${item.description ?? ""} ${item.parentPluginId ?? ""}`
+        items: group.items.filter((item) =>
+          `${item.name} ${item.description ?? ""} ${item.parentPluginId ?? ""}`
             .toLowerCase()
-            .includes(q);
-        }),
+            .includes(q)
+        ),
       })) ?? null;
   const inactive = enabled ? {} : { inert: "" };
-  const ownsSkills = kind === "skill";
-  const hideEmpty =
-    ownsSkills &&
-    !currentState.loading &&
-    !currentState.error &&
-    currentState.runtimeState !== "error" &&
-    groups?.every((group) => group.items.length === 0 && group.warnings.length === 0);
-  const content = hideEmpty ? null : (
+  const content = (
     <div {...inactive} aria-disabled={!enabled} className={enabled ? undefined : "tw-opacity-50"}>
       <AgentExtensionsPanel
         agentName={descriptor.displayName}
@@ -494,6 +495,18 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
         searchPlaceholder={t("Search {name}…", { name: t(EXTENSION_LABELS[kind]) })}
         actions={
           <>
+            {/* 只有命令页提供新建入口；技能与子代理有各自的管理页。https://github.com/ItsDalk-Lane/Scribe/issues/53 */}
+            {kind === "command" && (
+              <Button
+                variant="secondary"
+                aria-label={t("New {name}", { name: t(EXTENSION_LABELS[kind]) })}
+                disabled={busy || pending || !enabled || !management}
+                onClick={() => openEditor()}
+              >
+                <Plus aria-hidden="true" className="tw-size-4" />
+                {t("New {name}", { name: t(EXTENSION_LABELS[kind]) })}
+              </Button>
+            )}
             <Button
               size="icon"
               variant="secondary"
@@ -503,20 +516,6 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
             >
               <RefreshCw className="tw-size-4" />
             </Button>
-            {ownsSkills ? (
-              <Button
-                disabled={busy || pending || !enabled}
-                onClick={() => openNewSkillModal(plugin.app, () => loadRef.current())}
-              >
-                <Plus className="tw-size-4" />
-                {t("New skill")}
-              </Button>
-            ) : kind === "command" ? (
-              <Button disabled={busy || pending || !enabled} onClick={() => openEditor()}>
-                <Plus className="tw-size-4" />
-                {t("New agent command")}
-              </Button>
-            ) : null}
           </>
         }
       />
@@ -527,25 +526,7 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
           )}
         </p>
       )}
-      {ownsSkills ? (
-        <div {...inactive} aria-disabled={!enabled}>
-          <SkillsSettings
-            embedded
-            query={query}
-            runtimeItems={
-              currentState.runtimeState === "error" || currentState.runtimeState === "not_started"
-                ? undefined
-                : currentState.groups?.find((group) => group.kind === "skill")?.items
-            }
-            checking={currentState.loading || busy || pending}
-            onChanged={() => mutate(async () => {})}
-          >
-            {content}
-          </SkillsSettings>
-        </div>
-      ) : (
-        content
-      )}
+      {content}
       <details className="tw-text-ui-smaller tw-leading-normal tw-text-muted">
         <summary>{t("About checking and configuration changes")}</summary>
         <div className="tw-space-y-2 tw-pt-2">
@@ -556,7 +537,7 @@ export function AgentExtensionsSettings({ kind = "skill" }: AgentExtensionsSetti
           </p>
           <p>
             {t(
-              "Scribe uses its own registered tools and extensions. External agent plugins, hooks, and MCP services are not loaded."
+              "Scribe uses its own registered tools and extensions. External agent plugins and hooks are not loaded. MCP servers are configured on the MCP tab."
             )}
           </p>
           <p>{t("Loaded or connected does not guarantee that each execution succeeds.")}</p>

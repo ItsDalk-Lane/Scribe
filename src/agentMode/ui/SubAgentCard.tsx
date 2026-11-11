@@ -1,6 +1,6 @@
 import { t } from "@/lib/i18n";
 import React from "react";
-import { useTrailExpansion } from "@/agentMode/ui/useTrailExpansion";
+import { useTrailExpansion, type TrailExpansion } from "@/agentMode/ui/useTrailExpansion";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { App } from "obsidian";
 import type { ToolCallPart } from "@/agentMode/ui/agentTrail";
@@ -16,24 +16,28 @@ import { AgentActivityCard } from "@/components/chat-components/AgentActivityCar
 
 interface SubAgentCardProps {
   parent: ToolCallPart;
+  expansion?: TrailExpansion;
+  expansionId?: string;
   childNodes: GroupedTrailNode[];
   truncated?: boolean;
-  isTurnStreaming?: boolean;
   app: App;
   renderNode: (node: GroupedTrailNode, key: string | number) => React.ReactNode;
 }
 
 export const SubAgentCard: React.FC<SubAgentCardProps> = ({
   parent,
+  expansion: controlledExpansion,
+  expansionId = "subagent",
   childNodes,
   truncated,
   app,
   renderNode,
-  isTurnStreaming = false,
 }) => {
-  const expansion = useTrailExpansion(isTurnStreaming);
-  const open = expansion.isOpen("subagent");
-  const promptOpen = expansion.isOpen("prompt", false);
+  const localExpansion = useTrailExpansion();
+  const expansion = controlledExpansion ?? localExpansion;
+  const open = expansion.isOpen(expansionId);
+  const promptId = `${expansionId}/prompt`;
+  const promptOpen = expansion.isOpen(promptId, false);
   const summary = lookupToolSummary(parent);
   const Icon = summary.icon;
   const line = summary.collapsedLine(parent);
@@ -46,11 +50,12 @@ export const SubAgentCard: React.FC<SubAgentCardProps> = ({
     <AgentActivityCard
       icon={Icon}
       label={line}
+      isRunning={parent.status === "in_progress"}
       trailing={<StatusBadge status={parent.status} />}
       secondary={outcome}
       expandable
       open={open}
-      onToggle={() => expansion.toggle("subagent")}
+      onToggle={() => expansion.toggle(expansionId)}
     >
       {childCounts.tools > 0 || childCounts.reasoning > 0 || truncated ? (
         <div className="tw-text-xs tw-text-muted">{describeCounts(childCounts, truncated)}</div>
@@ -59,7 +64,7 @@ export const SubAgentCard: React.FC<SubAgentCardProps> = ({
         <div className="tw-my-1">
           <div
             className="tw-flex tw-cursor-pointer tw-items-center tw-gap-2 tw-text-xs tw-text-muted"
-            onClick={() => expansion.toggle("prompt", false)}
+            onClick={() => expansion.toggle(promptId, false)}
             role="button"
           >
             <span className="tw-flex-1 tw-truncate">{t("Prompt")}</span>

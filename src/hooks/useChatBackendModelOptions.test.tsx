@@ -42,8 +42,8 @@ jest.mock("@/modelManagement", () => ({
     "@/modelManagement/chatModel/chatModelSelection"
   ),
   chatBackendPickerAtom: "chat",
-  providerRequiresApiKey: (provider: { requiresApiKey?: boolean }) =>
-    provider.requiresApiKey ?? true,
+  providerNeedsResolvedApiKey: (provider: { requiresApiKey?: boolean; apiKeyRef?: string }) =>
+    (provider.requiresApiKey ?? true) || !!provider.apiKeyRef,
   configuredModelToCustomModel: ({
     configuredModel,
   }: {
@@ -54,13 +54,42 @@ jest.mock("@/modelManagement", () => ({
   }),
 }));
 jest.mock("@/settings/model", () => ({ settingsStore: {} }));
-jest.mock("@/services/keychainService", () => ({ KeychainService: { getInstance: jest.fn() } }));
+const mockSecret = jest.fn();
+jest.mock("@/services/secretStore", () => ({
+  SecretStore: { getInstance: () => ({ getStatus: mockSecret }) },
+}));
 
 describe("useChatBackendModelOptions", () => {
   describe("useChatBackendModelOptions", () => {
-    it("lists enabled models whose provider can authenticate and resolves a legacy selection", () => {
+    it("omits a saved key reference whose credential is unavailable on this device and orders options by provider group https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const provider = mockEntries[1].provider as (typeof mockEntries)[1]["provider"] & {
+        apiKeyRef?: string;
+      };
+      provider.apiKeyRef = "missing-on-device";
+      mockSecret.mockReturnValue("missing");
+      try {
+        const { result } = renderHook(() => useChatBackendModelOptions());
+        expect(result.current.options.map((option) => option.value)).toEqual(["model-a"]);
+        mockSecret.mockReturnValue("locked");
+        const available = renderHook(() => useChatBackendModelOptions());
+        expect(available.result.current.options.map((option) => option.value)).toEqual([
+          "model-keyless",
+          "model-a",
+        ]);
+        expect(available.result.current.options.map((option) => option.group)).toEqual([
+          "Anthropic",
+          "OpenAI",
+        ]);
+      } finally {
+        delete provider.apiKeyRef;
+      }
+    });
+
+    it("lists enabled models whose provider can authenticate, carries the provider group, and resolves a legacy selection", () => {
       const { result } = renderHook(() => useChatBackendModelOptions(false));
-      expect(result.current.options).toEqual([{ label: "GPT-4o", value: "model-a" }]);
+      expect(result.current.options).toEqual([
+        { label: "GPT-4o", value: "model-a", group: "OpenAI" },
+      ]);
       expect(result.current.resolveSelectionId("gpt-4o|openai")).toBe("model-a");
     });
     it("does not substitute the first model for a removed command selection", () => {

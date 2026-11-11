@@ -1,3 +1,4 @@
+import { useChatBackendModelOptions } from "@/hooks/useChatBackendModelOptions";
 import { t } from "@/lib/i18n";
 import React, { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { Notice } from "obsidian";
@@ -36,7 +37,9 @@ export function QuickAskPanel({
   const filePathSnapshot = filePathSnapshotRef.current;
 
   const settings = useSettingsValue();
-  const [selectedModelKey, setSelectedModelKey] = useState(settings.quickCommandModelKey);
+  const { options: modelOptions } = useChatBackendModelOptions();
+  const [pickedModelKey, setSelectedModelKey] = useState<string>();
+  const selectedModelKey = pickedModelKey ?? modelOptions[0]?.value;
   const [includeNoteContext, setIncludeNoteContext] = useState(
     () => settings.quickCommandIncludeNoteContext
   );
@@ -86,15 +89,26 @@ export function QuickAskPanel({
     [onResizeStart]
   );
 
+  const submissionPending = useRef(false);
   const handleSubmit = useCallback(async () => {
-    if (!inputText.trim() || isStreaming) return;
+    if (!inputText.trim() || isStreaming || submissionPending.current) return;
     if (!hasModel) {
       new Notice(t("Select a model to continue."));
       return;
     }
     const text = inputText;
-    setInputText("");
-    await sendMessage(text);
+    submissionPending.current = true;
+    try {
+      // 本地拒绝或没有可接受回答时保留问题，用户可缩短内容或换模型后直接重试。https://github.com/ItsDalk-Lane/Scribe/issues/64
+      if (await sendMessage(text)) setInputText((current) => (current === text ? "" : current));
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError"))
+        new Notice(
+          error instanceof Error ? error.message : t("Failed to send message. Please try again.")
+        );
+    } finally {
+      submissionPending.current = false;
+    }
   }, [inputText, isStreaming, sendMessage, hasModel]);
 
   const handleKeyDown = useCallback(
@@ -269,7 +283,6 @@ export function QuickAskPanel({
               replaceInvalidReason={replaceInvalidReason}
               isDisabledDueToStreaming={isDisabledDueToStreaming}
               filePathSnapshot={filePathSnapshot}
-              plugin={plugin}
             />
           ))}
         </div>

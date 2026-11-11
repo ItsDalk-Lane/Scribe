@@ -6,10 +6,9 @@ import { AddProjectModal } from "@/components/modals/project/AddProjectModal";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { openAgentsFile } from "@/instructions/agentsFile";
-import { moveProjectPromptToAgentsFile } from "@/projects/moveProjectPrompt";
 import { cn } from "@/lib/utils";
 import { logError } from "@/logger";
-import { getProjectAnchorFromConfigPath } from "@/projects/projectPaths";
+import { validateProjectWorkspace } from "@/projects/projectWorkspace";
 import { ProjectFileManager } from "@/projects/ProjectFileManager";
 import { getCachedProjectRecordById } from "@/projects/state";
 import {
@@ -22,9 +21,9 @@ import {
   Settings,
 } from "lucide-react";
 import { App, Notice, TFile, TFolder } from "obsidian";
-import React, { memo, useMemo, useState } from "react";
+import React, { memo, useEffect, useState } from "react";
 
-const HIDDEN_BASENAMES = new Set(["project.md", "agents.md"]);
+const HIDDEN_BASENAMES = new Set(["agents.md"]);
 
 const BADGE_CLASSES: Record<string, string> = {
   pdf: "tw-bg-project-red tw-text-project-red",
@@ -103,6 +102,7 @@ export interface ProjectFileEntry {
 
 export interface ProjectFilesListProps {
   files: readonly ProjectFileEntry[];
+  workspacePath?: string;
   onOpenInstructions: () => void;
   onOpenFile: (path: string) => void;
   onReveal: () => void;
@@ -110,6 +110,7 @@ export interface ProjectFilesListProps {
 
 export function ProjectFilesList({
   files,
+  workspacePath,
   onOpenInstructions,
   onOpenFile,
   onReveal,
@@ -118,6 +119,11 @@ export function ProjectFilesList({
 
   return (
     <div className="tw-px-3 tw-py-2.5">
+      {workspacePath !== undefined && (
+        <div className="tw-mb-2 tw-break-words tw-text-ui-smaller tw-text-muted">
+          {t("Project workspace")}: {workspacePath || t("Vault root")}
+        </div>
+      )}
       <div className="tw-mb-1 tw-flex tw-items-center tw-justify-between">
         <span className="tw-text-ui-smaller tw-font-semibold tw-text-faint">
           {t("Project files")}
@@ -201,30 +207,46 @@ interface ProjectFilesSectionProps {
 const EMPTY_PROJECT_FILES: readonly TFile[] = Object.freeze([]);
 
 function ProjectFilesSection({ app, project, onClose }: ProjectFilesSectionProps) {
-  const files = useMemo(() => {
-    const record = getCachedProjectRecordById(project.id);
-    const folderPath = record
-      ? getProjectAnchorFromConfigPath(record.filePath).projectFolderPath
-      : null;
-    const folder = folderPath ? app.vault.getAbstractFileByPath(folderPath) : null;
-    if (!(folder instanceof TFolder)) return EMPTY_PROJECT_FILES;
-    return folder.children
-      .filter(
-        (child): child is TFile =>
-          child instanceof TFile &&
-          !child.name.startsWith(".") &&
-          !HIDDEN_BASENAMES.has(child.name.toLowerCase())
-      )
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [app, project.id]);
+  const [files, setFiles] = useState<readonly TFile[]>(EMPTY_PROJECT_FILES);
+  useEffect(() => {
+    let cancelled = false;
+    const folderPath = project.workspacePath;
+    if (folderPath === undefined) return;
+    void validateProjectWorkspace(app, folderPath)
+      .then(() => {
+        if (cancelled) return;
+        const folder =
+          folderPath === "" ? app.vault.getRoot() : app.vault.getAbstractFileByPath(folderPath);
+        setFiles(
+          folder instanceof TFolder
+            ? folder.children
+                .filter(
+                  (child): child is TFile =>
+                    child instanceof TFile &&
+                    !child.name.startsWith(".") &&
+                    !HIDDEN_BASENAMES.has(child.name.toLowerCase())
+                )
+                .sort((a, b) => a.name.localeCompare(b.name))
+            : EMPTY_PROJECT_FILES
+        );
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setFiles(EMPTY_PROJECT_FILES);
+        logError("无法读取项目工作文件夹。", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [app, project.workspacePath]);
 
   const handleOpenFile = (path: string) => {
+    if (project.workspacePath === undefined) return;
     const file = files.find((candidate) => candidate.path === path);
     if (!file) return;
     onClose();
-    void app.workspace
-      .getLeaf(false)
-      .openFile(file)
+    void validateProjectWorkspace(app, project.workspacePath)
+      .then(() => app.workspace.getLeaf(false).openFile(file))
       .catch((err) => logError("[ProjectInfoPopover] openFile failed", err));
   };
 
@@ -232,10 +254,10 @@ function ProjectFilesSection({ app, project, onClose }: ProjectFilesSectionProps
     const record = getCachedProjectRecordById(project.id);
     if (!record) return;
     onClose();
-    void moveProjectPromptToAgentsFile(app, record)
-      .then(() =>
-        openAgentsFile(app, getProjectAnchorFromConfigPath(record.filePath).projectFolderPath)
-      )
+    if (record.project.workspacePath === undefined) return;
+    const workspacePath = record.project.workspacePath;
+    void validateProjectWorkspace(app, workspacePath)
+      .then(() => openAgentsFile(app, workspacePath))
       .catch((error) => {
         logError("[ProjectInfoPopover] Failed to open project AGENTS.md", error);
         new Notice(t("Failed to open project AGENTS.md."));
@@ -245,11 +267,12 @@ function ProjectFilesSection({ app, project, onClose }: ProjectFilesSectionProps
   return (
     <ProjectFilesList
       files={files}
+      workspacePath={project.workspacePath}
       onOpenInstructions={handleOpenProjectInstructions}
       onOpenFile={handleOpenFile}
       onReveal={() => {
         onClose();
-        revealProjectFolder(app, project);
+        void revealProjectFolder(app, project);
       }}
     />
   );
@@ -270,9 +293,9 @@ export const ProjectInfoPopover = memo(
       setOpen(false);
       new AddProjectModal(
         app,
-        async (next) => {
+        async (next, baseline) => {
           try {
-            await ProjectFileManager.getInstance(app).updateProject(project.id, next);
+            await ProjectFileManager.getInstance(app).updateProject(project.id, next, baseline);
           } catch (e) {
             logError("[ProjectInfoPopover] updateProject failed", e);
             throw e;
@@ -323,7 +346,7 @@ export const ProjectInfoPopover = memo(
               className="tw-size-6 tw-text-muted hover:tw-text-normal"
               onClick={() => {
                 setOpen(false);
-                revealProjectFolder(app, project);
+                void revealProjectFolder(app, project);
               }}
             >
               <FolderSearch className="tw-size-3.5" />

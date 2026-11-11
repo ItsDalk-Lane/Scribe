@@ -4,9 +4,24 @@ This file provides guidance to any coding agent when working with code in this r
 
 ## Overview
 
-Scribe is an AI-powered assistant plugin that integrates various LLM providers (OpenAI, Anthropic, Google, etc.) and the Claude Code agent with Obsidian. It provides chat interfaces and various AI-powered commands for note-taking and knowledge management.
+Scribe is an AI-powered assistant plugin for Obsidian. It connects to configured model providers and runs its desktop agent inside Obsidian, with chat and commands for note-taking and knowledge management.
 
-This repository (Scribe) is a fork of [Obsidian Copilot](https://github.com/logancyang/obsidian-copilot), forked from upstream v4.0.17. It tracks upstream releases and selectively syncs the updates this project can use. The currently followed upstream version is recorded in the README's "Upstream project" section — update that record whenever a sync lands. Scribe's own version numbering is independent of upstream and starts at 1.0.0.
+This repository is a fork of the upstream project at v4.0.17. It tracks upstream releases and selectively syncs usable updates. The README's "Upstream project" section records the currently followed version and attribution; update that record whenever a sync lands. Scribe's own version numbering is independent and starts at 1.0.0.
+
+## 数据保存规则（所有新功能必须遵守）
+
+新增、修改任何持久化功能前，先读 [`internal-docs/DATA_STORAGE.md`](./internal-docs/DATA_STORAGE.md)。本节优先于旧代码、旧文档和“可配置目录”的通用建议；不得直接模仿历史保存路径。
+
+- 插件自己的持久化资料只有两个位置：Obsidian 当前配置目录内本插件的 `data.json`，以及**当前安装资料库根目录**的 `.scribe/`。
+- `data.json` 只保存用户明确配置、轻量偏好、存储元数据和恢复所需稳定标识。聊天、技能、命令、子 Agent 定义、项目资料、附件、任务输出、日志、缓存等文件资料一律放入 `.scribe/`，不得把文件正文塞进 `data.json`。
+- `.scribe` 是固定存储合同，不提供自定义位置，不使用历史根目录、电脑用户目录、系统临时目录、Obsidian 本地存储或系统钥匙串保存插件资料。保存暂存文件也必须留在 `.scribe` 内；失败应保留原件并报告，不换位置继续保存。
+- 两项说明文件例外：库级 `AGENTS.md` 位于库根；项目级 `AGENTS.md` 位于项目实际工作文件夹。用户明确要求生成或修改的普通笔记按其指定位置保存。
+- 项目配置按稳定项目标识保存于 `.scribe/projects/`；工作位置使用独立的 `workspacePath`，不得根据配置文件位置推断。项目改名不搬工作文件，删除项目不删除工作文件夹及其笔记。
+- 技能直接读取 `.scribe/skills/`，不扫描项目技能旧位置、不创建工作目录技能链接。自定义子 Agent 定义统一使用 `.scribe/subagents/`，管理列表和运行时委派必须使用同一份定义。
+- 密钥只以加密文件保存在 `.scribe/secrets/`，配置中只留引用。主密码不落盘，查看设置或列举模型不解密；只在对应服务请求准备期间解析所需凭据。
+- `.scribe` 可能不在 Obsidian 普通文件列表里。使用 adapter 或已有专用存储组件读写；内部操作成功后更新列表，外部修改在刷新或重新打开后读取。
+- 不自动读取、导入、删除旧位置资料或旧钥匙串。用户一次性明确授权的手工清理，不构成插件以后启动时自动清理的授权。
+- 新增目录、改变文件格式或保存位置时，同步更新存储规则、相关帮助和测试。先列明位置、读写入口、失败行为及重开恢复方式，再完成实现。
 
 ## Commands
 
@@ -40,24 +55,24 @@ This repository (Scribe) is a fork of [Obsidian Copilot](https://github.com/loga
 
 Read the matching guide when your task touches that area — they aren't loaded by default.
 
-| When you're…                                                          | Read                                                                                         |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| writing or altering tests, or doing E2E via the Obsidian CLI          | [`internal-docs/TESTING_GUIDE.md`](./internal-docs/TESTING_GUIDE.md)                         |
-| building or changing user-visible React components or visual states   | [`Component gallery workflow`](./internal-docs/TESTING_GUIDE.md#component-gallery-workflow)  |
-| writing code: DI/structure, TypeScript, React, comments, CSS/Tailwind | [`internal-docs/STYLE_GUIDE.md`](./internal-docs/STYLE_GUIDE.md)                             |
-| touching plugin runtime: the `app`, network requests, popout windows  | [`internal-docs/PLUGIN_DEV_GUIDE.md`](./internal-docs/PLUGIN_DEV_GUIDE.md)                   |
-| running a multi-step dev session                                      | [`internal-docs/PROCESS_GUIDE.md`](./internal-docs/PROCESS_GUIDE.md)                         |
-| changing user-facing behavior                                         | [`internal-docs/DOCS_GUIDE.md`](./internal-docs/DOCS_GUIDE.md)                               |
-| reviewing code or preparing an Obsidian submission                    | [`internal-docs/OBSIDIAN_COMMUNITY_REVIEW.md`](./internal-docs/OBSIDIAN_COMMUNITY_REVIEW.md) |
+| When you're…                                                                      | Read                                                                                         |
+| --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| writing or altering tests, or doing E2E via the Obsidian CLI                      | [`internal-docs/TESTING_GUIDE.md`](./internal-docs/TESTING_GUIDE.md)                         |
+| building or changing user-visible React components or visual states               | [`Component gallery workflow`](./internal-docs/TESTING_GUIDE.md#component-gallery-workflow)  |
+| writing code: DI/structure, TypeScript, React, comments, CSS/Tailwind             | [`internal-docs/STYLE_GUIDE.md`](./internal-docs/STYLE_GUIDE.md)                             |
+| touching plugin runtime: the `app`, network requests, popout windows              | [`internal-docs/PLUGIN_DEV_GUIDE.md`](./internal-docs/PLUGIN_DEV_GUIDE.md)                   |
+| running a multi-step dev session                                                  | [`internal-docs/PROCESS_GUIDE.md`](./internal-docs/PROCESS_GUIDE.md)                         |
+| adding or changing persisted files, caches, settings, credentials or feature data | [`internal-docs/DATA_STORAGE.md`](./internal-docs/DATA_STORAGE.md)                           |
+| changing user-facing behavior                                                     | [`internal-docs/DOCS_GUIDE.md`](./internal-docs/DOCS_GUIDE.md)                               |
+| reviewing code or preparing an Obsidian submission                                | [`internal-docs/OBSIDIAN_COMMUNITY_REVIEW.md`](./internal-docs/OBSIDIAN_COMMUNITY_REVIEW.md) |
 
 ## Important notes
 
 - The plugin supports multiple LLM providers with custom endpoints.
 - Settings are versioned — migrations may be needed.
 - Local model support via Ollama / LM Studio.
-- Rate limiting is implemented for all API calls.
-- Message & chat architecture: Repository → Manager → UIState → UI; single `MessageRepository`; per-project isolation.
-- Current session plan → [`TODO.md`](./TODO.md).
+- Agent chats are coordinated by `AgentSessionManager` and `AgentSession`, exposed to the UI through `AgentChatUIState`, and persisted through the session and chat storage components; project scope is tracked per chat.
+- Follow the session tracker requested for the current task and the [`PROCESS_GUIDE.md`](./internal-docs/PROCESS_GUIDE.md).
 - Available Tailwind tokens/classes → [`tailwind.config.js`](./tailwind.config.js).
 
 ## Obsidian review guidelines

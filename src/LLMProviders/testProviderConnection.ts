@@ -1,3 +1,4 @@
+import { RequestRedactor } from "@/LLMProviders/requestRedaction";
 import {
   type Provider,
   type ModelInfo,
@@ -27,7 +28,11 @@ export async function testProviderConnection(
       checkedAt: Date.now(),
     };
   }
-  if (providerNeedsResolvedApiKey(input.provider) && !input.apiKey?.trim()) {
+  if (
+    providerNeedsResolvedApiKey(input.provider) &&
+    !input.apiKey?.trim() &&
+    !input.provider.apiKeyRef
+  ) {
     return {
       ok: false,
       code: "missing_api_key",
@@ -102,7 +107,7 @@ export async function testProviderConnection(
     const data = error as { status?: number; statusCode?: number; message?: unknown } | null;
     const status = data?.status ?? data?.statusCode;
     const raw = error instanceof Error ? error.message : String(error);
-    const message = input.apiKey ? raw.split(input.apiKey).join("[redacted]") : raw;
+    const message = new RequestRedactor([input.apiKey ?? ""]).redact(raw);
     return {
       ok: false,
       code: timedOut

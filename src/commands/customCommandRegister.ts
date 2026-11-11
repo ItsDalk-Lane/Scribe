@@ -1,208 +1,69 @@
-import {
-  getCommandId,
-  getCommandFilePath,
-  isCustomCommandFile,
-  loadAllCustomCommands,
-  fetchAllCustomCommands,
-  parseCustomCommandFile,
-  getNextCustomCommandOrder,
-  ensureCommandFrontmatter,
-  hasOrderFrontmatter,
-} from "@/commands/customCommandUtils";
-import { App, Editor, Plugin, TFile, Vault } from "obsidian";
+import { getCommandId, loadAllCustomCommands } from "@/commands/customCommandUtils";
+import { type App, type Editor, type Plugin } from "obsidian";
 import { CustomCommandChatModal } from "@/commands/CustomCommandChatModal";
-import { debounce } from "@/utils/debounce";
-import { CustomCommand } from "@/commands/type";
+import type { CustomCommand } from "@/commands/type";
 import {
-  deleteCachedCommand,
   getCachedCustomCommands,
   isCustomCommandEnabled,
-  isFileWritePending,
-  updateCachedCommand,
-  updateCachedCommands,
   subscribeToCustomCommands,
 } from "@/commands/state";
 import { CustomCommandManager } from "@/commands/customCommandManager";
-import { getSettings, subscribeToSettingsChange } from "@/settings/model";
-import { deriveCustomPromptsFolder } from "@/settings/scribeFolder";
 import { logError } from "@/logger";
 
 export class CustomCommandRegister {
-  private plugin: Plugin;
-  private app: App;
-  private vault: Vault;
-  private settingsUnsubscriber?: () => void;
-  private commandsUnsubscriber?: () => void;
-  private folderChangeRequestId = 0;
   private disposed = false;
   private readonly registeredTitles = new Set<string>();
+  private readonly unsubscribe: () => void;
 
-  constructor(plugin: Plugin, app: App) {
-    this.plugin = plugin;
-    this.app = app;
-    this.vault = app.vault;
-    this.initializeEventListeners();
-    this.commandsUnsubscriber = subscribeToCustomCommands(() => this.registerCommands());
+  constructor(
+    private readonly plugin: Plugin,
+    private readonly app: App
+  ) {
+    this.unsubscribe = subscribeToCustomCommands(() => this.registerCommands());
   }
 
-  async initialize() {
+  async initialize(): Promise<void> {
     await loadAllCustomCommands(this.app);
-    if (this.disposed) return;
     this.registerCommands();
   }
 
-  private registerCommands() {
-    if (this.disposed) return;
-    const commands = getCachedCustomCommands();
-    const currentTitles = new Set(commands.map((command) => command.title));
-    for (const title of this.registeredTitles) {
-      if (!currentTitles.has(title)) this.removeRegisteredCommand(title);
-    }
-    commands.forEach((command) => {
-      this.registerCommand(command);
-    });
-  }
-
-  cleanup() {
+  cleanup(): void {
     this.disposed = true;
-    ++this.folderChangeRequestId;
-    this.settingsUnsubscriber?.();
-    this.commandsUnsubscriber?.();
+    this.unsubscribe();
+    for (const title of this.registeredTitles) this.removeRegisteredCommand(title);
     this.registeredTitles.clear();
-    this.vault.off("create", this.handleFileCreation);
-    this.vault.off("delete", this.handleFileDeletion);
-    this.vault.off("rename", this.handleFileRename);
-    this.vault.off("modify", this.handleFileModify);
-  }
-
-  private initializeEventListeners() {
-    this.vault.on("create", this.handleFileCreation);
-    this.vault.on("delete", this.handleFileDeletion);
-    this.vault.on("rename", this.handleFileRename);
-    this.vault.on("modify", this.handleFileModify);
-    this.settingsUnsubscriber = subscribeToSettingsChange(this.handleSettingsChange);
-  }
-
-  private handleSettingsChange = (
-    prev: ReturnType<typeof getSettings>,
-    next: ReturnType<typeof getSettings>
-  ): void => {
-    if (deriveCustomPromptsFolder(prev) !== deriveCustomPromptsFolder(next)) {
-      void this.handleFolderChange();
-    }
-  };
-
-  private async handleFolderChange(): Promise<void> {
-    const currentRequestId = ++this.folderChangeRequestId;
-
-    try {
-      const nextCommands = await fetchAllCustomCommands(this.app);
-
-      if (this.disposed) return;
-
-      if (currentRequestId !== this.folderChangeRequestId) return;
-
-      const nextTitles = new Set(nextCommands.map((command) => command.title));
-      for (const stale of getCachedCustomCommands()) {
-        if (!nextTitles.has(stale.title)) {
-          this.removeRegisteredCommand(stale.title);
-        }
-      }
-      nextCommands.forEach((command) => this.registerCommand(command));
-      updateCachedCommands(nextCommands);
-    } catch (error) {
-      if (currentRequestId !== this.folderChangeRequestId) return;
-      logError("Error reloading custom commands after folder change", error);
-    }
   }
 
   private removeRegisteredCommand(title: string): void {
-    const commandId = getCommandId(title);
-    (this.plugin as unknown as { removeCommand: (id: string) => void }).removeCommand(commandId);
-    this.registeredTitles.delete(title);
+    (this.plugin as unknown as { removeCommand: (id: string) => void }).removeCommand(
+      getCommandId(title)
+    );
   }
 
-  private handleFileModify = debounce(
-    async (file: TFile) => {
-      if (!isCustomCommandFile(file) || isFileWritePending(file.path)) {
-        return;
-      }
-      const customCommand = await parseCustomCommandFile(this.app, file);
-      this.registerCommand(customCommand);
-      updateCachedCommand(customCommand, customCommand.title);
-    },
-    1000,
-    {
-      leading: false,
-      trailing: true,
-    }
-  );
+  private registerCommands(): void {
+    if (this.disposed) return;
+    const commands = getCachedCustomCommands();
+    for (const title of this.registeredTitles) this.removeRegisteredCommand(title);
+    this.registeredTitles.clear();
+    for (const command of commands) this.registerCommand(command);
+  }
 
-  private handleFileCreation = async (file: TFile) => {
-    if (!isCustomCommandFile(file) || isFileWritePending(file.path)) {
-      return;
-    }
-    try {
-      let customCommand = await parseCustomCommandFile(this.app, file);
-      if (!hasOrderFrontmatter(this.app, file)) {
-        const newOrder = getNextCustomCommandOrder();
-        customCommand = { ...customCommand, order: newOrder };
-      }
-      await ensureCommandFrontmatter(this.app, file, customCommand);
-      updateCachedCommand(customCommand, customCommand.title);
-      this.registerCommand(customCommand);
-    } catch (error) {
-      logError(`Error processing custom command creation: ${file.path}`, error);
-    }
-  };
-
-  private handleFileDeletion = async (file: TFile) => {
-    if (!isCustomCommandFile(file) || isFileWritePending(file.path)) {
-      return;
-    }
-    const commandId = getCommandId(file.basename);
-    (this.plugin as unknown as { removeCommand: (id: string) => void }).removeCommand(commandId);
-    deleteCachedCommand(file.basename);
-  };
-
-  private handleFileRename = async (file: TFile, oldPath: string) => {
-    if (isFileWritePending(file.path)) {
-      return;
-    }
-    const oldFilename = oldPath.split("/").pop()?.replace(/\.md$/, "");
-    if (oldFilename && oldPath === getCommandFilePath(oldFilename)) {
-      const oldCommandId = getCommandId(oldFilename);
-      (this.plugin as unknown as { removeCommand: (id: string) => void }).removeCommand(
-        oldCommandId
-      );
-      deleteCachedCommand(oldFilename);
-    }
-    if (isCustomCommandFile(file)) {
-      const parsedCommand = await parseCustomCommandFile(this.app, file);
-      this.registerCommand(parsedCommand);
-      updateCachedCommand(parsedCommand, parsedCommand.title);
-      await ensureCommandFrontmatter(this.app, file, parsedCommand);
-    }
-  };
-
-  private registerCommand(customCommand: CustomCommand) {
-    const commandId = getCommandId(customCommand.title);
-    this.removeRegisteredCommand(customCommand.title);
-    if (customCommand.enabled === false) return;
+  private registerCommand(command: CustomCommand): void {
+    if (command.enabled === false) return;
     this.plugin.addCommand({
-      id: commandId,
-      name: customCommand.title,
+      id: getCommandId(command.title),
+      name: command.title,
       editorCallback: (editor: Editor) => {
-        if (!isCustomCommandEnabled(customCommand)) return;
-        new CustomCommandChatModal(this.plugin.app, {
+        if (!isCustomCommandEnabled(command)) return;
+        new CustomCommandChatModal(this.app, {
           selectedText: editor.getSelection(),
-          command: customCommand,
+          command,
         }).open();
         void CustomCommandManager.getInstance()
-          .recordUsage(customCommand)
-          .catch((err) => logError("recordUsage failed", err));
+          .recordUsage(command)
+          .catch((error) => logError("recordUsage failed", error));
       },
     });
-    this.registeredTitles.add(customCommand.title);
+    this.registeredTitles.add(command.title);
   }
 }

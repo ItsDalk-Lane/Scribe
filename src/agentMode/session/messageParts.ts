@@ -9,8 +9,6 @@ import type {
   ToolCallSnapshot,
 } from "@/agentMode/session/types";
 
-const MAX_TOOL_OUTPUT_TEXT_CHARS = 256_000;
-
 export function toolCallToPart(
   call: ToolCallSnapshot & { sessionUpdate?: "tool_call" }
 ): AgentMessagePart {
@@ -93,8 +91,15 @@ function extractToolCallOutputs(
   if (!content) return undefined;
   const outputs: AgentToolCallOutput[] = [];
   for (const item of content) {
-    if (item.type === "content" && item.content.type === "text") {
-      outputs.push(capToolOutputText(item.content.text));
+    // 带注解的文本及其他内容块必须保留完整字段，避免保存后丢失工具原始结果。https://github.com/ItsDalk-Lane/Scribe/issues/52
+    if (
+      item.type === "content" &&
+      item.content.type === "text" &&
+      Object.keys(item.content).every((key) => key === "type" || key === "text")
+    ) {
+      outputs.push({ type: "text", text: item.content.text ?? "" });
+    } else if (item.type === "content") {
+      outputs.push({ type: "content", content: item.content });
     } else if (item.type === "diff") {
       outputs.push({
         type: "diff",
@@ -105,17 +110,6 @@ function extractToolCallOutputs(
     }
   }
   return outputs.length > 0 ? outputs : undefined;
-}
-
-function capToolOutputText(text: string): AgentToolCallOutput {
-  if (text.length <= MAX_TOOL_OUTPUT_TEXT_CHARS) return { type: "text", text };
-  const omitted = text.length - MAX_TOOL_OUTPUT_TEXT_CHARS;
-  return {
-    type: "text",
-    text:
-      text.slice(0, MAX_TOOL_OUTPUT_TEXT_CHARS) +
-      `\n\n[Display trimmed: ${omitted.toLocaleString()} more characters. The agent received the full output.]`,
-  };
 }
 
 export function planToPart(plan: PlanSummary & { sessionUpdate?: "plan" }): AgentMessagePart {
@@ -141,6 +135,9 @@ export function compactionToPart(
     error: update.error,
     preTokens: update.preTokens,
     postTokens: update.postTokens,
+    ...(update.summary === undefined ? {} : { summary: update.summary }),
+    ...(update.fromIndex === undefined ? {} : { fromIndex: update.fromIndex }),
+    ...(update.toIndex === undefined ? {} : { toIndex: update.toIndex }),
     startedAtMs,
   };
 }

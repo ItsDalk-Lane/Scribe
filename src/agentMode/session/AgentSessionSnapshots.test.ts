@@ -9,7 +9,7 @@ function fixture(): AgentSessionSnapshot {
   return {
     version: 1,
     chatId: "chat-1",
-    backendId: "claude",
+    backendId: "native",
     sessionId: "native-1",
     projectId: "global",
     savedAtMs: 100,
@@ -86,7 +86,7 @@ describe("AgentSessionSnapshots", () => {
         await first.save(fixture());
         const reopened = new AgentSessionSnapshots(disk, "/snapshots", () => note);
 
-        const restored = await reopened.load("claude", "native-1");
+        const restored = await reopened.load("native", "native-1");
 
         expect(restored).toEqual(fixture());
         expect(restored!.messages[0].context!.notes[0]).toBe(note);
@@ -110,7 +110,7 @@ describe("AgentSessionSnapshots", () => {
         finish();
         await Promise.all([first, second]);
 
-        expect((await snapshots.load("claude", "native-1"))!.label).toBe("Latest");
+        expect((await snapshots.load("native", "native-1"))!.label).toBe("Latest");
       });
 
       it("reports a failed write and allows the next save to succeed", async () => {
@@ -120,7 +120,7 @@ describe("AgentSessionSnapshots", () => {
 
         await expect(snapshots.save(fixture())).rejects.toThrow("Disk full");
         await snapshots.save(fixture());
-        expect(await snapshots.load("claude", "native-1")).not.toBeNull();
+        expect(await snapshots.load("native", "native-1")).not.toBeNull();
       });
     });
 
@@ -129,16 +129,16 @@ describe("AgentSessionSnapshots", () => {
         const disk = storage();
         const missing = new AgentSessionSnapshots(disk, "/snapshots", () => null);
         await missing.save(fixture());
-        await missing.save((await missing.load("claude", "native-1"))!);
+        await missing.save((await missing.load("native", "native-1"))!);
         const note = mockTFile({ path: "Welcome.md" });
         const restored = new AgentSessionSnapshots(disk, "/snapshots", () => note);
-        const loaded = await restored.load("claude", "native-1");
+        const loaded = await restored.load("native", "native-1");
         expect(loaded!.messages[0].context!.notes).toEqual([note]);
         expect(loaded!.messages[0].missingAttachments).toBeUndefined();
       });
       it("returns no supplement for an old chat with no saved snapshot", async () => {
         const snapshots = new AgentSessionSnapshots(storage(), "/snapshots", () => null);
-        expect(await snapshots.load("claude", "unknown")).toBeNull();
+        expect(await snapshots.load("native", "unknown")).toBeNull();
       });
 
       it("marks missing note attachments explicitly while keeping the remaining conversation", async () => {
@@ -146,7 +146,7 @@ describe("AgentSessionSnapshots", () => {
         const snapshots = new AgentSessionSnapshots(disk, "/snapshots", () => null);
         await snapshots.save(fixture());
 
-        const restored = await snapshots.load("claude", "native-1");
+        const restored = await snapshots.load("native", "native-1");
 
         expect(restored!.messages[0].missingAttachments).toEqual(["Welcome.md"]);
         expect(restored!.messages[0].context!.notes).toEqual([]);
@@ -160,15 +160,15 @@ describe("AgentSessionSnapshots", () => {
         const path = [...disk.files.keys()][0];
         disk.files.set(path, '{"version":99}');
 
-        await expect(snapshots.load("claude", "native-1")).rejects.toThrow();
+        await expect(snapshots.load("native", "native-1")).rejects.toThrow();
         expect(disk.files.get(path)).toBe('{"version":99}');
       });
 
       it("keeps backend and session identities separate", async () => {
         const snapshots = new AgentSessionSnapshots(storage(), "/snapshots", () => null);
         await snapshots.save(fixture());
-        expect(await snapshots.load("codex", "native-1")).toBeNull();
-        expect(await snapshots.load("claude", "native-2")).toBeNull();
+        expect(await snapshots.load("other-backend", "native-1")).toBeNull();
+        expect(await snapshots.load("native", "native-2")).toBeNull();
       });
     });
 
@@ -179,10 +179,10 @@ describe("AgentSessionSnapshots", () => {
         await snapshots.save(fixture());
         await snapshots.save({ ...fixture(), sessionId: "native-2" });
 
-        await snapshots.remove("claude", "native-1");
+        await snapshots.remove("native", "native-1");
 
-        expect(await snapshots.load("claude", "native-1")).toBeNull();
-        expect(await snapshots.load("claude", "native-2")).not.toBeNull();
+        expect(await snapshots.load("native", "native-1")).toBeNull();
+        expect(await snapshots.load("native", "native-2")).not.toBeNull();
       });
     });
   });

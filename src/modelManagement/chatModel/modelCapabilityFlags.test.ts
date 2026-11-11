@@ -1,6 +1,10 @@
 import { ModelCapability } from "@/constants";
 import type { ModelInfo } from "@/modelManagement/types/catalog";
-import { capabilityListFromModelInfo, isChatModelInfo } from "./modelCapabilityFlags";
+import {
+  capabilitiesFromConfiguredInfo,
+  capabilityListFromModelInfo,
+  isChatModelInfo,
+} from "./modelCapabilityFlags";
 
 describe("modelCapabilityFlags", () => {
   describe("isChatModelInfo()", () => {
@@ -64,5 +68,26 @@ describe("modelCapabilityFlags", () => {
     it("returns an empty list for a plain model", () => {
       expect(capabilityListFromModelInfo({ id: "m", displayName: "M" })).toEqual([]);
     });
+  });
+  describe("capabilitiesFromConfiguredInfo()", () => {
+    it.each([
+      [["text", "image"], [ModelCapability.VISION]],
+      [["text"], []],
+    ])(
+      "preserves declared input modalities %j as capability list %j https://github.com/ItsDalk-Lane/Scribe/issues/56",
+      (input, expected) => {
+        expect(
+          capabilitiesFromConfiguredInfo({ id: "m", displayName: "M", modalities: { input } })
+        ).toEqual(expected);
+      }
+    );
+    it.each([undefined, {}, { output: ["text"] }, { input: [] }])(
+      "keeps missing input metadata unknown for %j https://github.com/ItsDalk-Lane/Scribe/issues/56",
+      (modalities) => {
+        expect(
+          capabilitiesFromConfiguredInfo({ id: "m", displayName: "M", modalities })
+        ).toBeUndefined();
+      }
+    );
   });
 });

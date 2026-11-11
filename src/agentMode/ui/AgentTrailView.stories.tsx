@@ -3,6 +3,7 @@ import { useApp } from "@/context";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { AgentMessagePart, StopReason, TurnFileChange } from "@/agentMode/session/types";
 import { AgentTrail } from "@/agentMode/ui/AgentTrailView";
+import { t } from "@/lib/i18n";
 import type { Meta, StoryObj } from "@/lib/story";
 import React, { useState } from "react";
 
@@ -68,7 +69,7 @@ const UNIFIED_CARDS: AgentMessagePart[] = [
   say("A single expandable tool remains its own row."),
   tool("read-2", "Read", { locations: [{ path: "src/agentMode/ui/ActionCard.tsx" }] }),
   tool("test-1", "Bash", { input: { description: "Run focused activity-card tests" } }),
-  say("Consecutive work folds into a group with the same header geometry."),
+  say("Consecutive tools remain separate rows with their own folded details."),
   tool("delegate-1", "Task", {
     input: { subagent_type: "Explore", description: "Check nested trail cards" },
   }),
@@ -117,12 +118,16 @@ const TrailDemo: React.FC<{
   showCompletedDuration?: boolean;
   fileChanges?: TurnFileChange[];
   stopReason?: StopReason;
+  errorText?: string;
+  metrics?: AgentTrailProps["metrics"];
 }> = ({
   parts,
   isStreaming = false,
   showCompletedDuration = true,
   fileChanges,
   stopReason = "end_turn",
+  errorText,
+  metrics,
 }) => {
   const app = useApp();
   return (
@@ -136,6 +141,8 @@ const TrailDemo: React.FC<{
         app={app}
         turnStopReason={isStreaming ? undefined : stopReason}
         fileChanges={fileChanges}
+        errorText={errorText}
+        metrics={metrics}
       />
     </TooltipProvider>
   );
@@ -154,6 +161,24 @@ export const GroupedTurn: StoryObj<AgentTrailProps> = {
 
 export const Streaming: StoryObj<AgentTrailProps> = {
   render: () => <TrailDemo parts={STREAMING} isStreaming />,
+};
+
+export const EmptyReply: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[]}
+      errorText={`**${t("Error:")}** ${t("No response or action was returned. Try again, or switch models if this happens repeatedly.")}`}
+    />
+  ),
+};
+
+export const PartialReplyFailure: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[say("I found the first note but could not finish.")]}
+      errorText={`**${t("Error:")}** ${t("Failed to send message. Please try again.")}`}
+    />
+  ),
 };
 
 export const UnifiedCardStyles: StoryObj<AgentTrailProps> = {
@@ -180,6 +205,46 @@ export const StoppedAtOutputLimit: StoryObj<AgentTrailProps> = {
       stopReason="max_tokens"
     />
   ),
+};
+
+export const StepLimitSummary: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[say("已完成两篇笔记的整理，剩余笔记尚未处理。发送新消息可以继续。")]}
+      stopReason="max_turn_requests"
+    />
+  ),
+};
+
+export const TaskRequestLimit: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[say("已完成的资料整理和子会话已保存，等待明确继续。")]}
+      stopReason="max_task_requests"
+    />
+  ),
+};
+
+export const QuotaExhausted: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo parts={[say("已检查现有内容，最后的修改尚未开始。")]} stopReason="quota_exhausted" />
+  ),
+};
+
+export const AuthenticationFailure: StoryObj<AgentTrailProps> = {
+  render: () => <TrailDemo parts={[]} stopReason="authentication_error" />,
+};
+
+export const ContextLimit: StoryObj<AgentTrailProps> = {
+  render: () => <TrailDemo parts={[say("已完成的工作已保留。")]} stopReason="context_limit" />,
+};
+
+export const RequestFailure: StoryObj<AgentTrailProps> = {
+  render: () => <TrailDemo parts={[]} stopReason="request_error" />,
+};
+
+export const CancelledByUser: StoryObj<AgentTrailProps> = {
+  render: () => <TrailDemo parts={[say("已读取两篇笔记。")]} stopReason="cancelled" />,
 };
 
 export const CompletedWithoutDuration: StoryObj<AgentTrailProps> = {
@@ -305,24 +370,32 @@ const ActivityLifecycleDemo: React.FC<{ singleTool?: boolean; reasoningOnly?: bo
   const running = stoppedAt === null;
   const read = tool("lifecycle-read", "Read", {
     locations: [{ path: "Example.md" }],
-    output: [{ type: "text", text: "已读取的内容会在运行时展开；完成后仍可点击查看。" }],
+    output: [{ type: "text", text: "工具详情默认收起，点击此工具即可查看。" }],
   });
   const parts = reasoningOnly
-    ? [{ kind: "thought" as const, text: "运行中的思考详情；完成后自动收起。", durationMs: 3_000 }]
+    ? [
+        {
+          kind: "thought" as const,
+          text: "思考详情默认收起；手动展开后，完成时仍保留展开。",
+          durationMs: 3_000,
+        },
+      ]
     : singleTool
       ? [read]
       : [
+          say("先查看第一篇笔记，再检查结果。"),
           read,
           tool("lifecycle-check", "Bash", {
             input: { command: "npm test" },
             status: running ? "in_progress" : "completed",
           }),
-          say("正文保持显示。"),
+          say("第一轮检查已完成，接着查看另一篇笔记。"),
           tool("lifecycle-read-second", "Read", { locations: [{ path: "Another.md" }] }),
           tool("lifecycle-check-second", "Bash", {
             input: { command: "npm run lint" },
             status: running ? "in_progress" : "completed",
           }),
+          say("这些正文始终留在原来的位置；完成时不会被移到最后。"),
         ];
   return (
     <TooltipProvider>
@@ -362,4 +435,224 @@ export const SingleToolCompletesAndCollapses: StoryObj<AgentTrailProps> = {
 };
 export const ReasoningCompletesAndCollapses: StoryObj<AgentTrailProps> = {
   render: () => <ActivityLifecycleDemo reasoningOnly />,
+};
+
+export const InterruptedWithPreservedOriginal: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[
+        tool("interrupted-edit", "Edit", {
+          synthetic: true,
+          status: "failed",
+          input: { file_path: "Projects/Brief.md" },
+          output: [
+            {
+              type: "text",
+              text: "系统恢复说明：文件可能已被改动，结果无法确认。请核查实际文件后再重试。",
+            },
+          ],
+        }),
+        say("意外退出前已经显示的回复仍保留在这里。"),
+        tool("finished-read", "Read", { input: { file_path: "Notes/Context.md" } }),
+        compaction({
+          summary: "用户正在整理项目说明；已完成资料阅读，文件修改结果需要人工核查。",
+          fromIndex: 0,
+          toIndex: 12,
+        }),
+      ]}
+      stopReason="interrupted"
+    />
+  ),
+};
+
+export const SubagentInspection: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[
+        think("查看已保存的子会话及其结果。"),
+        tool("sessions", "list_subagent_sessions", { toolKind: "read" }),
+        tool("result", "read_subagent_result", { toolKind: "read" }),
+        say("子代理已完成工作。"),
+      ]}
+    />
+  ),
+};
+
+const CompletedProcessDemo: React.FC = () => {
+  const app = useApp();
+  const [complete, setComplete] = useState(false);
+  const [startedAt, setStartedAt] = useState(() => Date.now());
+  const [duration, setDuration] = useState<number>();
+  const parts: AgentMessagePart[] = [
+    { kind: "thought", text: "先核对笔记中的记录。", durationMs: 1_234, segmentSeq: 1 },
+    { ...say("先读取第一篇笔记。"), segmentSeq: 1 },
+    tool("process-read-one", "Read", {
+      locations: [{ path: "Notes/First.md" }],
+      output: [{ type: "text", text: "第一篇笔记的完整结果。" }],
+    }),
+    { ...say("第一篇已读取，接着核对另一篇。"), segmentSeq: 5 },
+    tool("process-read-two", "Read", {
+      status: complete ? "completed" : "in_progress",
+      locations: [{ path: "Notes/Second.md" }],
+      output: complete ? [{ type: "text", text: "第二篇笔记的完整结果。" }] : undefined,
+    }),
+    ...(complete
+      ? [
+          {
+            kind: "thought" as const,
+            text: "把两份结果按原始顺序整理。",
+            durationMs: 2_345,
+            segmentSeq: 11,
+          },
+          { ...say("核对完成，两篇笔记的记录一致。最终正文保留在过程块外。"), segmentSeq: 11 },
+        ]
+      : []),
+  ];
+  return (
+    <TooltipProvider>
+      <div className="tw-flex tw-flex-col tw-gap-3">
+        <div className="tw-flex tw-gap-2">
+          <Button
+            disabled={complete}
+            onClick={() => {
+              setDuration(Date.now() - startedAt);
+              setComplete(true);
+            }}
+          >
+            完成本轮
+          </Button>
+          <Button
+            onClick={() => {
+              setStartedAt(Date.now());
+              setDuration(undefined);
+              setComplete(false);
+            }}
+          >
+            重新运行
+          </Button>
+        </div>
+        <AgentTrail
+          messageId="completed-process"
+          app={app}
+          parts={parts}
+          isStreaming={!complete}
+          turnStopReason={complete ? "end_turn" : undefined}
+          turnStartedAtMs={startedAt}
+          turnDurationMs={duration}
+          timestamp="2026/11/08 09:00:00"
+          metrics={{
+            partial: false,
+            sources: [],
+            hasActiveWork: !complete,
+            finalResponseSegmentSeq: complete ? 11 : undefined,
+            thinkingDurationMs: complete ? 3579 : 1234,
+            toolCallCount: 2,
+          }}
+        />
+      </div>
+    </TooltipProvider>
+  );
+};
+
+export const CompletedProcessWithFinalResponse: StoryObj<AgentTrailProps> = {
+  render: CompletedProcessDemo,
+};
+
+export const CompletedWithUnsuccessfulSteps: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[
+        say("读取失败后继续整理可用资料。"),
+        tool("failed-read", "Read", {
+          status: "failed",
+          locations: [{ path: "Notes/Missing.md" }],
+          output: [{ type: "text", text: "文件不存在。" }],
+        }),
+        tool("cancelled-read", "Read", {
+          status: "cancelled",
+          locations: [{ path: "Notes/Cancelled.md" }],
+        }),
+        compaction({ id: "failed-summary", status: "failed", error: "摘要请求失败。" }),
+        compaction({ id: "cancelled-summary", status: "cancelled" }),
+        {
+          ...say("已整理现有结果。过程默认折叠，失败和取消数量保留在标题中，展开可查看原始记录。"),
+          segmentSeq: 7,
+        },
+      ]}
+      metrics={{ partial: false, sources: [], hasActiveWork: false, finalResponseSegmentSeq: 7 }}
+    />
+  ),
+};
+
+export const CompletedWithUnfinishedPlan: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[
+        {
+          kind: "plan",
+          entries: [{ content: "尚未核对的笔记", status: "in_progress", priority: "medium" }],
+        },
+        { ...say("本轮已结束；展开过程可查看保留原状的计划，标题动效已停止。"), segmentSeq: 7 },
+      ]}
+      metrics={{ partial: false, sources: [], hasActiveWork: false, finalResponseSegmentSeq: 7 }}
+    />
+  ),
+};
+
+export const PlainResponseWithEmptyProcess: StoryObj<AgentTrailProps> = {
+  render: () => (
+    <TrailDemo
+      parts={[
+        { kind: "thought", text: "", segmentSeq: 7 },
+        { kind: "thought", text: " \n\t ", segmentSeq: 7 },
+        { kind: "plan", entries: [] },
+        { ...say("这是本轮的完整正文，前面的空思考和空计划不会生成空过程块。"), segmentSeq: 7 },
+      ]}
+      metrics={{ partial: false, sources: [], hasActiveWork: false, finalResponseSegmentSeq: 7 }}
+    />
+  ),
+};
+
+const StableResponseCompletionDemo = () => {
+  const app = useApp();
+  const [completed, setCompleted] = useState(false);
+  const parts: AgentMessagePart[] = [
+    { kind: "text", text: "先核对相关笔记。", segmentSeq: 1, contentIndex: 0 },
+    tool("stable-response-read", "Read", { locations: [{ path: "Example.md" }] }),
+    {
+      kind: "text",
+      text: "## 整理结果\n\n可以先选中这段文字，再点击“完成回答”：过程会收起，选区和正文保持不变。\n\n```text\n完整内容一直保留，可以阅读和复制。\n```",
+      segmentSeq: 7,
+      contentIndex: 0,
+    },
+  ];
+  return (
+    <TooltipProvider>
+      <div className="tw-flex tw-select-text tw-flex-col tw-gap-3">
+        <div>
+          <Button onClick={() => setCompleted(true)} disabled={completed}>
+            完成回答
+          </Button>
+        </div>
+        <AgentTrail
+          app={app}
+          messageId="stable-response-demo"
+          parts={parts}
+          isStreaming={!completed}
+          turnStopReason={completed ? "end_turn" : undefined}
+          turnDurationMs={completed ? 12_000 : undefined}
+          metrics={{
+            partial: !completed,
+            sources: [],
+            hasActiveWork: !completed,
+            finalResponseSegmentSeq: 7,
+          }}
+        />
+      </div>
+    </TooltipProvider>
+  );
+};
+
+export const StableFinalResponse: StoryObj<AgentTrailProps> = {
+  render: StableResponseCompletionDemo,
 };

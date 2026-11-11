@@ -1,5 +1,6 @@
 import { mockTFile } from "@/__tests__/mockObsidian";
 import { resolveEffort } from "@/lib/model-effort";
+import { setInterfaceLocale } from "@/lib/i18n";
 import { logWarn } from "@/logger";
 import { AI_SENDER, USER_SENDER } from "@/constants";
 import { NativeBackendDescriptor } from "@/agentMode/backends/native/descriptor";
@@ -72,7 +73,8 @@ function makeMockBackend(): MockBackend {
   const prompt = jest.fn(
     async (_input: PromptInput): Promise<Omit<TurnEnd, "turnId">> => ({ stopReason: "end_turn" })
   );
-  const emitTurn = (update: SessionEvent["update"]) => handler?.({ sessionId: "acp-1", update });
+  const emitTurn = (update: SessionEvent["update"]) =>
+    handler?.({ sessionId: "session-1", update });
   const acceptPrompt = async (input: PromptInput): Promise<void> => {
     emitTurn({ sessionUpdate: "message_delivered", promptId: input.promptId });
     emitTurn({ sessionUpdate: "turn_started", turnId: input.promptId });
@@ -89,7 +91,7 @@ function makeMockBackend(): MockBackend {
   };
   const cancel = jest.fn(async () => undefined);
   const closeSession = jest.fn(async () => undefined);
-  const newSession = jest.fn(async () => ({ sessionId: "acp-1", state: emptyState() }));
+  const newSession = jest.fn(async () => ({ sessionId: "session-1", state: emptyState() }));
   const setSessionModel = jest.fn(async () => emptyState());
   const setSessionConfigOption = jest.fn(async () => emptyState());
   const setSessionMode = jest.fn(async () => emptyState());
@@ -128,7 +130,7 @@ function makeMockBackend(): MockBackend {
     emit: (event) => handler?.(event),
     emitUpdate: (update, occurredAt) =>
       handler?.({
-        sessionId: "acp-1",
+        sessionId: "session-1",
         update,
         ...(occurredAt === undefined ? {} : { occurredAt }),
       }),
@@ -260,9 +262,10 @@ function makeAwaitingResumeSession(
 ): AgentSession {
   return new AgentSession({
     backend: mock.asBackend,
-    backendSessionId: "acp-1",
+    backendSessionId: "session-1",
     internalId: "internal-1",
-    backendId: "opencode",
+    backendId: "native",
+    getDisplayName: (backendId) => (backendId === "native" ? "Scribe" : backendId),
     ...overrides,
   });
 }
@@ -275,7 +278,8 @@ function startSession(
     backend: mock.asBackend,
     cwd: "/vault",
     internalId: "internal-1",
-    backendId: "opencode",
+    backendId: "native",
+    getDisplayName: (backendId) => (backendId === "native" ? "Scribe" : backendId),
     ...overrides,
   });
 }
@@ -335,7 +339,7 @@ function enabledModel(baseModelId: string): EnabledModelEntry {
 function enabledModelsOnlyDescriptor(enabled: EnabledModelEntry[]): BackendDescriptor {
   return {
     ...makeWireOnlyDescriptor(),
-    displayName: "opencode",
+    displayName: "Scribe",
     usesConfiguredModels: true,
     getEnabledModelEntries: () => enabled,
   };
@@ -372,7 +376,7 @@ function fakeCatalogAgent(
   initial: BackendState
 ): { push: (next: BackendState) => void } {
   let state = initial;
-  mock.newSession.mockResolvedValue({ sessionId: "acp-1", state });
+  mock.newSession.mockResolvedValue({ sessionId: "session-1", state });
   mock.setSessionConfigOption.mockImplementation(
     async ({ configId, value }: { configId: string; value: string }) => {
       if (configId === "model") {
@@ -419,6 +423,110 @@ function sonnetAndGpt5State(): BackendState {
 
 describe("AgentSession", () => {
   describe("AgentSession", () => {
+    describe("supportsDisplayFacts()", () => {
+      it("requires both fact writing and reading to use the journal presentation path", () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock);
+        expect(session.supportsDisplayFacts()).toBe(false);
+        mock.asBackend.appendDisplayFacts = jest.fn(async () => undefined);
+        expect(session.supportsDisplayFacts()).toBe(false);
+        mock.asBackend.readDisplayFacts = jest.fn(async () => []);
+        expect(session.supportsDisplayFacts()).toBe(true);
+      });
+    });
+
+    describe("persistDisplayFacts()", () => {
+      it("writes new metadata once and leaves an unchanged chat without another write", async () => {
+        const mock = makeMockBackend();
+        const append = jest.fn(async () => undefined);
+        mock.asBackend.appendDisplayFacts = append;
+        const session = makeSession(mock);
+        const id = session.store.addMessage({
+          id: "assistant:request",
+          sender: AI_SENDER,
+          message: "Done",
+          timestamp: null,
+          isVisible: true,
+        });
+        session.store.setFileChanges(id, []);
+        await session.persistDisplayFacts();
+        await session.persistDisplayFacts();
+        expect(append).toHaveBeenCalledTimes(1);
+        expect(append).toHaveBeenCalledWith({
+          sessionId: "session-1",
+          facts: expect.arrayContaining([
+            { kind: "message_metadata", messageId: id, metadata: { fileChanges: [] } },
+          ]),
+        });
+      });
+
+      it("retains a failed fact batch for the next successful save", async () => {
+        const mock = makeMockBackend();
+        const append = jest
+          .fn()
+          .mockRejectedValueOnce(new Error("disk full"))
+          .mockResolvedValue(undefined);
+        mock.asBackend.appendDisplayFacts = append;
+        const session = makeSession(mock);
+        await expect(session.persistDisplayFacts([{ kind: "messages_cleared" }])).rejects.toThrow(
+          "disk full"
+        );
+        await session.persistDisplayFacts();
+        expect(append.mock.calls[1][0].facts).toEqual(
+          expect.arrayContaining([{ kind: "messages_cleared" }])
+        );
+      });
+    });
+
+    describe("restorePersistedDisplayFacts()", () => {
+      it("restores original accepted text and stable chat identity entirely from journal facts", async () => {
+        const mock = makeMockBackend();
+        mock.asBackend.readDisplayFacts = jest.fn(async () => [
+          {
+            seq: 0,
+            payload: {
+              kind: "session_metadata" as const,
+              chatId: "stable-chat",
+              label: "My notes",
+            },
+          },
+          {
+            seq: 1,
+            payload: {
+              kind: "user_message" as const,
+              message: {
+                id: "request",
+                sender: USER_SENDER,
+                message: "The original request",
+                timestamp: null,
+                isVisible: true,
+              },
+            },
+          },
+        ]);
+        const session = makeSession(mock);
+        await session.restorePersistedDisplayFacts();
+        expect(session.chatInputId).toBe("stable-chat");
+        expect(session.getLabel()).toBe("My notes");
+        expect(session.store.getDisplayMessages()).toEqual([
+          expect.objectContaining({ id: "request", message: "The original request", seq: 1 }),
+        ]);
+      });
+    });
+
+    describe("setHistoryReadOnly()", () => {
+      it("preserves readable history and refuses new operations until the read-only state is cleared", async () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock);
+        session.setHistoryReadOnly(true);
+        expect(() => session.sendPrompt("Continue")).toThrow("read-only");
+        expect(mock.prompt).not.toHaveBeenCalled();
+        session.setHistoryReadOnly(false);
+        await session.sendPrompt("Continue").turn;
+        expect(mock.prompt).toHaveBeenCalledTimes(1);
+      });
+    });
+
     describe("getBranchState", () => {
       it("returns no branch state for an ordinary chat and a detached copy for a branch", () => {
         const session = makeSession(makeMockBackend());
@@ -451,7 +559,7 @@ describe("AgentSession", () => {
         const mock = makeMockBackend();
         const fresh = makeSession(mock);
         const preserved = makeSession(mock, {
-          backendSessionId: "acp-2",
+          backendSessionId: "session-2",
           internalId: "internal-2",
           chatInputId: "chat-input-1",
         });
@@ -533,7 +641,7 @@ describe("AgentSession", () => {
         const initialState = emptyState();
         const session = makeSession(mock, {
           backendSessionId: "probe-1",
-          backendId: "codex",
+          backendId: "native",
           initialState,
           defaultModelSelection: { baseModelId: "saved-model", effort: null },
           getDescriptor: () => descriptor,
@@ -773,6 +881,35 @@ describe("AgentSession", () => {
     });
 
     describe("completeResume", () => {
+      it("retains the backend-reported authoring purpose for a resumed chat", async () => {
+        const mock = makeMockBackend();
+        const session = makeAwaitingResumeSession(mock);
+        session.completeResume(emptyState(), "skill-authoring");
+        await session.ready;
+        expect(session.purpose).toBe("skill-authoring");
+      });
+
+      it("keeps a newer user turn unconfirmed instead of reusing an earlier failed reply on resume", async () => {
+        const mock = makeMockBackend();
+        const session = makeAwaitingResumeSession(mock);
+        mock.emitUpdate(replayText("user_message_chunk", "First question", "u1"));
+        mock.emitUpdate(replayText("agent_message_chunk", "Partial", "a1"));
+        mock.emitUpdate({
+          sessionUpdate: "turn_ended",
+          turnId: "old",
+          stopReason: "end_turn",
+          error: new Error("Earlier failure"),
+        });
+        mock.emitUpdate(replayText("user_message_chunk", "New question", "u2"));
+        session.completeResume(emptyState());
+        await session.ready;
+        expect(session.getStatus()).toBe("idle");
+        const messages = session.store.getDisplayMessages();
+        expect(messages[1].isErrorMessage).toBe(true);
+        expect(messages.at(-1)).toMatchObject({ sender: USER_SENDER, message: "New question" });
+        expect(messages.at(-1)?.isErrorMessage).not.toBe(true);
+      });
+
       it("collects replayed frames before the backend state arrives and stays starting until it does", async () => {
         const mock = makeMockBackend();
         const session = makeAwaitingResumeSession(mock);
@@ -781,7 +918,7 @@ describe("AgentSession", () => {
         mock.emitUpdate(replayText("agent_message_chunk", "hello", "a1"));
 
         expect(session.getStatus()).toBe("starting");
-        expect(mock.registerHandler).toHaveBeenCalledWith("acp-1", expect.any(Function));
+        expect(mock.registerHandler).toHaveBeenCalledWith("session-1", expect.any(Function));
         expect(bubbles(session).map((b) => b.message)).toEqual(["hi", "hello"]);
 
         const state = emptyState();
@@ -878,10 +1015,20 @@ describe("AgentSession", () => {
     });
 
     describe("start", () => {
+      it("passes the authoring purpose to the backend while retaining it for safe chat replacement", async () => {
+        const mock = makeMockBackend();
+        const session = startSession(mock, { purpose: "skill-authoring" });
+        await session.ready;
+        expect(mock.newSession).toHaveBeenCalledWith(
+          expect.objectContaining({ purpose: "skill-authoring" })
+        );
+        expect(session.purpose).toBe("skill-authoring");
+      });
+
       it("exposes the model catalog reported by newSession through getState", async () => {
         const mock = makeMockBackend();
         const stateWithModel = sonnetAndGpt5State();
-        mock.newSession.mockResolvedValueOnce({ sessionId: "acp-1", state: stateWithModel });
+        mock.newSession.mockResolvedValueOnce({ sessionId: "session-1", state: stateWithModel });
         const session = startSession(mock);
         await session.ready;
         expect(session.getState()?.model?.current.baseModelId).toBe("anthropic/sonnet");
@@ -906,12 +1053,12 @@ describe("AgentSession", () => {
         );
       });
 
-      it("passes the plugin's MCP servers into the newSession payload", async () => {
+      it("passes supplied MCP servers to a generic backend in the newSession payload", async () => {
         const mock = makeMockBackend();
         const mcpServers = [
           { name: "obsidian-scribe", url: "http://127.0.0.1:1/mcp", headers: { A: "b" } },
         ];
-        const session = startSession(mock, { mcpServers });
+        const session = startSession(mock, { backendId: "test-backend", mcpServers });
         await session.ready;
         expect(mock.newSession).toHaveBeenCalledWith(expect.objectContaining({ mcpServers }));
       });
@@ -928,9 +1075,9 @@ describe("AgentSession", () => {
       it("confirms a configured-model seed against the backend-reported model", async () => {
         const mock = makeMockBackend();
         const stateWithSonnet = sonnetAndGpt5State();
-        mock.newSession.mockResolvedValueOnce({ sessionId: "acp-1", state: stateWithSonnet });
+        mock.newSession.mockResolvedValueOnce({ sessionId: "session-1", state: stateWithSonnet });
         const session = startSession(mock, {
-          backendId: "claude",
+          backendId: "native",
           defaultModelSelection: { baseModelId: "openai/gpt-5", effort: null },
           getDescriptor: () => ({
             ...NativeBackendDescriptor,
@@ -944,7 +1091,7 @@ describe("AgentSession", () => {
         });
         await session.ready;
         expect(mock.setSessionModel).toHaveBeenCalledWith({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           modelId: "openai/gpt-5",
         });
       });
@@ -952,7 +1099,7 @@ describe("AgentSession", () => {
       it("reports the agent's own model until the startup switch lands, then the chat's", async () => {
         const mock = makeMockBackend();
         const stateWithSonnet = sonnetAndGpt5State();
-        mock.newSession.mockResolvedValueOnce({ sessionId: "acp-1", state: stateWithSonnet });
+        mock.newSession.mockResolvedValueOnce({ sessionId: "session-1", state: stateWithSonnet });
         let resolveSetModel: ((s: BackendState) => void) | null = null;
         mock.setSessionModel.mockImplementationOnce(
           () => new Promise<BackendState>((resolve) => (resolveSetModel = resolve))
@@ -969,7 +1116,7 @@ describe("AgentSession", () => {
 
         await waitFor(() => {
           expect(mock.setSessionModel).toHaveBeenCalledWith({
-            sessionId: "acp-1",
+            sessionId: "session-1",
             modelId: "openai/gpt-5",
           });
         });
@@ -1024,11 +1171,11 @@ describe("AgentSession", () => {
 
         expect(session.getState()).toBeNull();
 
-        resolveNewSession!({ sessionId: "acp-1", state: backendState });
+        resolveNewSession!({ sessionId: "session-1", state: backendState });
         await waitFor(() => {
           expect(session.getState()?.model?.current.baseModelId).toBe("kimi-2.6");
           expect(mock.setSessionModel).toHaveBeenCalledWith({
-            sessionId: "acp-1",
+            sessionId: "session-1",
             modelId: "big-pickle",
           });
         });
@@ -1070,7 +1217,7 @@ describe("AgentSession", () => {
           },
           mode: null,
         };
-        mock.newSession.mockResolvedValueOnce({ sessionId: "acp-1", state: backendState });
+        mock.newSession.mockResolvedValueOnce({ sessionId: "session-1", state: backendState });
         mock.setSessionConfigOption.mockResolvedValueOnce({
           model: {
             ...backendState.model!,
@@ -1079,14 +1226,14 @@ describe("AgentSession", () => {
           mode: null,
         });
         const session = startSession(mock, {
-          backendId: "claude",
+          backendId: "native",
           defaultModelSelection: { baseModelId: "anthropic/sonnet", effort: "high" },
           getDescriptor: () => makeDescriptorWireWithoutEffort(),
         });
         await session.ready;
         expect(mock.setSessionModel).not.toHaveBeenCalled();
         expect(mock.setSessionConfigOption).toHaveBeenCalledWith({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           configId: "effort",
           value: "high",
         });
@@ -1096,7 +1243,7 @@ describe("AgentSession", () => {
       it("keeps the agent's own model and starts when the startup switch fails", async () => {
         const mock = makeMockBackend();
         const stateWithSonnet = sonnetAndGpt5State();
-        mock.newSession.mockResolvedValueOnce({ sessionId: "acp-1", state: stateWithSonnet });
+        mock.newSession.mockResolvedValueOnce({ sessionId: "session-1", state: stateWithSonnet });
         mock.setSessionModel.mockRejectedValueOnce(new MethodUnsupportedError("session/set_model"));
         const session = startSession(mock, {
           defaultModelSelection: { baseModelId: "openai/gpt-5", effort: null },
@@ -1107,7 +1254,7 @@ describe("AgentSession", () => {
         expect(session.getState()?.model?.current.baseModelId).toBe("anthropic/sonnet");
       });
 
-      it("seeds config-option opencode effort via the effort option, not the model id", async () => {
+      it("seeds config-option effort via the effort option, not the model id", async () => {
         const mock = makeMockBackend();
         const gpt5Entry = {
           baseModelId: "openai/gpt-5",
@@ -1142,7 +1289,7 @@ describe("AgentSession", () => {
           },
           mode: null,
         };
-        mock.newSession.mockResolvedValueOnce({ sessionId: "acp-1", state: reportedState });
+        mock.newSession.mockResolvedValueOnce({ sessionId: "session-1", state: reportedState });
         let resolveModelSwitch!: (state: BackendState) => void;
         mock.setSessionConfigOption
           .mockImplementationOnce(
@@ -1156,7 +1303,7 @@ describe("AgentSession", () => {
         });
         await waitFor(() =>
           expect(mock.setSessionConfigOption).toHaveBeenCalledWith({
-            sessionId: "acp-1",
+            sessionId: "session-1",
             configId: "model",
             value: "openai/gpt-5",
           })
@@ -1168,12 +1315,12 @@ describe("AgentSession", () => {
 
         expect(mock.setSessionModel).not.toHaveBeenCalled();
         expect(mock.setSessionConfigOption).toHaveBeenCalledWith({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           configId: "model",
           value: "openai/gpt-5",
         });
         expect(mock.setSessionConfigOption).toHaveBeenCalledWith({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           configId: "thought_level",
           value: "high",
         });
@@ -1198,7 +1345,7 @@ describe("AgentSession", () => {
           },
           mode: null,
         };
-        mock.newSession.mockResolvedValueOnce({ sessionId: "acp-1", state: staleState });
+        mock.newSession.mockResolvedValueOnce({ sessionId: "session-1", state: staleState });
         mock.setSessionConfigOption.mockResolvedValue({
           model: { ...staleState.model!, current: { baseModelId: "openai/gpt-5", effort: "low" } },
           mode: null,
@@ -1210,7 +1357,7 @@ describe("AgentSession", () => {
             zen: {
               providerId: "zen",
               displayName: "OpenCode Zen",
-              origin: { kind: "agent", agentType: "opencode" },
+              origin: { kind: "byok", catalogProviderId: "opencode" },
             },
           },
           configuredModels: [
@@ -1220,7 +1367,7 @@ describe("AgentSession", () => {
               info: { id: "openai/gpt-5", displayName: "GPT-5" },
             },
           ],
-          backends: { opencode: { enabledModels: ["gpt-5"] } },
+          backends: { native: { enabledModels: ["gpt-5"] } },
         } as never);
         try {
           const session = startSession(mock, {
@@ -1230,7 +1377,7 @@ describe("AgentSession", () => {
           await session.ready;
 
           expect(mock.setSessionConfigOption).toHaveBeenCalledWith({
-            sessionId: "acp-1",
+            sessionId: "session-1",
             configId: "thought_level",
             value: "low",
           });
@@ -1350,7 +1497,7 @@ describe("AgentSession", () => {
             await jest.advanceTimersByTimeAsync(10_000);
 
             expect(await startup).toBe(
-              "None of the models enabled for opencode are available. Check them in Scribe's model settings."
+              "No configured model for Scribe is available. Check the model and its credentials in Models."
             );
             expect(session.getStatus()).toBe("error");
             expect(session.getState()?.model?.current.baseModelId).toBe(FLEDGE);
@@ -1414,12 +1561,12 @@ describe("AgentSession", () => {
           },
           mode: null,
         };
-        mock.newSession.mockResolvedValueOnce({ sessionId: "acp-1", state: configBackedState });
+        mock.newSession.mockResolvedValueOnce({ sessionId: "session-1", state: configBackedState });
         const session = startSession(mock);
         await session.ready;
         await session.applyModelWireId("omlx/b");
         expect(mock.setSessionConfigOption).toHaveBeenCalledWith({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           configId: "model",
           value: "omlx/b",
         });
@@ -1438,16 +1585,368 @@ describe("AgentSession", () => {
           },
           mode: null,
         };
-        mock.newSession.mockResolvedValueOnce({ sessionId: "acp-1", state: modelsBackedState });
-        const session = startSession(mock, { backendId: "codex" });
+        mock.newSession.mockResolvedValueOnce({ sessionId: "session-1", state: modelsBackedState });
+        const session = startSession(mock, { backendId: "native" });
         await session.ready;
         await session.applyModelWireId("o3");
-        expect(mock.setSessionModel).toHaveBeenCalledWith({ sessionId: "acp-1", modelId: "o3" });
+        expect(mock.setSessionModel).toHaveBeenCalledWith({
+          sessionId: "session-1",
+          modelId: "o3",
+        });
         expect(mock.setSessionConfigOption).not.toHaveBeenCalled();
       });
     });
 
     describe("sendPrompt", () => {
+      it.each(["main", "child"] as const)(
+        "freezes %s thought at its explicit end while the model is still preparing a tool, including replay https://github.com/ItsDalk-Lane/Scribe/issues/52",
+        async (target) => {
+          const mock = makeMockBackend();
+          const sent = recordPrompts(mock);
+          const session = makeSession(mock);
+          const first = session.sendPrompt("Search notes");
+          await waitFor(() => expect(sent).toHaveLength(1));
+          const events: SessionEvent[] = [];
+          const child = target === "child";
+          const emit = (seq: number, update: SessionEvent["update"], inChild = false) => {
+            const event: SessionEvent = {
+              sessionId: "session-1",
+              seq,
+              occurredAt: seq * 1000,
+              update,
+              ...(inChild ? { taskToolCallId: "launch" } : {}),
+            };
+            events.push(event);
+            mock.emit(event);
+          };
+          emit(1, { sessionUpdate: "turn_started", turnId: first.userMessageId });
+          emit(2, { sessionUpdate: "message_delivered", promptId: first.userMessageId });
+          emit(3, replayText("user_message_chunk", "Search notes", first.userMessageId));
+          if (child)
+            emit(4, {
+              sessionUpdate: "task_started",
+              taskId: "child-1",
+              toolCallId: "launch",
+              kind: "subagent",
+              description: "Search notes",
+            });
+          emit(10, { sessionUpdate: "agent_segment_started" }, child);
+          emit(
+            11,
+            {
+              sessionUpdate: "agent_thought_chunk",
+              segmentSeq: 10,
+              contentIndex: 0,
+              content: { type: "text", text: "Ready to search" },
+            },
+            child
+          );
+          const thought = () =>
+            (child ? session.getTaskMessages("launch")[0] : aiMessages(session)[0]).parts?.[0];
+          expect(thought()).not.toHaveProperty("durationMs");
+          emit(
+            13,
+            { sessionUpdate: "agent_thought_ended", segmentSeq: 10, contentIndex: 0 },
+            child
+          );
+          expect(thought()).toMatchObject({ durationMs: 2000, endedAtMs: 13000 });
+          emit(18, { sessionUpdate: "agent_thought_ended", segmentSeq: 10 }, child);
+          expect(thought()).toMatchObject({ durationMs: 2000 });
+          emit(
+            19,
+            {
+              sessionUpdate: "agent_segment_finalized",
+              segmentSeq: 10,
+              blocks: [{ kind: "thought", contentIndex: 0, text: "Ready to search" }],
+            },
+            child
+          );
+          if (child)
+            emit(20, { sessionUpdate: "task_ended", taskId: "child-1", status: "completed" });
+          emit(21, {
+            sessionUpdate: "turn_ended",
+            turnId: first.userMessageId,
+            stopReason: "end_turn",
+          });
+          await first.turn;
+          emit(
+            25,
+            {
+              sessionUpdate: "agent_segment_finalized",
+              segmentSeq: 10,
+              blocks: [{ kind: "thought", contentIndex: 0, text: "Ready to search" }],
+            },
+            child
+          );
+          expect(thought()).toMatchObject({ durationMs: 2000, endedAtMs: 13000 });
+          const replayBackend = makeMockBackend();
+          const reopened = makeAwaitingResumeSession(replayBackend);
+          for (const event of events) replayBackend.emit(event);
+          reopened.completeResume(emptyState());
+          await reopened.ready;
+          const restored = child ? reopened.getTaskMessages("launch")[0] : aiMessages(reopened)[0];
+          expect(restored.parts?.[0]).toEqual(thought());
+        }
+      );
+
+      it.each(["main", "child"] as const)(
+        "uses exact finalized segment blocks for %s content live and after replay",
+        async (target) => {
+          const mock = makeMockBackend();
+          const sent = recordPrompts(mock);
+          const session = makeSession(mock);
+          const first = session.sendPrompt("Review notes");
+          await waitFor(() => expect(sent).toHaveLength(1));
+          const events: SessionEvent[] = [];
+          const emit = (seq: number, update: SessionEvent["update"], child = false) => {
+            const event: SessionEvent = {
+              sessionId: "session-1",
+              seq,
+              occurredAt: seq * 1000,
+              update,
+              ...(child ? { taskToolCallId: "launch" } : {}),
+            };
+            events.push(event);
+            mock.emit(event);
+          };
+          emit(1, { sessionUpdate: "turn_started", turnId: first.userMessageId });
+          emit(2, {
+            sessionUpdate: "message_delivered",
+            promptId: first.userMessageId,
+            messageSeq: 0,
+          });
+          emit(3, replayText("user_message_chunk", "Review notes", first.userMessageId));
+          const child = target === "child";
+          if (child)
+            emit(4, {
+              sessionUpdate: "task_started",
+              taskId: "child-1",
+              toolCallId: "launch",
+              kind: "subagent",
+              description: "Review the notes",
+            });
+          emit(10, { sessionUpdate: "agent_segment_started" }, child);
+          emit(
+            11,
+            {
+              ...replayText("agent_thought_chunk", "Plan"),
+              segmentSeq: 10,
+              contentIndex: 0,
+            } as SessionEvent["update"],
+            child
+          );
+          emit(
+            12,
+            {
+              ...replayText("agent_message_chunk", "A long provisional answer"),
+              segmentSeq: 10,
+              contentIndex: 1,
+            } as SessionEvent["update"],
+            child
+          );
+          emit(
+            13,
+            {
+              sessionUpdate: "agent_segment_finalized",
+              segmentSeq: 10,
+              blocks: [
+                { kind: "thought", text: "Confirmed thought", contentIndex: 0 },
+                { kind: "text", text: "Yes", contentIndex: 1 },
+              ],
+            },
+            child
+          );
+          emit(
+            14,
+            {
+              sessionUpdate: "tool_call",
+              toolCallId: "read",
+              title: "Read notes",
+              status: "completed",
+            },
+            child
+          );
+          emit(20, { sessionUpdate: "agent_segment_started" }, child);
+          emit(
+            21,
+            {
+              sessionUpdate: "agent_segment_finalized",
+              segmentSeq: 20,
+              blocks: [{ kind: "text", text: " Done-only.", contentIndex: 0 }],
+            },
+            child
+          );
+          emit(30, { sessionUpdate: "agent_segment_started" }, child);
+          emit(
+            31,
+            {
+              ...replayText("agent_message_chunk", "Discard me"),
+              segmentSeq: 30,
+              contentIndex: 0,
+            } as SessionEvent["update"],
+            child
+          );
+          emit(32, { sessionUpdate: "agent_segment_finalized", segmentSeq: 30, blocks: [] }, child);
+          if (child)
+            emit(39, { sessionUpdate: "task_ended", taskId: "child-1", status: "completed" });
+          emit(40, {
+            sessionUpdate: "turn_ended",
+            turnId: first.userMessageId,
+            stopReason: "end_turn",
+          });
+          await first.turn;
+
+          const replayBackend = makeMockBackend();
+          const reopened = makeAwaitingResumeSession(replayBackend);
+          for (const event of events) replayBackend.emit(event);
+          reopened.completeResume(emptyState());
+          await reopened.ready;
+          const live = child ? session.getTaskMessages("launch")[0] : aiMessages(session)[0];
+          const historical = child
+            ? reopened.getTaskMessages("launch")[0]
+            : aiMessages(reopened)[0];
+          expect(live.message).toBe("Yes Done-only.");
+          expect(live.parts?.map((part) => part.kind)).toEqual([
+            "thought",
+            "text",
+            "tool_call",
+            "text",
+          ]);
+          expect(live.parts?.[0]).toMatchObject({
+            text: "Confirmed thought",
+            segmentSeq: 10,
+            contentIndex: 0,
+          });
+          expect(live.parts?.[3]).toMatchObject({
+            text: " Done-only.",
+            segmentSeq: 20,
+            contentIndex: 0,
+            seq: 21,
+          });
+          expect(historical.message).toBe(live.message);
+          expect(historical.parts).toEqual(live.parts);
+        }
+      );
+      it.each([
+        ["one request", false, [5]],
+        ["a mid-turn queued request", true, [5, 13]],
+      ] as const)(
+        "keeps assistant sequences, timestamps and thought durations identical live and after replay for %s",
+        async (_label, queueAnother, expectedSequences) => {
+          const clock = jest.spyOn(Date, "now").mockReturnValue(1_000_000);
+          try {
+            const mock = makeMockBackend();
+            const sent = recordPrompts(mock);
+            const session = makeSession(mock, { getDescriptor: midTurnDescriptor });
+            const first = session.sendPrompt("First request");
+            await waitFor(() => expect(sent).toHaveLength(1));
+            const events: SessionEvent[] = [];
+            const emit = (seq: number, update: SessionEvent["update"]) => {
+              const event = { sessionId: "session-1", seq, update, occurredAt: seq * 1000 };
+              events.push(event);
+              mock.emit(event);
+            };
+            emit(3, { sessionUpdate: "turn_started", turnId: first.userMessageId });
+            emit(5, {
+              sessionUpdate: "message_delivered",
+              promptId: first.userMessageId,
+              messageSeq: 1,
+            });
+            emit(7, replayText("user_message_chunk", "First request", first.userMessageId));
+            emit(8, replayText("agent_thought_chunk", "First thought"));
+            emit(9, replayText("agent_message_chunk", "First answer"));
+            let queued: ReturnType<AgentSession["sendPrompt"]> | undefined;
+            if (queueAnother) {
+              queued = session.sendPrompt("Queued request");
+              await waitFor(() => expect(sent).toHaveLength(2));
+              emit(13, {
+                sessionUpdate: "message_delivered",
+                promptId: queued.userMessageId,
+                messageSeq: 11,
+              });
+              emit(15, replayText("user_message_chunk", "Queued request", queued.userMessageId));
+              emit(16, replayText("agent_thought_chunk", "Queued thought"));
+              emit(17, replayText("agent_message_chunk", "Queued answer"));
+            }
+            emit(18, replayText("agent_thought_chunk", "Final thought"));
+            emit(19, {
+              sessionUpdate: "turn_ended",
+              turnId: first.userMessageId,
+              stopReason: "end_turn",
+            });
+            await first.turn;
+            if (queued) await queued.turn;
+
+            clock.mockReturnValue(9_000_000);
+            const replayBackend = makeMockBackend();
+            const reopened = makeAwaitingResumeSession(replayBackend);
+            for (const event of events) replayBackend.emit(event);
+            reopened.completeResume(emptyState());
+            await reopened.ready;
+
+            expect(aiMessages(session).map((message) => message.seq)).toEqual(expectedSequences);
+            expect(aiMessages(session).map((message) => message.timestamp?.epoch)).toEqual(
+              queueAnother ? [5000, 13000] : [5000]
+            );
+            expect(aiMessages(session).at(-1)?.parts?.at(-1)).toMatchObject({
+              kind: "thought",
+              startedAtMs: 18000,
+              durationMs: 1000,
+            });
+            expect(
+              aiMessages(reopened).map((message) => ({
+                id: message.id,
+                seq: message.seq,
+                message: message.message,
+                timestamp: message.timestamp,
+                parts: message.parts,
+                turnDurationMs: message.turnDurationMs,
+                turnStopReason: message.turnStopReason,
+              }))
+            ).toEqual(
+              aiMessages(session).map((message) => ({
+                id: message.id,
+                seq: message.seq,
+                message: message.message,
+                timestamp: message.timestamp,
+                parts: message.parts,
+                turnDurationMs: message.turnDurationMs,
+                turnStopReason: message.turnStopReason,
+              }))
+            );
+          } finally {
+            clock.mockRestore();
+          }
+        }
+      );
+      it.each([7, undefined])(
+        "uses the accepted message sequence %s without borrowing the delivery event sequence",
+        async (messageSeq) => {
+          const mock = makeMockBackend();
+          const sent = recordPrompts(mock);
+          const session = makeSession(mock);
+          const first = session.sendPrompt("Keep this request");
+          await waitFor(() => expect(sent).toHaveLength(1));
+          mock.emit({
+            sessionId: "session-1",
+            seq: 12,
+            update: {
+              sessionUpdate: "message_delivered",
+              promptId: first.userMessageId,
+              messageSeq,
+            },
+          });
+          expect(session.store.getMessage(first.userMessageId)?.seq).toBe(messageSeq);
+          mock.emitUpdate({ sessionUpdate: "turn_started", turnId: first.userMessageId });
+          mock.emitUpdate(replayText("agent_message_chunk", "Saved reply"));
+          mock.emitUpdate({
+            sessionUpdate: "turn_ended",
+            turnId: first.userMessageId,
+            stopReason: "end_turn",
+          });
+          await first.turn;
+        }
+      );
       it("prepares updated configuration before sending a natural prompt", async () => {
         const mock = makeMockBackend();
         const order: string[] = [];
@@ -1464,15 +1963,19 @@ describe("AgentSession", () => {
         expect(order).toEqual(["prepare", "prompt"]);
       });
 
-      it("refuses a disabled agent before recording or sending a new message", () => {
+      it("sends a native message despite a legacy disabled flag https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
         const mock = makeMockBackend();
         const session = makeSession(mock);
         (getSettings as jest.Mock).mockReturnValueOnce({
-          agentMode: { backends: { opencode: { enabled: false } } },
+          agentMode: { backends: { native: { enabled: false } } },
         });
-        expect(() => session.sendPrompt("do not send")).toThrow("disabled");
-        expect(session.store.getDisplayMessages()).toHaveLength(0);
-        expect(mock.prompt).not.toHaveBeenCalled();
+        await session.sendPrompt("continue working").turn;
+        expect(
+          session.store
+            .getDisplayMessages()
+            .some((message) => message.message === "continue working")
+        ).toBe(true);
+        expect(mock.prompt).toHaveBeenCalled();
       });
 
       it("refuses a suspended backend while preserving the existing conversation", () => {
@@ -1480,7 +1983,7 @@ describe("AgentSession", () => {
         const session = makeSession(mock);
         session.suspendBackend();
         expect(session.isBackendSuspended()).toBe(true);
-        expect(() => session.sendPrompt("do not send")).toThrow("disabled");
+        expect(() => session.sendPrompt("do not send")).toThrow("unavailable");
         expect(mock.prompt).not.toHaveBeenCalled();
       });
       it("sends only earlier messages as inherited history and includes the new input once", async () => {
@@ -1585,10 +2088,11 @@ describe("AgentSession", () => {
         async ({ enabled }) => {
           const mock = makeMockBackend();
           const session = makeSession(mock, {
-            backendId: "claude",
+            backendId: "test-backend",
             initialState: emptyState(),
             getDescriptor: () => ({
               ...enabledModelsOnlyDescriptor(enabled),
+              displayName: "Test agent",
               usesConfiguredModels: false,
             }),
           });
@@ -1599,15 +2103,16 @@ describe("AgentSession", () => {
         }
       );
 
-      it("refuses an existing Claude chat after its selected model is disabled", async () => {
+      it("refuses an existing chat after its selected model is disabled", async () => {
         const mock = makeMockBackend();
         fakeCatalogAgent(mock, catalogState([USER_MODEL], USER_MODEL));
         let enabled = [enabledModel(USER_MODEL)];
         const session = startSession(mock, {
+          backendId: "test-backend",
           defaultModelSelection: { baseModelId: USER_MODEL, effort: null },
           getDescriptor: () => ({
             ...enabledModelsOnlyDescriptor(enabled),
-            displayName: "Claude",
+            displayName: "Test agent",
             usesConfiguredModels: false,
             getEnabledModelEntries: () => enabled,
           }),
@@ -1622,16 +2127,18 @@ describe("AgentSession", () => {
       });
 
       it.each([false, true])(
-        "returns queued Claude input after disabling its model, including missing model state=%s",
+        "returns queued input after disabling its model, including missing model state=%s",
         async (missingModelState) => {
           const mock = makeMockBackend();
           fakeCatalogAgent(mock, catalogState([USER_MODEL], USER_MODEL));
           const sent = recordPrompts(mock);
           let enabled = [enabledModel(USER_MODEL)];
           const session = startSession(mock, {
+            backendId: "test-backend",
             defaultModelSelection: { baseModelId: USER_MODEL, effort: null },
             getDescriptor: () => ({
               ...enabledModelsOnlyDescriptor(enabled),
+              displayName: "Test agent",
               usesConfiguredModels: false,
               midTurnDelivery: true,
               getEnabledModelEntries: () => enabled,
@@ -1650,7 +2157,7 @@ describe("AgentSession", () => {
 
           const queued = session.sendPrompt("keep this input");
 
-          await expect(queued.turn).rejects.toThrow("enabled");
+          await expect(queued.turn).rejects.toThrow("No configured model");
           expect(disabledSend).not.toHaveBeenCalled();
           expect(session.takeWithdrawnPrompts().map((prompt) => prompt.text)).toEqual([
             "keep this input",
@@ -1659,10 +2166,11 @@ describe("AgentSession", () => {
         }
       );
 
-      it("refuses to run a turn, and says why, while the agent is on a model the user has not enabled", async () => {
+      it("refuses a disabled model and uses the backend ID when no display name is provided", async () => {
         const mock = makeMockBackend();
         const agent = fakeCatalogAgent(mock, catalogState([USER_MODEL, PARETO], USER_MODEL));
         const session = startSession(mock, {
+          getDisplayName: undefined,
           defaultModelSelection: { baseModelId: USER_MODEL, effort: null },
           getDescriptor: () => enabledModelsOnlyDescriptor([enabledModel(USER_MODEL)]),
         });
@@ -1674,7 +2182,7 @@ describe("AgentSession", () => {
         expect(stopReason).toBe("refusal");
         expect(mock.prompt).not.toHaveBeenCalled();
         expect(aiMessage(session)?.message).toBe(
-          "**Error:** This chat's model isn't enabled for opencode. Pick an enabled model to continue."
+          "**Error:** This chat's model is unavailable for native. Pick a configured model to continue."
         );
       });
 
@@ -1730,7 +2238,7 @@ describe("AgentSession", () => {
         expect(stopReason).toBe("end_turn");
         expect(session.getStatus()).toBe("idle");
         expect(mock.prompt).toHaveBeenCalledWith({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           promptId: userMessageId,
           prompt: [{ type: "text", text: "Hi there" }],
         });
@@ -1773,7 +2281,7 @@ describe("AgentSession", () => {
           { type: "image_url", image_url: { url: "data:image/png;base64,aGVsbG8=" } },
         ]);
         expect(mock.prompt).toHaveBeenCalledWith({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           promptId: expect.any(String),
           prompt: [
             { type: "text", text: "describe" },
@@ -1789,49 +2297,6 @@ describe("AgentSession", () => {
         expect(() => session.sendPrompt("second")).toThrow(/in flight/);
       });
 
-      it("injects the project-context-updates note and acks its epoch after acceptance", async () => {
-        const mock = makeMockBackend();
-        const markDelivered = jest.fn();
-        const session = makeSession(mock, {
-          projectId: "proj-1",
-          getProjectContextUpdates: () => ({
-            epoch: 5,
-            block: "<project_context_updates>changed</project_context_updates>",
-          }),
-          markProjectContextUpdatesDelivered: markDelivered,
-        });
-
-        await session.sendPrompt("hi").turn;
-
-        const promptArg = mock.prompt.mock.calls[0][0] as { prompt: Array<{ text?: string }> };
-        expect(promptArg.prompt[0].text).toContain(
-          "<project_context_updates>changed</project_context_updates>"
-        );
-        expect(markDelivered).toHaveBeenCalledWith(5);
-      });
-
-      it("does not ack when the updates getter returns null", async () => {
-        const mock = makeMockBackend();
-        const markDelivered = jest.fn();
-        const session = makeSession(mock, {
-          projectId: "proj-1",
-          getProjectContextUpdates: () => null,
-          markProjectContextUpdatesDelivered: markDelivered,
-        });
-
-        await session.sendPrompt("hi").turn;
-
-        const promptArg = mock.prompt.mock.calls[0][0] as { prompt: Array<{ text?: string }> };
-        expect(promptArg.prompt[0].text).not.toContain("<project_context_updates>");
-        expect(markDelivered).not.toHaveBeenCalled();
-      });
-
-      const PROJECT_CONTEXT =
-        "<project_context>\n## Included folders\n- `/vault/Papers`\n</project_context>";
-      const UPDATES = {
-        epoch: 7,
-        block: "<project_context_updates>changed</project_context_updates>",
-      };
       const noteFile = mockTFile({ path: "Notes/Active.md", basename: "Active" });
       const richContext = {
         notes: [noteFile],
@@ -1858,8 +2323,6 @@ describe("AgentSession", () => {
         const session = startSession(mock, {
           cwd: "/vault/Projects/p",
           projectId: "proj-7",
-          getProjectContextBlock: () => PROJECT_CONTEXT,
-          getProjectContextUpdates: () => UPDATES,
           ...overrides,
         });
         await session.ready;
@@ -1907,23 +2370,6 @@ describe("AgentSession", () => {
         ]);
       });
 
-      it(` leaves project context and project-context updates for the next normal turn`, async () => {
-        const mock = makeMockBackend();
-        const markDelivered = jest.fn();
-        const session = await startProjectSession(mock, {
-          markProjectContextUpdatesDelivered: markDelivered,
-        });
-
-        await session.sendPrompt("/compact").turn;
-        expect(markDelivered).not.toHaveBeenCalled();
-
-        await session.sendPrompt("now continue").turn;
-        const nextText = (promptBlocks(mock, 1)[0] as { text: string }).text;
-        expect(nextText).toContain("<project_context>");
-        expect(nextText).toContain("<project_context_updates>changed</project_context_updates>");
-        expect(markDelivered).toHaveBeenCalledWith(7);
-      });
-
       it(` does not title a chat from its /compact message`, async () => {
         const mock = makeMockBackend();
         const session = makeSession(mock, { getDescriptor: nonSummarizingDescriptor });
@@ -1969,7 +2415,7 @@ describe("AgentSession", () => {
 
         expect(mock.prompt).toHaveBeenCalledTimes(2);
         expect(mock.prompt.mock.calls[1][0]).toEqual({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           promptId: expect.any(String),
           prompt: [{ type: "text", text: OUTPUT_LIMIT_CONTINUATION_PROMPT }],
         });
@@ -2066,9 +2512,26 @@ describe("AgentSession", () => {
 
         const placeholder = aiMessage(session);
         expect(placeholder?.isErrorMessage).toBe(true);
-        expect(placeholder?.message).toMatch(
-          /without returning any assistant text or tool activity/
+        expect(placeholder?.message).toBe(
+          "**Error:** No response or action was returned. Try again, or switch models if this happens repeatedly."
         );
+      });
+
+      it("shows a helpful Chinese message when a completed turn returns no reply or activity", async () => {
+        setInterfaceLocale("zh-CN");
+        try {
+          const mock = makeMockBackend();
+          const session = makeSession(mock);
+
+          await session.sendPrompt("hi").turn;
+
+          expect(aiMessage(session)?.isErrorMessage).toBe(true);
+          expect(aiMessage(session)?.message).toBe(
+            "**错误：** 没有收到回复或操作结果。请重试；如果问题反复出现，请切换模型。"
+          );
+        } finally {
+          setInterfaceLocale("en");
+        }
       });
 
       it("replaces the compaction row in the in-flight reply as its status advances, keeping when it started", async () => {
@@ -2214,7 +2677,7 @@ describe("AgentSession", () => {
         expect(placeholder?.turnDurationMs).toEqual(expect.any(Number));
       });
 
-      it("surfaces a provider error stringified inside data.message (codex-acp)", async () => {
+      it("surfaces a historical Codex error stringified inside data.message", async () => {
         const mock = makeMockBackend();
         const error = new Error("Internal error");
         (error as { data?: unknown }).data = {
@@ -2240,7 +2703,7 @@ describe("AgentSession", () => {
         expect(placeholder?.message).toContain("requires a newer version of Codex");
       });
 
-      it("renders a visible error (not an empty bubble) when the backend refuses the prompt because auth is required", async () => {
+      it("renders a visible historical backend authentication error instead of an empty bubble", async () => {
         const mock = makeMockBackend();
         mock.asBackend.prompt = () =>
           Promise.reject(new AuthRequiredError("You're not signed in to Claude."));
@@ -2301,7 +2764,16 @@ describe("AgentSession", () => {
         const steer = session.sendPrompt("only do the first two");
         await waitFor(() => expect(sent).toHaveLength(2));
 
-        emit({ sessionUpdate: "message_delivered", promptId: steer.userMessageId });
+        mock.emit({
+          sessionId: "session-1",
+          seq: 99,
+          update: {
+            sessionUpdate: "message_delivered",
+            promptId: steer.userMessageId,
+            messageSeq: 42,
+          },
+        });
+        expect(session.store.getMessage(steer.userMessageId)?.seq).toBe(42);
         emit(replayText("agent_message_chunk", "Beta: about B. Stopping there."));
 
         expect(session.getQueuedPrompts()).toEqual([]);
@@ -2566,14 +3038,14 @@ describe("AgentSession", () => {
         expect(await turn).toBe("cancelled");
       });
 
-      it("shows a disconnect in the waiting reply, settles the prompt, and sends the next prompt normally", async () => {
+      it("shows a historical backend disconnect, settles the prompt, and sends the next prompt normally", async () => {
         const mock = makeMockBackend();
         let promptId = "";
         const realPrompt = mock.asBackend.prompt;
         mock.asBackend.prompt = async (input) => {
           promptId = input.promptId;
         };
-        const session = makeSession(mock);
+        const session = makeSession(mock, { backendId: "claude-code" });
         const { turn } = session.sendPrompt("hi");
         await waitFor(() => expect(promptId).not.toBe(""));
 
@@ -2737,7 +3209,7 @@ describe("AgentSession", () => {
       it("routes a tool_call_update for a prior turn's tool call to its original message", async () => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);
-        const session = makeSession(mock, { backendId: "claude-code" });
+        const session = makeSession(mock, { backendId: "native" });
 
         const first = session.sendPrompt("launch a background agent");
         mock.emitUpdate({
@@ -2777,7 +3249,7 @@ describe("AgentSession", () => {
       it("merges partial progress updates into the tool part's progress", async () => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);
-        const session = makeSession(mock, { backendId: "claude-code" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn } = session.sendPrompt("hi");
 
         mock.emitUpdate({
@@ -2806,7 +3278,7 @@ describe("AgentSession", () => {
       const storedToolOutput = async (text: string): Promise<AgentToolCallOutput | undefined> => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);
-        const session = makeSession(mock, { backendId: "codex" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn } = session.sendPrompt("hi");
         mock.emitUpdate({
           sessionUpdate: "tool_call_update",
@@ -2826,65 +3298,12 @@ describe("AgentSession", () => {
         expect(await storedToolOutput(text)).toEqual({ type: "text", text });
       });
 
-      it("trims a runaway tool output above the backstop, noting the agent got it all", async () => {
+      it("preserves a complete 300,000-character tool output without a display backstop https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
         const output = await storedToolOutput("y".repeat(300_000));
         if (output?.type !== "text") throw new Error("expected text output");
-        expect(output.text.length).toBeLessThan(300_000);
-        expect(output.text).toContain("Display trimmed");
-        expect(output.text).toContain("The agent received the full output");
-      });
-
-      it("builds the <project_context> block when the first prompt is sent and injects it into that prompt only", async () => {
-        const mock = makeMockBackend();
-        const getProjectContextBlock = jest.fn(
-          () => "<project_context>\n## Included folders\n- `/vault/Papers`\n</project_context>"
-        );
-        const session = startSession(mock, {
-          cwd: "/vault/Projects/p",
-          projectId: "proj-7",
-          getProjectContextBlock,
-        });
-        await session.ready;
-        expect(getProjectContextBlock).not.toHaveBeenCalled();
-
-        await session.sendPrompt("first").turn;
-        await session.sendPrompt("second").turn;
-
-        const promptText = (call: number): string => {
-          const input = mock.prompt.mock.calls[call][0] as {
-            prompt: Array<{ type: string; text?: string }>;
-          };
-          return input.prompt.map((b) => b.text ?? "").join("\n");
-        };
-        expect(promptText(0)).toContain("<project_context>");
-        expect(promptText(0)).toContain("`/vault/Papers`");
-        expect(promptText(0)).toContain("<user-message>\nfirst\n</user-message>");
-        expect(promptText(1)).not.toContain("<project_context>");
-        expect(getProjectContextBlock).toHaveBeenCalledTimes(1);
-      });
-
-      it("re-injects the <project_context> block on retry when the first prompt fails", async () => {
-        const mock = makeMockBackend();
-        mock.prompt.mockRejectedValueOnce(new Error("transport down"));
-        const session = startSession(mock, {
-          cwd: "/vault/Projects/p",
-          projectId: "proj-7",
-          getProjectContextBlock: () =>
-            "<project_context>\n## Included folders\n- `/vault/Papers`\n</project_context>",
-        });
-        await session.ready;
-
-        await expect(session.sendPrompt("first").turn).rejects.toThrow("transport down");
-        await session.sendPrompt("retry").turn;
-
-        const promptText = (call: number): string => {
-          const input = mock.prompt.mock.calls[call][0] as {
-            prompt: Array<{ type: string; text?: string }>;
-          };
-          return input.prompt.map((b) => b.text ?? "").join("\n");
-        };
-        expect(promptText(0)).toContain("<project_context>");
-        expect(promptText(1)).toContain("<project_context>");
+        expect(output.text.length).toBe(300_000);
+        expect(output.text === "y".repeat(300_000)).toBe(true);
+        expect(output.text).not.toContain("Display trimmed");
       });
 
       describe("with the same web page on several turns", () => {
@@ -2967,9 +3386,9 @@ describe("AgentSession", () => {
         function makeSession(mock: ReturnType<typeof makeMockBackend>, app: App) {
           const session = new AgentSession({
             backend: mock.asBackend,
-            backendSessionId: "acp-1",
+            backendSessionId: "session-1",
             internalId: "internal-1",
-            backendId: "claude",
+            backendId: "native",
             getApp: () => app,
           });
           session.completeResume(null);
@@ -2981,7 +3400,7 @@ describe("AgentSession", () => {
           kind: "edit" | "delete" | "read",
           locations: string[]
         ) => ({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           update: {
             sessionUpdate: "tool_call" as const,
             toolCallId,
@@ -2996,7 +3415,7 @@ describe("AgentSession", () => {
           toolCall(toolCallId, "edit", [filePath]);
 
         const toolResult = (toolCallId: string, originalFiles: Record<string, string | null>) => ({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           update: {
             sessionUpdate: "tool_call_update" as const,
             toolCallId,
@@ -3050,9 +3469,9 @@ describe("AgentSession", () => {
           const sent = recordPrompts(mock);
           const session = new AgentSession({
             backend: mock.asBackend,
-            backendSessionId: "acp-1",
+            backendSessionId: "session-1",
             internalId: "internal-1",
-            backendId: "claude",
+            backendId: "native",
             getApp: () => vault.app,
             getDescriptor: midTurnDescriptor,
           });
@@ -3234,9 +3653,9 @@ describe("AgentSession", () => {
           });
           const session = new AgentSession({
             backend: mock.asBackend,
-            backendSessionId: "acp-1",
+            backendSessionId: "session-1",
             internalId: "internal-1",
-            backendId: "claude",
+            backendId: "native",
           });
           session.completeResume(null);
 
@@ -3251,7 +3670,7 @@ describe("AgentSession", () => {
             const mock = makeMockBackend();
             mock.prompt.mockImplementation(async () => {
               void session.handleToolPermission({
-                sessionId: "acp-1",
+                sessionId: "session-1",
                 toolCall: {
                   toolCallId: "t1",
                   title: "write",
@@ -3296,7 +3715,7 @@ describe("AgentSession", () => {
             const mock = makeMockBackend();
             mock.prompt.mockImplementation(async () => {
               mock.emit({
-                sessionId: "acp-1",
+                sessionId: "session-1",
                 update: {
                   sessionUpdate: "tool_call",
                   toolCallId: "t1",
@@ -3306,7 +3725,7 @@ describe("AgentSession", () => {
                 },
               });
               mock.emit({
-                sessionId: "acp-1",
+                sessionId: "session-1",
                 update: {
                   sessionUpdate: "tool_call_update",
                   toolCallId: "t1",
@@ -3471,7 +3890,7 @@ describe("AgentSession", () => {
 
         describe("with runs the agent starts and background subagents", () => {
           const AGENT_CARD = {
-            sessionId: "acp-1",
+            sessionId: "session-1",
             update: {
               sessionUpdate: "tool_call" as const,
               toolCallId: "tool-agent",
@@ -3481,7 +3900,7 @@ describe("AgentSession", () => {
             },
           };
           const SUBAGENT_STARTED = {
-            sessionId: "acp-1",
+            sessionId: "session-1",
             update: {
               sessionUpdate: "task_started" as const,
               taskId: "task-1",
@@ -3495,7 +3914,7 @@ describe("AgentSession", () => {
             taskToolCallId: "tool-agent",
           });
           const text = (value: string): SessionEvent => ({
-            sessionId: "acp-1",
+            sessionId: "session-1",
             update: replayText("agent_message_chunk", value),
           });
 
@@ -3504,9 +3923,9 @@ describe("AgentSession", () => {
             const sent = recordPrompts(mock);
             const session = new AgentSession({
               backend: mock.asBackend,
-              backendSessionId: "acp-1",
+              backendSessionId: "session-1",
               internalId: "internal-1",
-              backendId: "claude",
+              backendId: "native",
               getApp: () => app,
               getDescriptor: midTurnDescriptor,
             });
@@ -3601,7 +4020,7 @@ describe("AgentSession", () => {
             const { turn: unrelated } = await chat.send("what is 2 + 2?");
             chat.run("unrelated", [text("4")]);
             void chat.session.handleToolPermission({
-              sessionId: "acp-1",
+              sessionId: "session-1",
               toolCall: {
                 toolCallId: "subagent-edit",
                 title: "write",
@@ -3748,7 +4167,7 @@ describe("AgentSession", () => {
 
         await session.cancel();
 
-        expect(mock.cancel).toHaveBeenCalledWith({ sessionId: "acp-1" });
+        expect(mock.cancel).toHaveBeenCalledWith({ sessionId: "session-1" });
         expect(stopTask).not.toHaveBeenCalled();
         expect(session.getTasks().map((t) => [t.taskId, t.status])).toEqual([
           ["agent-1", "running"],
@@ -3768,7 +4187,7 @@ describe("AgentSession", () => {
 
         await session.cancel({ keepUnread: true });
 
-        expect(mock.cancel).toHaveBeenCalledWith({ sessionId: "acp-1", keepUnread: true });
+        expect(mock.cancel).toHaveBeenCalledWith({ sessionId: "session-1", keepUnread: true });
         expect(session.getQueuedPrompts().map((p) => p.text)).toEqual(["read this now"]);
         expect(session.takeWithdrawnPrompts()).toEqual([]);
       });
@@ -4174,7 +4593,7 @@ describe("AgentSession", () => {
       it("keeps a background task's permission request answerable when Stop ends the main turn", async () => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn } = session.sendPrompt("hi");
         void session.handleToolPermission(writePermissionRequest());
         const fromTask = session.handleToolPermission({
@@ -4202,7 +4621,7 @@ describe("AgentSession", () => {
         const session = makeSession(mock);
         const { turn } = session.sendPrompt("hi");
         await session.cancel();
-        expect(mock.cancel).toHaveBeenCalledWith({ sessionId: "acp-1" });
+        expect(mock.cancel).toHaveBeenCalledWith({ sessionId: "session-1" });
         finishPrompt("cancelled");
         expect(await turn).toBe("cancelled");
       });
@@ -4240,7 +4659,55 @@ describe("AgentSession", () => {
         ]);
       });
 
-      it("settles locally, drops retry output, and holds the next prompt until the stopped turn ends when backend cancellation fails", async () => {
+      it.each(["during cancellation", "after cancellation"])(
+        "shows a durably committed compression as completed %s without restarting work https://github.com/ItsDalk-Lane/Scribe/issues/66",
+        async (phase) => {
+          const mock = makeMockBackend();
+          const finishPrompt = holdPrompt(mock);
+          const session = makeSession(mock);
+          const { turn } = session.sendPrompt("/compact");
+          mock.emitUpdate({
+            sessionUpdate: "compaction",
+            id: "committed",
+            status: "in_progress",
+            trigger: "manual",
+          });
+          await session.cancel();
+          if (phase === "after cancellation") {
+            finishPrompt("cancelled");
+            await turn;
+          }
+          mock.emitUpdate({
+            sessionUpdate: "compaction",
+            id: "committed",
+            status: "completed",
+            trigger: "manual",
+            commitSeq: 12,
+            postTokens: 1200,
+            contextWindow: 32000,
+            summary: "Original history is preserved.",
+          });
+          if (phase === "during cancellation") {
+            finishPrompt("cancelled");
+            await turn;
+          }
+          expect(aiMessage(session)?.parts).toEqual([
+            expect.objectContaining({
+              kind: "compaction",
+              id: "committed",
+              status: "completed",
+              summary: "Original history is preserved.",
+            }),
+          ]);
+          expect(session.getSessionUsage()).toMatchObject({
+            usedTokens: 1200,
+            contextWindow: 32000,
+          });
+          expect(mock.prompt).toHaveBeenCalledTimes(1);
+        }
+      );
+
+      it("reports cancellation failure, drops retry output, and holds the next prompt until the stopped turn ends https://github.com/ItsDalk-Lane/Scribe/issues/50", async () => {
         const mock = makeMockBackend();
         let resolveBackingPrompt: ((value: { stopReason: "cancelled" }) => void) | null = null;
         let resolveSecondPrompt: ((value: { stopReason: "end_turn" }) => void) | null = null;
@@ -4281,7 +4748,7 @@ describe("AgentSession", () => {
           return Promise.reject(new Error("cancel unsupported"));
         });
 
-        await session.cancel();
+        await expect(session.cancel()).rejects.toThrow("cancel unsupported");
         await expect(turn).resolves.toBe("cancelled");
         expect(session.getStatus()).toBe("idle");
 
@@ -4318,7 +4785,7 @@ describe("AgentSession", () => {
               resolvePrompts.push(resolve);
             })
         );
-        const session = makeSession(mock, { backendId: "claude-code" });
+        const session = makeSession(mock, { backendId: "native" });
 
         const first = session.sendPrompt("launch a background agent");
         mock.emitUpdate({
@@ -4373,7 +4840,7 @@ describe("AgentSession", () => {
         let decisionPromise: Promise<unknown> = Promise.resolve();
         const finishPrompt = holdPrompt(mock);
         mock.cancel.mockImplementation(() => decisionPromise.then(() => undefined));
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn } = session.sendPrompt("edit a file");
 
         decisionPromise = session.handleToolPermission(writePermissionRequest());
@@ -4394,11 +4861,11 @@ describe("AgentSession", () => {
         let answersPromise: Promise<unknown> = Promise.resolve();
         const finishPrompt = holdPrompt(mock);
         mock.cancel.mockImplementation(() => answersPromise.then(() => undefined));
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn } = session.sendPrompt("ask me something");
 
         answersPromise = session.handleAskUserQuestion({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           requestId: "tc-ask",
           questions: [{ question: "Pick a fruit", options: [{ label: "Apple" }] }],
         });
@@ -4436,7 +4903,7 @@ describe("AgentSession", () => {
         await session.withdrawPrompt(second.userMessageId);
 
         expect(withdraw).toHaveBeenCalledWith({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           promptId: second.userMessageId,
         });
         await expect(second.turn).resolves.toBe("cancelled");
@@ -4591,6 +5058,35 @@ describe("AgentSession", () => {
       });
     });
 
+    describe("getRequestContextPreview()", () => {
+      it("reads the existing chat preview without sending a prompt", async () => {
+        const mock = makeMockBackend();
+        const preview = {
+          requestId: "request-1",
+          modelId: "model-1",
+          provider: "provider-1",
+          content: "Saved input",
+        };
+        mock.asBackend.getRequestContextPreview = jest.fn(async () => preview);
+        const session = makeSession(mock);
+        await expect(session.getRequestContextPreview()).resolves.toBe(preview);
+        expect(mock.asBackend.getRequestContextPreview).toHaveBeenCalledWith({
+          sessionId: "session-1",
+        });
+        expect(mock.prompt).not.toHaveBeenCalled();
+      });
+      it("reports no preview before startup or when the backend cannot read saved requests", async () => {
+        const mock = makeMockBackend();
+        await expect(makeSession(mock).getRequestContextPreview()).resolves.toBeNull();
+        const read = jest.fn();
+        mock.asBackend.getRequestContextPreview = read;
+        const starting = startSession(mock);
+        await expect(starting.getRequestContextPreview()).resolves.toBeNull();
+        expect(read).not.toHaveBeenCalled();
+        await starting.ready;
+      });
+    });
+
     describe("getExtensionRuntime", () => {
       it("returns no runtime status when the backend cannot inspect extensions", async () => {
         const session = makeSession(makeMockBackend());
@@ -4621,7 +5117,7 @@ describe("AgentSession", () => {
         const session = makeSession(mock);
 
         await expect(session.getExtensionRuntime()).resolves.toBe(runtime);
-        expect(read).toHaveBeenCalledWith({ sessionId: "acp-1" });
+        expect(read).toHaveBeenCalledWith({ sessionId: "session-1" });
         expect(mock.prompt).not.toHaveBeenCalled();
       });
     });
@@ -4673,7 +5169,7 @@ describe("AgentSession", () => {
         await session.stopTask("task-1");
 
         expect(stopTask).toHaveBeenCalledTimes(1);
-        expect(stopTask).toHaveBeenCalledWith({ sessionId: "acp-1", taskId: "task-1" });
+        expect(stopTask).toHaveBeenCalledWith({ sessionId: "session-1", taskId: "task-1" });
         expect(session.getTasks().map((t) => [t.taskId, t.status])).toEqual([
           ["task-1", "stopped"],
           ["task-2", "running"],
@@ -4701,13 +5197,13 @@ describe("AgentSession", () => {
         session.suspendBackend();
         const replacement = makeMockBackend();
         jest.spyOn(replacement.asBackend, "resumeSession").mockResolvedValue({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           state: { ...state, mode: { ...state.mode!, current: "default" } },
         });
         replacement.setSessionMode.mockResolvedValue(state);
         await session.resumeBackend(replacement.asBackend);
         expect(replacement.setSessionMode).toHaveBeenCalledWith({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           modeId: "plan",
         });
         expect(session.getState()?.mode?.current).toBe("plan");
@@ -4729,10 +5225,10 @@ describe("AgentSession", () => {
         const replacement = makeMockBackend();
         const resume = jest
           .spyOn(replacement.asBackend, "resumeSession")
-          .mockResolvedValue({ sessionId: "acp-1", state: emptyState() });
+          .mockResolvedValue({ sessionId: "session-1", state: emptyState() });
         await session.resumeBackend(replacement.asBackend);
         expect(resume).toHaveBeenCalledWith(
-          expect.objectContaining({ sessionId: "acp-1", cwd: "/vault" })
+          expect.objectContaining({ sessionId: "session-1", cwd: "/vault" })
         );
         expect(session.isBackendSuspended()).toBe(false);
         expect(session.chatInputId).toBe("same-chat");
@@ -4765,7 +5261,7 @@ describe("AgentSession", () => {
         const release = session.releaseBackendSession();
         await Promise.resolve();
 
-        expect(mock.closeSession).toHaveBeenCalledWith({ sessionId: "acp-1" });
+        expect(mock.closeSession).toHaveBeenCalledWith({ sessionId: "session-1" });
         expect(mock.cancel).not.toHaveBeenCalled();
         await release;
         finishPrompt({ stopReason: "cancelled" });
@@ -4784,6 +5280,33 @@ describe("AgentSession", () => {
     });
 
     describe("loadDisplayMessages", () => {
+      it("derives failure from the latest restored turn and clears it for a newer saved user turn", async () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock);
+        await session.ready;
+        const failed = {
+          id: "failed",
+          sender: AI_SENDER,
+          message: "Partial\n\n**Error:** earlier failure",
+          isErrorMessage: true,
+          timestamp: null,
+          isVisible: true,
+        };
+        session.loadDisplayMessages([failed]);
+        expect(session.getStatus()).toBe("error");
+        session.loadDisplayMessages([
+          failed,
+          {
+            id: "next",
+            sender: USER_SENDER,
+            message: "New question",
+            timestamp: null,
+            isVisible: true,
+          },
+        ]);
+        expect(session.getStatus()).toBe("idle");
+      });
+
       it("replaces the transcript and notifies subscribers so an open view re-renders", () => {
         const mock = makeMockBackend();
         const session = makeSession(mock);
@@ -4914,7 +5437,10 @@ describe("AgentSession", () => {
         mock.setSessionModel.mockResolvedValueOnce(newState);
         const session = makeSession(mock);
         await session.setModel("x/y");
-        expect(mock.setSessionModel).toHaveBeenCalledWith({ sessionId: "acp-1", modelId: "x/y" });
+        expect(mock.setSessionModel).toHaveBeenCalledWith({
+          sessionId: "session-1",
+          modelId: "x/y",
+        });
         expect(session.getState()?.model?.current.baseModelId).toBe("x/y");
       });
 
@@ -4941,10 +5467,10 @@ describe("AgentSession", () => {
         const mock = makeMockBackend();
         const next = sonnetAndGpt5State();
         mock.setSessionConfigOption.mockResolvedValueOnce(next);
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         await session.setConfigOption("effort", "high");
         expect(mock.setSessionConfigOption).toHaveBeenCalledWith({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           configId: "effort",
           value: "high",
         });
@@ -4953,7 +5479,7 @@ describe("AgentSession", () => {
 
       it("notifies onModelChanged subscribers on success", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const onModelChanged = jest.fn();
         subscribeTo(session, { onModelChanged });
         await session.setConfigOption("effort", "low");
@@ -4965,7 +5491,7 @@ describe("AgentSession", () => {
         mock.setSessionConfigOption.mockRejectedValueOnce(
           new MethodUnsupportedError("session/set_config_option")
         );
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const onModelChanged = jest.fn();
         subscribeTo(session, { onModelChanged });
         await expect(session.setConfigOption("effort", "high")).rejects.toBeInstanceOf(
@@ -4980,23 +5506,26 @@ describe("AgentSession", () => {
         const mock = makeMockBackend();
         const next = sonnetAndGpt5State();
         mock.setSessionMode.mockResolvedValueOnce(next);
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         await session.setMode("plan");
-        expect(mock.setSessionMode).toHaveBeenCalledWith({ sessionId: "acp-1", modeId: "plan" });
+        expect(mock.setSessionMode).toHaveBeenCalledWith({
+          sessionId: "session-1",
+          modeId: "plan",
+        });
         expect(session.getState()).toBe(next);
       });
 
       it("rethrows MethodUnsupportedError without mutating local state", async () => {
         const mock = makeMockBackend();
         mock.setSessionMode.mockRejectedValueOnce(new MethodUnsupportedError("session/set_mode"));
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         await expect(session.setMode("plan")).rejects.toBeInstanceOf(MethodUnsupportedError);
         expect(session.getState()).toBeNull();
       });
 
       it("notifies onModelChanged listeners after successful switch", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const onModelChanged = jest.fn();
         subscribeTo(session, { onModelChanged });
         await session.setMode("plan");
@@ -5092,7 +5621,7 @@ describe("AgentSession", () => {
         expect(session.canSwitchMode()).toBe(false);
 
         resolveNew!({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           state: {
             model: null,
             mode: {
@@ -5181,7 +5710,7 @@ describe("AgentSession", () => {
         ).toBe(true);
       });
 
-      it("requires both mode and config switching for Codex's combined picker", () => {
+      it("requires both mode and config switching for a combined mode sequence", () => {
         const state: BackendState = {
           model: null,
           mode: {
@@ -5221,7 +5750,7 @@ describe("AgentSession", () => {
     describe("getState", () => {
       it("replaces the cached state and notifies onModelChanged when the backend pushes a state_changed update", () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const onModelChanged = jest.fn();
         subscribeTo(session, { onModelChanged });
         const newState: BackendState = {
@@ -5231,6 +5760,34 @@ describe("AgentSession", () => {
         mock.emitUpdate({ sessionUpdate: "state_changed", state: newState });
         expect(session.getState()).toBe(newState);
         expect(onModelChanged).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("getSubagentUsage()", () => {
+      it("exposes the child's real cumulative calls through a stable backend projection https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock);
+        mock.emitUpdate({
+          sessionUpdate: "model_call_metrics",
+          observation: {
+            id: "child-call",
+            roundId: "r",
+            sourceId: "child",
+            subagentId: "child",
+            sourceName: "Child",
+            kind: "subagent",
+            purpose: "chat",
+            modelId: "m",
+            modelName: "M",
+            requestIds: ["req"],
+            status: "completed",
+            usage: { totalTokens: 8 },
+          },
+        });
+        const usage = session.getSubagentUsage("child");
+        expect(usage?.metrics).toMatchObject({ totalTokens: 8, steps: 1 });
+        expect(session.getSubagentUsage("child")).toBe(usage);
+        expect(session.getSubagentUsage("other")).toBeNull();
       });
     });
 
@@ -5325,9 +5882,9 @@ describe("AgentSession", () => {
     });
 
     describe("getPlanUsage", () => {
-      it("starts null and stores an incoming plan_usage_update, notifying subscribers", () => {
+      it("stores a plan_usage_update from a generic backend and notifies subscribers", () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock);
+        const session = makeSession(mock, { backendId: "test-backend" });
         const onMessagesChanged = jest.fn();
         subscribeTo(session, { onMessagesChanged });
         expect(session.getPlanUsage()).toBeNull();
@@ -5389,7 +5946,10 @@ describe("AgentSession", () => {
     describe("restoreLabel", () => {
       it("an agent-sourced restored title can still be refreshed by later agent updates", () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock);
+        const session = makeSession(mock, {
+          backendId: "test-summarizing",
+          getDescriptor: summarizingDescriptor,
+        });
         session.restoreLabel("Discovered title", "agent");
         expect(session.getLabel()).toBe("Discovered title");
 
@@ -5399,7 +5959,10 @@ describe("AgentSession", () => {
 
       it("a user-sourced restored title is sticky against later agent updates", () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock);
+        const session = makeSession(mock, {
+          backendId: "test-summarizing",
+          getDescriptor: summarizingDescriptor,
+        });
         session.restoreLabel("My rename", "user");
 
         mock.emitUpdate({ sessionUpdate: "session_info_update", title: "Agent title" });
@@ -5414,10 +5977,13 @@ describe("AgentSession", () => {
         await Promise.resolve();
       }
 
-      describe("when the agent pushes a session title", () => {
+      describe("when a summarizing test backend pushes a session title", () => {
         it("adopts the title pushed by the agent and notifies listeners", () => {
           const mock = makeMockBackend();
-          const session = makeSession(mock);
+          const session = makeSession(mock, {
+            backendId: "test-summarizing",
+            getDescriptor: summarizingDescriptor,
+          });
           const onLabelChanged = jest.fn();
           subscribeTo(session, { onLabelChanged });
 
@@ -5429,7 +5995,10 @@ describe("AgentSession", () => {
 
         it("ignores agent-pushed titles after the user has renamed the session", () => {
           const mock = makeMockBackend();
-          const session = makeSession(mock);
+          const session = makeSession(mock, {
+            backendId: "test-summarizing",
+            getDescriptor: summarizingDescriptor,
+          });
           session.setLabel("My label");
 
           mock.emitUpdate({ sessionUpdate: "session_info_update", title: "Agent-chosen title" });
@@ -5439,7 +6008,10 @@ describe("AgentSession", () => {
 
         it("a null/empty agent title clears the label and re-opens it for future agent updates", () => {
           const mock = makeMockBackend();
-          const session = makeSession(mock);
+          const session = makeSession(mock, {
+            backendId: "test-summarizing",
+            getDescriptor: summarizingDescriptor,
+          });
           mock.emitUpdate({ sessionUpdate: "session_info_update", title: "First" });
           expect(session.getLabel()).toBe("First");
 
@@ -5450,9 +6022,12 @@ describe("AgentSession", () => {
           expect(session.getLabel()).toBe("Second");
         });
 
-        it("keeps the agent title when an update omits the title, such as an opencode compaction marker", () => {
+        it("keeps the agent title when an update omits the title", () => {
           const mock = makeMockBackend();
-          const session = makeSession(mock);
+          const session = makeSession(mock, {
+            backendId: "test-summarizing",
+            getDescriptor: summarizingDescriptor,
+          });
           const onLabelChanged = jest.fn();
           mock.emitUpdate({ sessionUpdate: "session_info_update", title: "Autumn leaves" });
           subscribeTo(session, { onLabelChanged });
@@ -5464,21 +6039,25 @@ describe("AgentSession", () => {
         });
       });
 
-      describe("when the agent is polled for a title after a turn", () => {
+      describe("when a summarizing test backend is polled for a title after a turn", () => {
         it("pulls the title via listSessions and applies it after end_turn", async () => {
           const mock = makeMockBackend();
           mock.listSessions.mockResolvedValueOnce({
             sessions: [
-              { sessionId: "acp-1", cwd: "/vault", title: "Refactor auth", updatedAt: null },
+              { sessionId: "session-1", cwd: "/vault", title: "Refactor auth", updatedAt: null },
               {
-                sessionId: "acp-other",
+                sessionId: "session-other",
                 cwd: "/vault",
                 title: "Different session",
                 updatedAt: null,
               },
             ],
           });
-          const session = makeSession(mock, { cwd: "/vault" });
+          const session = makeSession(mock, {
+            backendId: "test-summarizing",
+            getDescriptor: summarizingDescriptor,
+            cwd: "/vault",
+          });
           const { turn } = session.sendPrompt("hi");
           await turn;
           await flushMicrotasks();
@@ -5487,19 +6066,23 @@ describe("AgentSession", () => {
           expect(session.getLabel()).toBe("Refactor auth");
         });
 
-        it("ignores opencode's default 'New session - …' placeholder titles", async () => {
+        it("ignores default 'New session - …' placeholder titles", async () => {
           const mock = makeMockBackend();
           mock.listSessions.mockResolvedValueOnce({
             sessions: [
               {
-                sessionId: "acp-1",
+                sessionId: "session-1",
                 cwd: "/vault",
                 title: "New session - 2026-04-26T01:24:54.221Z",
                 updatedAt: null,
               },
             ],
           });
-          const session = makeSession(mock, { cwd: "/vault" });
+          const session = makeSession(mock, {
+            backendId: "test-summarizing",
+            getDescriptor: summarizingDescriptor,
+            cwd: "/vault",
+          });
           await session.sendPrompt("hi").turn;
           await flushMicrotasks();
           expect(session.getLabel()).toBeNull();
@@ -5507,7 +6090,11 @@ describe("AgentSession", () => {
 
         it("does not poll when the user has already renamed the session", async () => {
           const mock = makeMockBackend();
-          const session = makeSession(mock, { cwd: "/vault" });
+          const session = makeSession(mock, {
+            backendId: "test-summarizing",
+            getDescriptor: summarizingDescriptor,
+            cwd: "/vault",
+          });
           session.setLabel("My label");
           await session.sendPrompt("hi").turn;
           await flushMicrotasks();
@@ -5518,7 +6105,11 @@ describe("AgentSession", () => {
         it("does not poll on cancelled turns", async () => {
           const mock = makeMockBackend();
           mock.prompt.mockResolvedValueOnce({ stopReason: "cancelled" });
-          const session = makeSession(mock, { cwd: "/vault" });
+          const session = makeSession(mock, {
+            backendId: "test-summarizing",
+            getDescriptor: summarizingDescriptor,
+            cwd: "/vault",
+          });
           await session.sendPrompt("hi").turn;
           await flushMicrotasks();
           expect(mock.listSessions).not.toHaveBeenCalled();
@@ -5527,7 +6118,11 @@ describe("AgentSession", () => {
         it("silently no-ops when the agent doesn't support listSessions", async () => {
           const mock = makeMockBackend();
           mock.listSessions.mockRejectedValueOnce(new MethodUnsupportedError("session/list"));
-          const session = makeSession(mock, { cwd: "/vault" });
+          const session = makeSession(mock, {
+            backendId: "test-summarizing",
+            getDescriptor: summarizingDescriptor,
+            cwd: "/vault",
+          });
           await session.sendPrompt("hi").turn;
           await flushMicrotasks();
           expect(session.getLabel()).toBeNull();
@@ -5536,9 +6131,14 @@ describe("AgentSession", () => {
         it("omits cwd filter when the session has no cwd recorded", async () => {
           const mock = makeMockBackend();
           mock.listSessions.mockResolvedValueOnce({
-            sessions: [{ sessionId: "acp-1", cwd: "/vault", title: "Found me", updatedAt: null }],
+            sessions: [
+              { sessionId: "session-1", cwd: "/vault", title: "Found me", updatedAt: null },
+            ],
           });
-          const session = makeSession(mock);
+          const session = makeSession(mock, {
+            backendId: "test-summarizing",
+            getDescriptor: summarizingDescriptor,
+          });
           await session.sendPrompt("hi").turn;
           await flushMicrotasks();
           expect(mock.listSessions).toHaveBeenCalledWith({});
@@ -5546,29 +6146,29 @@ describe("AgentSession", () => {
         });
       });
 
-      describe("when the backend does not summarize titles", () => {
-        function makeTitleSession(backendId: "codex" | "claude" | "opencode", summarizes: boolean) {
+      describe("when title behavior follows the backend capability", () => {
+        function makeTitleSession(backendId: "native" | "test-summarizing", summarizes: boolean) {
           return makeSession(makeMockBackend(), {
             backendId,
             getDescriptor: summarizes ? summarizingDescriptor : nonSummarizingDescriptor,
           });
         }
 
-        it("derives the tab label from the first user message for codex", () => {
-          const session = makeTitleSession("codex", false);
+        it("derives the tab label from the first user message for the native agent", () => {
+          const session = makeTitleSession("native", false);
           session.sendPrompt("Summarize my meeting notes");
           expect(session.getLabel()).toBe("Summarize my meeting notes");
           expect(session.getLabelSource()).toBe("agent");
         });
 
         it("strips wikilink brackets when deriving the title", () => {
-          const session = makeTitleSession("codex", false);
+          const session = makeTitleSession("native", false);
           session.sendPrompt("Review [[Project Plan]] please");
           expect(session.getLabel()).toBe("Review Project Plan please");
         });
 
         it("keeps the first message's derived title across later turns", async () => {
-          const session = makeTitleSession("codex", false);
+          const session = makeTitleSession("native", false);
           await session.sendPrompt("First prompt").turn;
           expect(session.getLabel()).toBe("First prompt");
           await session.sendPrompt("A different second prompt").turn;
@@ -5576,15 +6176,15 @@ describe("AgentSession", () => {
         });
 
         it("does not override a user rename with a derived title", () => {
-          const session = makeTitleSession("codex", false);
+          const session = makeTitleSession("native", false);
           session.setLabel("My rename");
           session.sendPrompt("Some prompt that would otherwise become the title");
           expect(session.getLabel()).toBe("My rename");
           expect(session.getLabelSource()).toBe("user");
         });
 
-        it("does not derive a label for a summarizing backend (opencode)", () => {
-          const session = makeTitleSession("opencode", true);
+        it("does not derive a label for a summarizing backend", () => {
+          const session = makeTitleSession("test-summarizing", true);
           session.sendPrompt("This should not become the tab title");
           expect(session.getLabel()).toBeNull();
         });
@@ -5592,7 +6192,7 @@ describe("AgentSession", () => {
         it("ignores a backend-pushed session_info_update title for non-summarizing backends", () => {
           const mock = makeMockBackend();
           const session = makeSession(mock, {
-            backendId: "codex",
+            backendId: "native",
             getDescriptor: nonSummarizingDescriptor,
           });
           session.sendPrompt("Original user prompt");
@@ -5606,7 +6206,7 @@ describe("AgentSession", () => {
         it("does not poll listSessions after a turn for non-summarizing backends", async () => {
           const mock = makeMockBackend();
           const session = makeSession(mock, {
-            backendId: "codex",
+            backendId: "native",
             cwd: "/vault",
             getDescriptor: nonSummarizingDescriptor,
           });
@@ -5647,7 +6247,7 @@ describe("AgentSession", () => {
     describe("isReplyRunning", () => {
       it("is true while the agent's reply runs and false once it ends, even while the chat still runs for its subagents", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
 
         const { turn } = session.sendPrompt("launch a subagent");
         expect(session.isReplyRunning()).toBe(true);
@@ -5660,7 +6260,7 @@ describe("AgentSession", () => {
 
       it("notifies status listeners when the reply ends while subagents keep the chat running, so the composer stops showing Stop", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const replyRunningSeen: boolean[] = [];
         subscribeTo(session, {
           onStatusChanged: () => replyRunningSeen.push(session.isReplyRunning()),
@@ -5692,7 +6292,7 @@ describe("AgentSession", () => {
 
       it("stays idle while only a background task's permission request waits, so the chat can still send", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
 
         void session.handleToolPermission({
           ...writePermissionRequest(),
@@ -5706,7 +6306,7 @@ describe("AgentSession", () => {
 
       it(` stays running after a reply ends while the agent reports itself busy with its subagents, and goes idle only when the agent reports idle`, async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const statusChanges: string[] = [];
         subscribeTo(session, {
           onStatusChanged: (status) => {
@@ -5734,7 +6334,7 @@ describe("AgentSession", () => {
 
       it(` awaits permission when a subagent asks while the agent is busy only with its subagents`, () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         mock.emitUpdate({ sessionUpdate: "busy_changed", busy: true });
 
         void session.handleToolPermission({
@@ -5747,7 +6347,7 @@ describe("AgentSession", () => {
 
       it(` goes idle when the agent disconnects while it reported itself busy`, () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         mock.emitUpdate({ sessionUpdate: "busy_changed", busy: true });
 
         mock.emitUpdate({ sessionUpdate: "session_disconnected", error: new Error("exited") });
@@ -5760,7 +6360,7 @@ describe("AgentSession", () => {
       it("fires onStatusChanged exactly once per distinct transition through the permission lifecycle", async () => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const statusChanges: string[] = [];
         subscribeTo(session, { onStatusChanged: (status) => statusChanges.push(status) });
 
@@ -5776,7 +6376,7 @@ describe("AgentSession", () => {
 
       it("fires onDisconnected when the agent's connection drops, after the session ends its running tasks", () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         mock.emitUpdate({
           sessionUpdate: "task_started",
           taskId: "task-1",
@@ -5889,7 +6489,7 @@ describe("AgentSession", () => {
     });
 
     describe("getCurrentPlan", () => {
-      it("does not promote completed plan-file writes into proposal cards", async () => {
+      it("does not promote completed historical plan-file writes into proposal cards", async () => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);
         const session = makeSession(mock, {
@@ -5933,7 +6533,7 @@ describe("AgentSession", () => {
       it("keeps an approved decision visible without resurrecting the plan card after a late tool update", async () => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn } = session.sendPrompt("plan something");
 
         mock.emitUpdate({
@@ -5978,7 +6578,7 @@ describe("AgentSession", () => {
       it("marks an active turn as awaiting permission while an inline tool card is pending", async () => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn } = session.sendPrompt("edit a file");
         expect(session.getStatus()).toBe("running");
 
@@ -6000,7 +6600,7 @@ describe("AgentSession", () => {
 
       it("rejects and removes a task's pending request when that task ends, keeping other requests", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         mock.emitUpdate({
           sessionUpdate: "task_started",
           taskId: "task-1",
@@ -6033,14 +6633,14 @@ describe("AgentSession", () => {
       it("surfaces a pending AskUserQuestion and resolves it with the submitted answers", async () => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const statusChanges: string[] = [];
         subscribeTo(session, { onStatusChanged: (status) => statusChanges.push(status) });
         const { turn } = session.sendPrompt("ask me something");
         expect(session.getStatus()).toBe("running");
 
         const answersPromise = session.handleAskUserQuestion({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           requestId: "tc-ask",
           questions: [
             { question: "Pick a fruit", options: [{ label: "Apple" }, { label: "Pear" }] },
@@ -6058,205 +6658,6 @@ describe("AgentSession", () => {
 
         finishPrompt();
         await turn;
-      });
-    });
-
-    describe("getReportEvidence", () => {
-      it("describes the chat for a bug report by backend, current model, backend session and time", () => {
-        const session = makeSession(makeMockBackend(), {
-          backendId: "codex",
-          initialState: sonnetAndGpt5State(),
-        });
-
-        expect(session.getReportEvidence()).toEqual({
-          backendId: "codex",
-          model: "anthropic/sonnet",
-          sessionId: "acp-1",
-          raisedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-        });
-      });
-    });
-
-    describe("getFeedbackOffer", () => {
-      it("starts with no feedback card", () => {
-        expect(makeSession(makeMockBackend()).getFeedbackOffer()).toBeNull();
-      });
-
-      describe("after a failed reply", () => {
-        const failedSession = (offerFeedbackCards: boolean) => {
-          jest.mocked(getSettings).mockReturnValue({ agentMode: { offerFeedbackCards } } as never);
-          const mock = makeMockBackend();
-          mock.prompt.mockRejectedValue(new Error("model not supported: gemini-4"));
-          return makeSession(mock, { backendId: "opencode" });
-        };
-
-        afterEach(() => {
-          jest.mocked(getSettings).mockReturnValue({ agentMode: {} } as never);
-        });
-
-        it("opens a card with the error, anchored to the message whose reply failed", async () => {
-          const session = failedSession(true);
-
-          await expect(session.sendPrompt("hi").turn).rejects.toThrow("model not supported");
-
-          const userMessageId = session.store
-            .getDisplayMessages()
-            .find((message) => message.sender === USER_SENDER)?.id;
-          expect(session.getFeedbackOffer()).toEqual({
-            trigger: "turn_error",
-            draft: {
-              title: "Agent Chat reply failed on opencode",
-              whatHappened: "model not supported: gemini-4",
-              userSaid: "",
-              repro: "",
-            },
-            evidence: expect.objectContaining({ backendId: "opencode", sessionId: "acp-1" }),
-            afterUserMessageId: userMessageId,
-            status: "open",
-          });
-        });
-
-        it("shows no card when feedback reports are turned off", async () => {
-          const session = failedSession(false);
-
-          await expect(session.sendPrompt("hi").turn).rejects.toThrow("model not supported");
-
-          expect(session.getFeedbackOffer()).toBeNull();
-        });
-
-        it("keeps the session's one card when a later reply fails", async () => {
-          const session = failedSession(true);
-          await expect(session.sendPrompt("hi").turn).rejects.toThrow("model not supported");
-          session.dismissFeedbackOffer();
-          const first = session.getFeedbackOffer();
-
-          await expect(session.sendPrompt("again").turn).rejects.toThrow("model not supported");
-
-          expect(session.getFeedbackOffer()).toBe(first);
-        });
-      });
-    });
-
-    describe("offerFeedback", () => {
-      const DRAFT = {
-        title: "Replied in Swedish to an English request",
-        whatHappened: "The agent answered 'hej'.",
-        userSaid: "Why do you switch to a different language?",
-        repro: "1. Ask in English.",
-      };
-
-      const sessionWithTranscript = () => {
-        const session = makeSession(makeMockBackend(), {
-          backendId: "codex",
-          initialState: sonnetAndGpt5State(),
-        });
-        session.loadDisplayMessages([
-          { id: "u1", sender: USER_SENDER, message: "hej", isVisible: true, timestamp: null },
-          { id: "a1", sender: AI_SENDER, message: "hej", isVisible: true, timestamp: null },
-          { id: "u2", sender: USER_SENDER, message: "why?", isVisible: true, timestamp: null },
-        ]);
-        return session;
-      };
-
-      it("opens a card with the draft, session evidence and the latest user message as its anchor", () => {
-        const session = sessionWithTranscript();
-        const onMessagesChanged = jest.fn();
-        subscribeTo(session, { onMessagesChanged });
-
-        expect(session.offerFeedback(DRAFT)).toBe("shown");
-
-        expect(onMessagesChanged).toHaveBeenCalled();
-        expect(session.getFeedbackOffer()).toEqual({
-          trigger: "agent",
-          draft: DRAFT,
-          evidence: {
-            backendId: "codex",
-            model: "anthropic/sonnet",
-            sessionId: "acp-1",
-            raisedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-          },
-          afterUserMessageId: "u2",
-          status: "open",
-        });
-      });
-
-      it("refuses a second card in the same session whether the first is open, dismissed or sent", () => {
-        const session = sessionWithTranscript();
-        session.offerFeedback(DRAFT);
-        const first = session.getFeedbackOffer();
-
-        expect(session.offerFeedback({ ...DRAFT, title: "Another problem" })).toBe(
-          "already_offered"
-        );
-        session.dismissFeedbackOffer();
-        expect(session.offerFeedback(DRAFT)).toBe("already_offered");
-        expect(session.getFeedbackOffer()?.draft).toBe(first?.draft);
-      });
-
-      it("anchors to nothing when the session has no user message yet", () => {
-        const session = makeSession(makeMockBackend());
-        session.offerFeedback(DRAFT);
-        expect(session.getFeedbackOffer()?.afterUserMessageId).toBeNull();
-      });
-    });
-
-    describe("dismissFeedbackOffer", () => {
-      const DRAFT = { title: "t", whatHappened: "w", userSaid: "", repro: "r" };
-
-      it("marks an open card dismissed and notifies, without any other effect", () => {
-        const mock = makeMockBackend();
-        const session = makeSession(mock);
-        session.offerFeedback(DRAFT);
-        const onMessagesChanged = jest.fn();
-        subscribeTo(session, { onMessagesChanged });
-
-        session.dismissFeedbackOffer();
-
-        expect(session.getFeedbackOffer()?.status).toBe("dismissed");
-        expect(onMessagesChanged).toHaveBeenCalledTimes(1);
-        expect(mock.prompt).not.toHaveBeenCalled();
-      });
-
-      it("leaves a sent card and a missing card unchanged", () => {
-        const session = makeSession(makeMockBackend());
-        session.dismissFeedbackOffer();
-        expect(session.getFeedbackOffer()).toBeNull();
-
-        session.offerFeedback(DRAFT);
-        session.markFeedbackReported({ reportId: "r1", issueUrl: "https://example.com" });
-        session.dismissFeedbackOffer();
-        expect(session.getFeedbackOffer()?.status).toBe("reported");
-      });
-    });
-
-    describe("markFeedbackReported", () => {
-      it("records the report ID and issue link on the card", () => {
-        const session = makeSession(makeMockBackend());
-        session.offerFeedback({ title: "t", whatHappened: "w", userSaid: "", repro: "r" });
-
-        session.markFeedbackReported({ reportId: "r1", issueUrl: "https://example.com" });
-
-        expect(session.getFeedbackOffer()).toMatchObject({
-          status: "reported",
-          report: { reportId: "r1", issueUrl: "https://example.com" },
-        });
-      });
-
-      it("ignores a report when no card was offered", () => {
-        const session = makeSession(makeMockBackend());
-        session.markFeedbackReported({ reportId: "r1", issueUrl: "https://example.com" });
-        expect(session.getFeedbackOffer()).toBeNull();
-      });
-
-      it("keeps a dismissed card dismissed when its upload lands afterwards", () => {
-        const session = makeSession(makeMockBackend());
-        session.offerFeedback({ title: "t", whatHappened: "w", userSaid: "", repro: "r" });
-        session.dismissFeedbackOffer();
-
-        session.markFeedbackReported({ reportId: "r1", issueUrl: "https://example.com" });
-
-        expect(session.getFeedbackOffer()).toMatchObject({ status: "dismissed" });
-        expect(session.getFeedbackOffer()?.report).toBeUndefined();
       });
     });
 
@@ -6302,7 +6703,7 @@ describe("AgentSession", () => {
           description: "Review",
         });
         mock.emit({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           taskToolCallId: "launch",
           update: replayText("agent_message_chunk", "Task result"),
         });
@@ -6464,7 +6865,7 @@ describe("AgentSession", () => {
 
       it("lists a launched task as running before the agent names it, and attaches the name to the same entry", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { run } = launchTurn(mock, session);
         run(AGENT_CARD, AGENT_LAUNCH);
         const launched = session.getTasks();
@@ -6497,18 +6898,18 @@ describe("AgentSession", () => {
 
       it("keeps a launched task's own messages under its launching call before and after the agent names it", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { run } = launchTurn(mock, session);
         run(AGENT_CARD, AGENT_LAUNCH);
         mock.emit({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           update: replayText("agent_message_chunk", "Counting. "),
           taskToolCallId: "tool-agent",
         });
 
         mock.emitUpdate(TASK_STARTED);
         mock.emit({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           update: replayText("agent_message_chunk", "13 words."),
           taskToolCallId: "tool-agent",
         });
@@ -6518,7 +6919,7 @@ describe("AgentSession", () => {
 
       it("ends a launched task as failed when its launching call fails before the agent names it, such as a denied launch", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { run } = launchTurn(mock, session);
         run(AGENT_CARD, AGENT_LAUNCH);
 
@@ -6535,11 +6936,11 @@ describe("AgentSession", () => {
 
       it("ends a command a subagent launched when its launching call fails inside the subagent before the agent names it", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { run } = launchTurn(mock, session);
         run(AGENT_CARD, TASK_STARTED);
         const inSubagent = (update: SessionEvent["update"]) =>
-          mock.emit({ sessionId: "acp-1", update, taskToolCallId: "tool-agent" });
+          mock.emit({ sessionId: "session-1", update, taskToolCallId: "tool-agent" });
         inSubagent({
           sessionUpdate: "tool_call",
           toolCallId: "tool-bg",
@@ -6564,7 +6965,7 @@ describe("AgentSession", () => {
 
       it("ends a launched task the agent never named as stopped when the connection is lost", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { run } = launchTurn(mock, session);
         run(AGENT_CARD, AGENT_LAUNCH);
 
@@ -6577,7 +6978,7 @@ describe("AgentSession", () => {
 
       it("ignores a repeated launch for a task that already ended, and reopens it if the agent then names it", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { run } = launchTurn(mock, session);
         run(AGENT_CARD, AGENT_LAUNCH);
         mock.emitUpdate({
@@ -6603,7 +7004,7 @@ describe("AgentSession", () => {
         "ends a launched task the agent never named as failed when the launching turn %s, such as a call cut off mid-stream",
         async (_, error) => {
           const mock = makeMockBackend();
-          const session = makeSession(mock, { backendId: "claude" });
+          const session = makeSession(mock, { backendId: "native" });
           const { turn, run } = launchTurn(mock, session);
           run(AGENT_CARD, AGENT_LAUNCH);
 
@@ -6626,7 +7027,7 @@ describe("AgentSession", () => {
 
       it("ignores a repeated start for a named task that already ended", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { run } = launchTurn(mock, session);
         run(AGENT_CARD, AGENT_LAUNCH, TASK_STARTED);
         mock.emitUpdate({ sessionUpdate: "task_ended", taskId: "task-1", status: "completed" });
@@ -6640,11 +7041,11 @@ describe("AgentSession", () => {
 
       it("ends a command a subagent was launching as stopped when that subagent ends first", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { run } = launchTurn(mock, session);
         run(AGENT_CARD, TASK_STARTED);
         const inSubagent = (update: SessionEvent["update"]) =>
-          mock.emit({ sessionId: "acp-1", update, taskToolCallId: "tool-agent" });
+          mock.emit({ sessionId: "session-1", update, taskToolCallId: "tool-agent" });
         inSubagent({
           sessionUpdate: "tool_call",
           toolCallId: "tool-bg",
@@ -6669,7 +7070,7 @@ describe("AgentSession", () => {
 
       it("tracks a task from start to end while its launching card stays running past its turn, and keeps the end summary off the card", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const onTasksChanged = jest.fn();
         subscribeTo(session, { onTasksChanged });
         const { turn, run } = launchTurn(mock, session);
@@ -6709,7 +7110,7 @@ describe("AgentSession", () => {
 
       it("keeps the same task list without notifying task listeners when a progress frame only updates usage, and shows the usage on the launching card", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn, run } = launchTurn(mock, session);
         run(AGENT_CARD, TASK_STARTED);
         mock.emitUpdate({ sessionUpdate: "turn_ended", turnId: "launch", stopReason: "end_turn" });
@@ -6735,7 +7136,7 @@ describe("AgentSession", () => {
 
       it("records a running task's model and output file from progress without touching its launching card", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn, run } = launchTurn(mock, session);
         run(AGENT_CARD, TASK_STARTED);
         mock.emitUpdate({ sessionUpdate: "turn_ended", turnId: "launch", stopReason: "end_turn" });
@@ -6759,7 +7160,7 @@ describe("AgentSession", () => {
 
       it("shows a stopped task's launching card as stopped, not failed", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn, run } = launchTurn(mock, session);
         run(AGENT_CARD, TASK_STARTED);
         mock.emitUpdate({ sessionUpdate: "turn_ended", turnId: "launch", stopReason: "end_turn" });
@@ -6775,7 +7176,7 @@ describe("AgentSession", () => {
 
       it("keeps a stopped foreground task's launching card stopped when the tool's failed result arrives after the stop, while still showing that result", async () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const { turn, run } = launchTurn(mock, session);
         run(AGENT_CARD, TASK_STARTED);
 
@@ -6797,9 +7198,9 @@ describe("AgentSession", () => {
 
       it("keeps the launching card of a stopped command started inside a subagent stopped when the command's failed result arrives after the stop", () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const fromSubagent = (update: SessionEvent["update"]) =>
-          mock.emit({ sessionId: "acp-1", update, taskToolCallId: "tool-agent" });
+          mock.emit({ sessionId: "session-1", update, taskToolCallId: "tool-agent" });
         mock.emitUpdate(TASK_STARTED);
         fromSubagent({
           sessionUpdate: "tool_call",
@@ -6835,7 +7236,7 @@ describe("AgentSession", () => {
 
       it("applies a task update reported from inside a task to the task, not to its messages", () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         mock.emitUpdate({
           sessionUpdate: "task_started",
           taskId: "task-1",
@@ -6845,18 +7246,18 @@ describe("AgentSession", () => {
         });
 
         mock.emit({
-          sessionId: "acp-1",
-          update: { sessionUpdate: "task_progress", taskId: "task-1", model: "claude-haiku-9" },
+          sessionId: "session-1",
+          update: { sessionUpdate: "task_progress", taskId: "task-1", model: "example/task-model" },
           taskToolCallId: "tool-agent",
         });
 
-        expect(session.getTasks()[0].model).toBe("claude-haiku-9");
+        expect(session.getTasks()[0].model).toBe("example/task-model");
         expect(session.getTaskMessages("tool-agent")).toEqual([]);
       });
 
       it("keeps the same task list and notifies listeners when only a task's own messages change", () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         mock.emitUpdate({
           sessionUpdate: "task_started",
           taskId: "task-1",
@@ -6869,7 +7270,7 @@ describe("AgentSession", () => {
         subscribeTo(session, { onTasksChanged: () => notified++ });
 
         mock.emit({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           update: replayText("agent_message_chunk", "13 words."),
           taskToolCallId: "tool-agent",
         });
@@ -6888,10 +7289,106 @@ describe("AgentSession", () => {
     });
 
     describe("getTaskMessages", () => {
+      it("keeps child compression and later reply occupancy in that child's conversation https://github.com/ItsDalk-Lane/Scribe/issues/66", () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock, { backendId: "native" });
+        mock.emitUpdate({
+          sessionUpdate: "usage_update",
+          usage: { usedTokens: 9000, contextWindow: 128000, updatedAt: 1 },
+        });
+        mock.emitUpdate({
+          sessionUpdate: "task_started",
+          taskId: "run-1",
+          toolCallId: "launch-child",
+          kind: "subagent",
+          subagentId: "child",
+          description: "Review notes",
+        });
+        const before = session.getSessionUsage();
+        for (const status of ["in_progress", "completed"] as const) {
+          mock.emit({
+            sessionId: "session-1",
+            taskToolCallId: "launch-child",
+            update: {
+              sessionUpdate: "compaction",
+              id: "child-compact",
+              trigger: "manual",
+              status,
+              subagentId: "child",
+              runId: "run-1",
+              preTokens: 8000,
+              ...(status === "completed"
+                ? { postTokens: 1500, contextWindow: 32000, summary: "Notes reviewed." }
+                : {}),
+            },
+          });
+        }
+        expect(session.getTaskMessages("launch-child")[0]?.parts).toEqual([
+          expect.objectContaining({
+            kind: "compaction",
+            id: "child-compact",
+            status: "completed",
+            postTokens: 1500,
+            summary: "Notes reviewed.",
+          }),
+        ]);
+        expect(session.getSubagentUsage("child")).toMatchObject({
+          usedTokens: 1500,
+          contextWindow: 32000,
+        });
+        expect(session.getSessionUsage()).toBe(before);
+        mock.emit({
+          sessionId: "session-1",
+          taskToolCallId: "launch-child",
+          update: {
+            sessionUpdate: "usage_update",
+            subagentId: "child",
+            usage: { usedTokens: 2100, contextWindow: 32000, updatedAt: 2 },
+          },
+        });
+        expect(session.getSubagentUsage("child")).toMatchObject({
+          usedTokens: 2100,
+          contextWindow: 32000,
+        });
+        expect(session.getSessionUsage()).toBe(before);
+        expect(
+          aiMessages(session).some((message) =>
+            message.parts?.some((part) => part.kind === "compaction")
+          )
+        ).toBe(false);
+      });
+
+      it("retains the recorded order of child tool calls for interleaved instructions https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+        const mock = makeMockBackend();
+        const session = makeSession(mock, { backendId: "native" });
+        mock.emitUpdate({
+          sessionUpdate: "task_started",
+          taskId: "task-1",
+          toolCallId: "tool-agent",
+          kind: "subagent",
+          description: "Work",
+        });
+        mock.emit({
+          sessionId: "session-1",
+          taskToolCallId: "tool-agent",
+          seq: 42,
+          update: {
+            sessionUpdate: "tool_call",
+            toolCallId: "tool-one",
+            title: "Work",
+            kind: "other",
+            status: "in_progress",
+          },
+        });
+        expect(session.getTaskMessages("tool-agent")[0].parts).toEqual([
+          expect.objectContaining({ id: "tool-one", seq: 42 }),
+        ]);
+      });
+
       it("keeps a subagent's text and tool calls in its own messages, never in the reply that is running when they arrive", async () => {
         const mock = makeMockBackend();
         const finishPrompt = holdPrompt(mock);
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         mock.emitUpdate({
           sessionUpdate: "task_started",
           taskId: "task-1",
@@ -6901,7 +7398,7 @@ describe("AgentSession", () => {
         });
         const { turn } = session.sendPrompt("unrelated question");
         const fromTask = (update: SessionEvent["update"]) =>
-          mock.emit({ sessionId: "acp-1", update, taskToolCallId: "tool-agent" });
+          mock.emit({ sessionId: "session-1", update, taskToolCallId: "tool-agent" });
 
         fromTask({
           sessionUpdate: "tool_call",
@@ -6936,7 +7433,7 @@ describe("AgentSession", () => {
 
       it("shows a tool call still running when its task is stopped as stopped, not running", () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         mock.emitUpdate({
           sessionUpdate: "task_started",
           taskId: "task-1",
@@ -6945,7 +7442,7 @@ describe("AgentSession", () => {
           description: "Wait",
         });
         mock.emit({
-          sessionId: "acp-1",
+          sessionId: "session-1",
           taskToolCallId: "tool-agent",
           update: {
             sessionUpdate: "tool_call",
@@ -6965,9 +7462,9 @@ describe("AgentSession", () => {
 
       it("keeps a tool call its task's end cut short stopped when the cut call's failed result arrives afterwards, as after a disconnect, and still shows a late successful result", () => {
         const mock = makeMockBackend();
-        const session = makeSession(mock, { backendId: "claude" });
+        const session = makeSession(mock, { backendId: "native" });
         const taskUpdate = (update: SessionEvent["update"]) =>
-          mock.emit({ sessionId: "acp-1", taskToolCallId: "tool-agent", update });
+          mock.emit({ sessionId: "session-1", taskToolCallId: "tool-agent", update });
         mock.emitUpdate({
           sessionUpdate: "task_started",
           taskId: "task-1",
@@ -7006,7 +7503,7 @@ describe("AgentSession", () => {
 
     describe("getCurrentTodoList", () => {
       const planUpdate = (entries: { content: string; status: string; priority?: string }[]) => ({
-        sessionId: "acp-1",
+        sessionId: "session-1",
         update: { sessionUpdate: "plan", entries } as never,
       });
 

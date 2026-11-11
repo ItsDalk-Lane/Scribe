@@ -72,7 +72,7 @@ function makeState(modelId: string): BackendState {
 }
 
 function makeDescriptor(
-  id: "codex" | "claude" | "opencode",
+  id: "native" | "codex" | "claude" | "opencode",
   installState: InstallState = { kind: "ready", source: "custom" }
 ): BackendDescriptor {
   return {
@@ -139,8 +139,12 @@ function makeManager(opts: {
     setDefaultBackend: opts.setDefaultBackend ?? jest.fn(),
     applySelection: opts.applySelection ?? jest.fn().mockResolvedValue(undefined),
     persistDefaultSelection: opts.persistDefaultSelection ?? jest.fn().mockResolvedValue(undefined),
-    createSession: opts.createSession ?? jest.fn().mockResolvedValue(undefined),
-    replaceSessionInPlace: opts.replaceSessionInPlace ?? jest.fn().mockResolvedValue(undefined),
+    createSession:
+      opts.createSession ??
+      jest.fn().mockResolvedValue({ ready: Promise.resolve(), getState: () => null }),
+    replaceSessionInPlace:
+      opts.replaceSessionInPlace ??
+      jest.fn().mockResolvedValue({ ready: Promise.resolve(), getState: () => null }),
     closeSession: opts.closeSession ?? jest.fn().mockResolvedValue(undefined),
   } as unknown as AgentSessionManager;
 }
@@ -211,6 +215,28 @@ describe("agentModelPickerHelpers", () => {
   });
 
   describe("buildPickerEntries", () => {
+    it.each(["pending", "ready", "error"] as const)(
+      "does not show a loading failure for unavailable model configuration with a %s preload (https://github.com/ItsDalk-Lane/Scribe/issues/21)",
+      (status) => {
+        const descriptor = {
+          ...makeDescriptor("native", {
+            kind: "error",
+            reason: "configuration",
+            message: "Configure and enable a chat model.",
+          }),
+          usesConfiguredModels: true,
+          getEnabledModelEntries: () => [],
+        };
+        const manager = makeManager({ preloadStatusById: { native: status } });
+
+        expect(
+          buildPickerEntries(manager, [descriptor], noSessionContext(), emptySettings)
+        ).toEqual({
+          entries: [],
+          valueKey: "",
+        });
+      }
+    );
     it("still shows a loading placeholder for a routing agent whose preload has not settled", () => {
       const descriptor = {
         ...makeDescriptor("opencode"),
@@ -643,6 +669,42 @@ describe("agentModelPickerHelpers", () => {
       );
       expect(entries).toHaveLength(0);
     });
+
+    it("overrides the backend group with the provider label and keeps same-provider models contiguous https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const enabled: EnabledModelEntry[] = [
+        { baseModelId: "openrouter/z1", name: "Z1", credentialState: "ok", providerLabel: "Zeta" },
+        { baseModelId: "openrouter/a1", name: "A1", credentialState: "ok", providerLabel: "Alpha" },
+        { baseModelId: "openrouter/z2", name: "Z2", credentialState: "ok", providerLabel: "Zeta" },
+      ];
+      const entries: ModelSelectorEntry[] = [];
+      appendBackendSection(entries, opencodeWithEntries(enabled), {
+        backendModels: null,
+        settings: emptySettings,
+        useEnabledFallback: true,
+      });
+      expect(entries.map((entry) => [entry.name, entry._group])).toEqual([
+        ["openrouter/a1", "Alpha"],
+        ["openrouter/z1", "Zeta"],
+        ["openrouter/z2", "Zeta"],
+      ]);
+    });
+
+    it("keeps the backend group label and configured order when entries carry no provider label https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const enabled: EnabledModelEntry[] = [
+        { baseModelId: "openrouter/b", name: "B", credentialState: "ok" },
+        { baseModelId: "openrouter/a", name: "A", credentialState: "ok" },
+      ];
+      const entries: ModelSelectorEntry[] = [];
+      appendBackendSection(entries, opencodeWithEntries(enabled), {
+        backendModels: null,
+        settings: emptySettings,
+        useEnabledFallback: true,
+      });
+      expect(entries.map((entry) => [entry.name, entry._group])).toEqual([
+        ["openrouter/b", "opencode"],
+        ["openrouter/a", "opencode"],
+      ]);
+    });
   });
 
   describe("buildEffortSibling", () => {
@@ -748,10 +810,15 @@ describe("agentModelPickerHelpers", () => {
       expect(applySelection).not.toHaveBeenCalled();
     });
 
-    it("cross-backend pick seeds the new session transiently without persisting the default", async () => {
+    it("remembers a model picked while replacing the empty chat after startup succeeds https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
       const persistDefaultSelection = jest.fn().mockResolvedValue(undefined);
-      const replaceSessionInPlace = jest.fn().mockResolvedValue(undefined);
+      const replaceSessionInPlace = jest
+        .fn()
+        .mockResolvedValue({ ready: Promise.resolve(), getState: () => null });
       const setDefaultBackend = jest.fn();
+      const selected = new Promise<void>((resolve) =>
+        setDefaultBackend.mockImplementation(() => resolve())
+      );
       const closeSession = jest.fn().mockResolvedValue(undefined);
       const manager = makeManager({
         persistDefaultSelection,
@@ -763,8 +830,11 @@ describe("agentModelPickerHelpers", () => {
       const entries = [pickerEntry("claude", "opus")];
       const onChange = buildModelOnChange(manager, ctxFor("codex"), entries);
       onChange("claude:opus|agent");
-      await new Promise((r) => window.setTimeout(r, 0));
-      expect(persistDefaultSelection).not.toHaveBeenCalled();
+      await selected;
+      expect(persistDefaultSelection).toHaveBeenCalledWith("claude", {
+        baseModelId: "opus",
+        effort: "low",
+      });
       expect(replaceSessionInPlace).toHaveBeenCalledWith("tab-1", "claude", {
         preserveChatInput: true,
         seedSelection: { baseModelId: "opus", effort: "low" },
@@ -793,8 +863,8 @@ describe("agentModelPickerHelpers", () => {
   });
 
   describe("buildEffortOptionsByModelKey", () => {
-    const ACTIVE = "github-copilot/gpt-5.4";
-    const OTHER = "opencode/nemotron-3-super-free";
+    const ACTIVE = "provider-a/model-a";
+    const OTHER = "provider-b/model-b";
 
     function catalogWithEffort(
       available: { baseModelId: string; effortOptions: EffortOption[] }[]
@@ -810,16 +880,16 @@ describe("agentModelPickerHelpers", () => {
     }
 
     it("prefers catalog effort and falls back to the prefetch cache for other models", () => {
-      const opencode = makeDescriptor("opencode");
+      const native = makeDescriptor("native");
       const manager = makeManager({
         catalogById: {
-          opencode: catalogWithEffort([
+          native: catalogWithEffort([
             { baseModelId: ACTIVE, effortOptions: [{ value: "high", label: "high" }] },
             { baseModelId: OTHER, effortOptions: [] },
           ]),
         },
         effortCatalogById: {
-          opencode: {
+          native: {
             [ACTIVE]: [{ value: "low", label: "low" }],
             [OTHER]: [
               { value: "minimal", label: "minimal" },
@@ -829,8 +899,8 @@ describe("agentModelPickerHelpers", () => {
         },
       });
       const entries = [
-        synthesizeAgentEntry(ACTIVE, ACTIVE, opencode),
-        synthesizeAgentEntry(OTHER, OTHER, opencode),
+        synthesizeAgentEntry(ACTIVE, ACTIVE, native),
+        synthesizeAgentEntry(OTHER, OTHER, native),
       ];
       const out = buildEffortOptionsByModelKey(manager, entries);
       expect(out[getModelKeyFromModel(entries[0])]).toEqual([{ value: "high", label: "high" }]);
@@ -841,14 +911,14 @@ describe("agentModelPickerHelpers", () => {
     });
 
     it("returns empty when neither catalog nor prefetched effort exists", () => {
-      const opencode = makeDescriptor("opencode");
+      const native = makeDescriptor("native");
       const manager = makeManager({
         catalogById: {
-          opencode: catalogWithEffort([{ baseModelId: OTHER, effortOptions: [] }]),
+          native: catalogWithEffort([{ baseModelId: OTHER, effortOptions: [] }]),
         },
-        effortCatalogById: { opencode: {} },
+        effortCatalogById: { native: {} },
       });
-      const entries = [synthesizeAgentEntry(OTHER, OTHER, opencode)];
+      const entries = [synthesizeAgentEntry(OTHER, OTHER, native)];
       const out = buildEffortOptionsByModelKey(manager, entries);
       expect(out[getModelKeyFromModel(entries[0])]).toEqual([]);
     });

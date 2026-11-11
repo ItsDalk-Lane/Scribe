@@ -1,11 +1,173 @@
 export const agentTranslations: Record<string, string> = {
+  "View last request": "查看上次请求",
+  "Saved request input": "已保存的请求输入",
+  "Loading saved request...": "正在读取上次请求…",
+  "Could not read saved request.": "无法读取已保存的请求。",
+  "This is the saved input handed to the model adapter. Provider formatting may differ. Opening this view does not send a request.":
+    "这里展示当时准备交给模型的已保存内容。服务商可能调整最终格式。查看不会发送新请求。",
+  "No saved request is available for this chat. Older chats may not contain request records.":
+    "这个聊天暂无可查看的请求记录。旧聊天可能未保存这类记录。",
+  "The recorded request is incomplete or damaged. Its saved input cannot be shown.":
+    "保存的请求内容不完整或已损坏，无法展示当时的输入。",
+  "Context compacted.": "上下文已压缩。",
+  Waiting: "等待中",
+  "Waiting to run": "等待执行",
+  "Reading files": "正在读取文件",
+  "Listing files": "正在查看文件列表",
+  "Searching files": "正在搜索文件",
+  "Viewing webpage information": "正在查看网页信息",
+  "Calling subagent": "正在调用子代理",
+  "Running command": "正在执行命令",
+  "Running tool {tool}": "正在调用工具 {tool}",
+  "Original data": "完整原始字段",
+  "JSON string": "JSON 字符串",
+  "Main agent": "主助手",
+  "Not recorded": "暂无数据",
+  "Speed unavailable": "速度暂无数据",
+  "Usage unavailable": "用量暂无数据",
+  "Partial statistics": "部分统计",
+  "Model not recorded": "模型暂无记录",
+  "Total tokens": "token 总用量",
+  "Input tokens": "输入 token",
+  "Output tokens": "输出 token",
+  "Generation speed": "生成速度",
+  "Cache read tokens": "缓存输入 token",
+  "Time to first token": "首 token 耗时",
+  "Model requests": "步数",
+  "Cache hit rate": "缓存命中率",
+  "This reply's usage": "本轮用量",
+  "Cache hit {percent}": "缓存命中 {percent}",
+  "{rate} token/s": "{rate} token/秒",
+  "{time}s": "{time}秒",
+  "{rounds} rounds · {steps} steps": "{rounds}轮 {steps}步",
+  "{count} in progress": "{count}轮进行中",
+  "Context compaction": "上下文整理",
+  "Process details": "过程详情",
+  "Thinking time": "思考总用时",
+  "Tool calls": "工具调用",
+  "Duration unavailable": "用时未记录",
+  Input: "输入",
+  Output: "输出",
+  "No input": "无输入",
+  "Waiting for output": "等待输出",
+  "Tool image": "工具返回图片",
+  "Tool audio": "工具返回音频",
+  Resource: "资源",
+  "Download resource": "下载资源",
+  "Structured content": "结构化内容",
+  Metadata: "元数据",
+
+  "Subagent stopped.": "子代理已停止。",
+  "Stopping could not be confirmed. Check background work and try again.":
+    "尚未确认停止成功，请检查后台工作后重试。",
+  "Result saved; delivery is blocked because the parent inbox is full. Delivery resumes when space is available.":
+    "结果已保存，但主对话的收件箱已满，暂时无法交付。腾出空间后会继续交付。",
+  "Result saved; waiting to enter the parent model context.": "结果已保存，等待进入主模型上下文。",
+  "Result is in the parent model context.": "结果已进入主模型上下文。",
+  "Add model requests for this task": "为此任务增加模型调用次数",
+  "Adds the configured request allowance without automatically running the task.":
+    "按设置中的次数增加额度，不会自动继续执行任务。",
+  "Request allowance added. Explicitly continue when you are ready; saved history is unchanged.":
+    "额度已增加，原有记录已保留。准备好后请明确继续。",
+  "Current context usage is unavailable": "当前上下文占用尚无可用读数",
+  "Cumulative usage": "累计消耗",
+  "Cumulative input": "累计输入",
+  "Cumulative output": "累计输出",
+  "Cumulative cache read": "累计缓存读取",
+  "Cumulative cache write": "累计缓存写入",
+  "I checked the actual files and tasks": "已核对实际文件和任务，解除恢复阻塞",
+  Subagents: "子代理",
+  "Background tasks": "后台任务",
+  "Subagent chat": "子代理聊天",
+  "No child sessions yet.": "还没有子代理。",
+  "Refresh child sessions": "刷新子会话",
+  "Recovery blocked": "恢复受阻",
+  "Agent command identifier is invalid.": "Agent 命令标识无效。",
+  "Agent command file format is invalid.": "Agent 命令文件格式无效。",
+  "Agent command file name does not match its identifier.": "Agent 命令文件名与标识不一致。",
+  "This name is reserved by a built-in command.": "此名称为内建命令保留。",
+  "Another Agent command already uses this name.": "已有其他 Agent 命令使用了此名称。",
+  "This command changed outside Scribe. Refresh and try again; your draft is kept.":
+    "此命令在 Scribe 之外被修改。请刷新后重试；草稿已保留。",
+  "This command changed outside Scribe. Refresh before deleting it.":
+    "此命令在 Scribe 之外被修改，删除前请先刷新。",
+  "This command no longer exists.": "此命令已不存在。",
+  "Cancel deletion": "取消删除",
+  "This child session no longer exists.": "此子代理已不存在。",
+  "The parent chat of this child session is closed.": "此子代理所属的聊天已关闭。",
+  "Unarchive this child session before continuing.": "请先取消归档，再继续此子代理。",
+  "Replying to the parent agent": "正在回复主代理",
+  "Asking the parent agent": "正在询问主代理",
+  "Sends when the child session next runs": "待子代理下次运行时发送",
+  "Waiting for the child to start.": "等待子代理启动。",
+  "Retry waiting messages": "重试等待中的消息",
+  Queued: "排队中",
+  "Waiting for input": "等待输入",
+  Stopping: "停止中",
+  Archived: "已归档",
+  "Task request limit reached": "已达到主任务请求上限",
+  "This child session cannot be continued in this chat.": "此聊天目前无法继续该子会话。",
+  "**Task request limit reached.** The parent chat and its children have used this task's request budget. Saved progress is preserved; explicitly continue to allow more requests.":
+    "**已达到主任务请求上限。** 主对话和子代理已用完本次任务的请求次数。已保存的进度仍在，明确继续后才会允许更多请求。",
+  question: "提问",
+  progress: "进度",
+  discovery: "发现",
+  blocked: "受阻",
+  result: "结果",
+  instruction: "指令",
+  "Some chat content or attachments could not be loaded. The available history has been preserved.":
+    "部分聊天内容或附件未能加载，其余历史记录已保留。",
+  "This chat can be viewed, but its record sequence is damaged and new operations are disabled.":
+    "这段聊天的记录存在损坏。目前可以查看已恢复的内容，暂时无法继续发送或执行操作。",
+  "An attached image is unavailable. Restore the image before continuing this chat.":
+    "聊天中的一张图片无法读取，请恢复该图片后再继续。",
+  "The chat save was not confirmed in time, so this step was stopped before it ran. Check the disk, then try again.":
+    "聊天记录未能在时限内确认保存，本步已在执行前停止。请检查磁盘后再试。",
+
+  "System recovery: this reply was interrupted. It was not automatically resumed.":
+    "系统恢复说明：这次回复因意外中断而停止，系统没有自动继续执行。",
+  "Load 30 earlier turns": "再加载前 30 轮",
+  "A chat display record could not be interpreted. The saved record was preserved.":
+    "有一条聊天显示记录暂时无法识别，其余内容仍可查看，原记录已保留。",
+  "Summary used by the model; original conversation preserved": "模型使用的摘要；原始对话完整保留",
+  "This chat is read-only because its history needs repair. Your saved records have been preserved.":
+    "这段聊天的历史记录需要修复，目前只能查看。已保存的记录均已保留。",
+  "Recovered after interruption": "系统恢复说明",
+  "System recovery: this operation was admitted, but its outcome is unknown. Files may have changed. Check the actual files or tasks before retrying; it was not automatically resumed.":
+    "系统恢复说明：此操作已获准执行，但结果无法确认。文件可能已被改动，请核查实际文件或任务后再决定是否重试；系统没有自动重做。",
+  "System recovery: this operation never started. No changes were made and it was not automatically resumed.":
+    "系统恢复说明：此操作从未启动，没有造成改动，系统也没有自动重做。",
+  "System recovery: the task outcome is unknown. Check actual files and processes before retrying.":
+    "系统恢复说明：任务结果无法确认，请核查实际文件和运行中的任务后再决定是否重试。",
+
+  "This removes the skill and its supporting files. This cannot be undone.":
+    "这会删除该技能及配套文件，无法撤销。",
+  "**Step limit reached.** The agent has ended this turn. Review its summary and send another message to continue.":
+    "**已达到步数上限。** 代理已结束本轮，请查看收尾总结；发送新消息即可继续。",
+  "**Service quota exhausted.** This is an account limit, not a code problem. Add quota or reopen the chat, then send another message to continue.":
+    "**服务额度已耗尽。** 这是账户额度问题，不是代码问题。补充额度或重新打开会话后，发送新消息即可继续。",
+  "**Authentication failed.** Check the provider credentials in Models, then send another message to continue.":
+    "**身份验证失败。** 请在“模型”中检查服务商凭证，再发送新消息继续。",
+  "**Context limit reached.** Context could not be compacted safely. Your conversation is preserved; shorten the request or choose a model with a larger context window.":
+    "**已达到上下文上限。** 无法安全压缩内容，聊天记录已保留。请缩短请求或选择能容纳更多内容的模型。",
+  "**Model request failed.** Check the provider connection and settings, then send another message to retry.":
+    "**模型请求失败。** 请检查服务商连接和设置，再发送新消息重试。",
+  "**Cancelled by you.** Send another message when you want to continue.":
+    "**你已取消本轮。** 需要继续时发送新消息即可。",
+  "Step limit reached": "已达到步数上限",
+  "Service quota exhausted": "服务额度已耗尽",
+  "Authentication failed": "身份验证失败",
+  "Context limit reached": "已达到上下文上限",
+  "Model request failed": "模型请求失败",
+
+  "No enabled chat model has usable credentials on this device. Check Models and providers.":
+    "此设备上没有凭据可用的已启用聊天模型，请检查“模型与供应商”。",
+  "Cannot read API key on this device": "无法读取此设备上的 API 密钥",
   "Always allow this action in this chat": "在此聊天中始终允许此操作",
   "Always deny this action in this chat": "在此聊天中始终拒绝此操作",
   "Only this file or exact command, in this folder, chat, and requester.":
     "仅限当前文件或完全相同的命令，且只对当前目录、聊天和发起者有效。",
-  "Agent configuration": "代理配置",
   "Runs inside Scribe": "由 Scribe 内置运行",
-  "Model settings": "模型设置",
   "Connection not completed in this check": "本次检查尚未连通",
   "Check extensions": "检查扩展",
   "Checking extensions…": "正在检查扩展…",
@@ -18,8 +180,8 @@ export const agentTranslations: Record<string, string> = {
     "已加载或已连接，不代表每次执行都会成功。",
   Loaded: "已加载",
   "Loaded; manual invocation only": "已加载，仅手动调用",
-  "Claude reported plugin errors; details for each plugin were not provided.":
-    "Claude 报告了插件错误，但未提供每个插件的具体原因。",
+  "The agent reported plugin errors; details for each plugin were not provided.":
+    "代理报告了插件错误，但未提供每个插件的具体原因。",
   "Loaded with component errors": "已加载，部分组件异常",
   Registered: "已注册",
   "Not loaded in this check": "本次检查未加载",
@@ -48,13 +210,13 @@ export const agentTranslations: Record<string, string> = {
     "聊天详情保存失败，最近的任务记录可能在重启后丢失。",
   "Failed to load saved chat details. The saved record has been preserved.":
     "无法读取已保存的聊天详情，原记录已保留。",
-  Context: "上下文",
+  Context: "参考内容",
   "Show extended thinking": "显示深度思考",
   "Show the model's reasoning as it works. Uses more tokens.":
-    "显示模型工作时的思考过程，会消耗更多 token。",
+    "显示模型工作时的思考过程，会消耗更多词元。",
   "Scribe supports": "Scribe 支持",
   "Auto-detect": "自动检测",
-  Clear: "清除",
+  Clear: "清空",
   Apply: "应用",
   "Searched:": "已搜索：",
   "Environment variables": "环境变量",
@@ -85,9 +247,7 @@ export const agentTranslations: Record<string, string> = {
   "This project no longer exists. Restore it to open its chats.":
     "此项目已不存在。恢复项目后才能打开其中的聊天。",
   "This chat belongs to a project that no longer exists.": "此聊天所属的项目已不存在。",
-  "Failed to send message. Please try again.": "消息发送失败，请重试。",
-  "Built-in skills": "内置技能",
-  "No built-in skills match your search.": "没有找到匹配的内置技能。",
+  "Failed to send message. Please try again.": "发送消息失败，请重试。",
   Disabled: "已停用",
   "More actions": "更多操作",
   "View SKILL.md (read-only)": "查看 SKILL.md（只读）",
@@ -113,7 +273,6 @@ export const agentTranslations: Record<string, string> = {
   Description: "说明",
   "Allowed tools": "允许的工具",
   "Model override": "指定模型",
-  "Hide from slash menu": "从斜杠菜单中隐藏",
   Save: "保存",
   "Name is required.": "请填写名称。",
   "Lowercase a–z, 0–9, and hyphens only — no leading, trailing, or consecutive hyphens.":
@@ -146,43 +305,31 @@ export const agentTranslations: Record<string, string> = {
   "Scribe shares a skill by adding a shortcut to each agent&rsquo;s skills folder, and Windows allows that only for admins or with Developer Mode (Settings → Privacy &amp; security → For developers). Until then, turning a skill on for an agent is saved, but the agent can&rsquo;t see the skill.":
     "Scribe 通过在各代理技能文件夹中创建快捷链接来共享技能。Windows 仅允许管理员或开发者模式执行此操作（设置 → 隐私和安全性 → 开发者选项）。开启前，技能启用状态会保存，但代理无法看到技能。",
   Dismiss: "关闭提示",
-  "This vault is inside": "此库位于",
-  "Sync can break the links Scribe uses to share skills with agents. If a skill disappears from an agent after a sync, turn it off and on again here.":
-    "同步可能破坏 Scribe 用于共享技能的链接。若同步后代理中缺少技能，请在这里将其停用后重新启用。",
   "A skill with this name already exists in Your skills. Your file is kept unchanged.":
     "您的技能中已有同名技能，原文件保持不变。",
-  "Some skill links could not be updated. Check folder permissions.":
-    "部分技能链接无法更新，请检查文件夹权限。",
   "Disable skill": "停用技能",
   "Enable skill": "启用技能",
   "manual only": "仅手动调用",
-  "hidden from slash menu": "已从斜杠菜单隐藏",
   "Editing one copy would silently diverge from the others. ":
     "只编辑一个副本会使其与其他副本不一致。",
   "Migrate it to your shared folder first to enable edits.": "请先迁移到共享文件夹，再进行编辑。",
   "Send a message to the chat first.": "请先向聊天发送一条消息。",
   "New chat": "新建聊天",
-  "Save chat as note": "将聊天保存为笔记",
   "Chat history": "聊天历史",
   "Copy chat link": "复制聊天链接",
   "Add to bookmarks": "添加到书签",
   "Remove from bookmarks": "从书签中移除",
-  "Report an issue": "反馈问题",
   "Could not read the attached images. Please attach them again.": "无法读取附加图片，请重新添加。",
-  "Ask anything • @ to add context • / for commands": "随时提问 • @ 添加上下文 • / 使用命令",
+  "Ask anything • @ to add context • / for commands": "随时提问 • @ 添加参考内容 • / 使用指令",
   "Pending agent actions": "待处理的代理操作",
   Usage: "用量",
   "Context window": "上下文窗口",
-  "Default effort": "默认思考强度",
+  "Default effort": "默认推理强度",
   "Default model": "默认模型",
   "Used for new chats on this agent. Open chats switch on their next turn.":
     "用于此代理的新聊天，已打开的聊天会在下一轮切换。",
   "Agent default": "代理默认值",
   "Not supported": "不支持",
-  "Chat saved as note.": "聊天已保存为笔记。",
-  "Nothing to save yet.": "暂无可保存的内容。",
-  "Failed to save chat as note. Check the Scribe log for details.":
-    "聊天保存失败，请查看 Scribe 日志了解详情。",
   "Failed to start a new chat. Please try again.": "新建聊天失败，请重试。",
   "Failed to leave project. Please try again.": "退出项目失败，请重试。",
   "Failed to open project. Please try again.": "打开项目失败，请重试。",
@@ -202,8 +349,8 @@ export const agentTranslations: Record<string, string> = {
   "Close chat": "关闭聊天",
   Plan: "计划",
   "Try a project": "试试项目",
-  "Group notes, URLs, PDFs, and folders into a focused context. The agent answers only within those materials, and each project keeps its own chat history.":
-    "将笔记、网址、PDF 和文件夹汇集为专注的上下文。代理只基于这些材料回答，每个项目拥有独立的聊天历史。",
+  "Save references to notes, URLs, PDFs, and folders in a project. Each project keeps its own chat history.":
+    "在项目中保存笔记、网址、PDF 和文件夹的参考信息，并为每个项目保留独立的聊天记录。",
   "New project": "新建项目",
   "Question from agent": "代理提问",
   Other: "其他",
@@ -218,14 +365,10 @@ export const agentTranslations: Record<string, string> = {
   "Context is full, compacting…": "上下文已满，正在压缩…",
   "Context compacted automatically": "上下文已自动压缩",
   "Context compacted": "上下文已压缩",
-  "You said: “": "您说：“",
-  "Report ID": "报告编号",
-  "Open the GitHub issue": "打开 GitHub 问题",
   "Don&apos;t offer again": "不再提示",
-  "Review & report": "查看并反馈",
   "Files changed (": "已更改文件（",
   "Open source note": "打开来源笔记",
-  Responding: "正在回复",
+  Responding: "正在回答",
   "Search chats...": "搜索聊天…",
   "No matching chats": "没有匹配的聊天",
   "No chats in this project yet": "此项目暂无聊天",
@@ -259,42 +402,9 @@ export const agentTranslations: Record<string, string> = {
   "Empty message": "空消息",
   "Chat title": "聊天标题",
   "Rename chat": "重命名聊天",
-  "Could not prepare the report": "无法准备报告",
-  "What went wrong?": "遇到了什么问题？",
-  "Describe what you were doing and what happened…": "请描述您当时的操作和遇到的情况…",
-  "Attachments — bundled into one zip": "附件将打包为一个压缩文件",
-  "Before you upload": "上传前请检查",
-  "Scribe redacts common sensitive data from diagnostic text on your device before upload. Review it before sending; screenshots are not automatically redacted. Reports are private and deleted after 60 days.":
-    "上传前，Scribe 会在您的设备上遮盖诊断文字中常见的敏感信息。发送前请自行检查；截图不会自动遮盖。报告为私密内容，将在 60 天后删除。",
-  "Prepare report": "准备报告",
-  "Report contents": "报告内容",
-  "Preparing report…": "正在准备报告…",
-  "Could not upload the report": "无法上传报告",
-  "The zip is still on your machine; retrying sends the same report and stores it at most once. Or use":
-    "压缩文件仍保存在本机。重试会发送同一份报告，最多保存一次。也可以选择",
-  "Open issue anyway": "直接打开问题页面",
-  "— that issue carries no report ID, so you would have to attach the zip to it yourself.":
-    "；该问题不会带有报告编号，需要您自行附上压缩文件。",
   "Uploading — this can&apos;t be canceled…": "正在上传，无法取消…",
-  "Show zip": "显示压缩文件",
-  "Retry upload": "重试上传",
-  "Upload & open issue": "上传并打开问题页面",
-  "Reporting an issue is available on desktop only.": "反馈问题仅支持桌面端。",
-  "Report uploaded. Finish the issue in your browser.": "报告已上传，请在浏览器中完成反馈。",
-  "Report sent to the Scribe team": "报告已发送给 Scribe 团队",
-  "Report this to the Scribe team?": "要向 Scribe 团队反馈此问题吗？",
-  "Screenshot of the Obsidian window": "Obsidian 窗口截图",
   "Agent activity log": "代理活动日志",
-  "turned off in Settings → Advanced": "已在设置 → 高级中关闭",
-  "Scribe log": "Scribe 日志",
-  "includes agent errors": "包含代理错误",
   "may include unrelated sessions": "可能包含其他会话",
-  "Something went wrong while uploading the report.": "上传报告时发生错误。",
-  "Scribe could not open your browser.": "Scribe 无法打开浏览器。",
-  "Open the GitHub issue page": "打开 GitHub 问题页面",
-  "The agent activity log is turned off.": "代理活动日志已关闭。",
-  "The agent activity log's location is unavailable.": "无法获取代理活动日志的位置。",
-  "No chat log entries.": "暂无聊天日志。",
   running: "运行中",
   "Stop task": "停止任务",
   "Can stop once the task starts": "任务开始后可停止",
@@ -327,12 +437,12 @@ export const agentTranslations: Record<string, string> = {
   "This agent doesn't support switching models mid-chat.": "此代理不支持在聊天中途切换模型。",
   "Bookmarked.": "已添加到书签。",
   "Removed from bookmarks.": "已从书签移除。",
-  "Project not found — could not add to context": "项目不存在，无法添加到上下文",
+  "Project not found — could not add to context": "项目不存在，无法添加到参考内容",
   "Only vault files or folders can be added to project context":
-    "项目上下文只能添加库内的文件或文件夹",
-  "Added to project context": "已添加到项目上下文",
-  "Already in project context": "已在项目上下文中",
-  "Could not add to project context": "无法添加到项目上下文",
+    "项目参考内容只能添加库内的文件或文件夹",
+  "Added to project context": "已添加到项目参考内容",
+  "Already in project context": "已在项目参考内容中",
+  "Could not add to project context": "无法添加到项目参考内容",
   "Recent chats": "最近聊天",
   "Checking agent sign-in…": "正在检查代理登录状态…",
   "Loading agent models…": "正在加载代理模型…",
@@ -343,6 +453,7 @@ export const agentTranslations: Record<string, string> = {
   "Delete chat": "删除聊天",
   "Plan proposal": "计划建议",
   "Give feedback to redirect the plan…": "提供反馈以调整计划…",
+  Pending: "待处理",
   "Plan proposed": "已提出计划",
   "Feedback sent": "反馈已发送",
   "Add API key": "添加 API 密钥",
@@ -358,6 +469,8 @@ export const agentTranslations: Record<string, string> = {
   "Searched vault": "已搜索库",
   "Searching web": "正在搜索网页",
   "Searched web": "已搜索网页",
+  "Searching tools": "正在检索工具",
+  "Searched tools": "已检索工具",
   "Wait for the current agent to finish starting.": "请等待当前代理完成启动。",
   "What can I help with?": "有什么可以帮您？",
   "Where should we start?": "我们从哪里开始？",
@@ -480,8 +593,8 @@ export const agentTranslations: Record<string, string> = {
   "Can't reveal \"{p0}\" — its folder isn't visible in the file explorer.":
     "无法显示“{p0}”，其文件夹在文件列表中不可见。",
   'Failed to delete project "{p0}".': "无法删除项目“{p0}”。",
-  'Delete project "{p0}"? This removes its configuration; your notes stay in the vault.':
-    "要删除项目“{p0}”吗？这只会移除项目配置，您的笔记会保留在库中。",
+  'Delete project "{p0}"? This removes the project configuration; project instructions and other notes stay in the vault. If you create another project with the same name, its existing instructions may be changed when it opens. Save a copy of any instructions you want to keep before recreating the project.':
+    "要删除项目“{p0}”吗？这会移除项目配置，项目说明和其他笔记会保留在库中。如果之后新建同名项目，打开时可能修改原有说明。重新创建前，请先保存需要保留的项目说明副本。",
   "Reveal {p0} in vault": "在库中显示 {p0}",
   "Edit project {p0}": "编辑项目 {p0}",
   "Delete project {p0}": "删除项目 {p0}",
@@ -491,10 +604,6 @@ export const agentTranslations: Record<string, string> = {
   "Couldn't compact: {p0}": "无法压缩：{p0}",
   "Project info for {p0}": "{p0} 的项目信息",
   "Project: {p0}": "项目：{p0}",
-  "Report uploaded (ID {p0}).": "报告已上传（编号 {p0}）。",
-  "Report uploaded (ID {p0}), but Scribe could not open your browser.":
-    "报告已上传（编号 {p0}），但 Scribe 无法打开浏览器。",
-  "Scribe could not open the folder. The report is at {p0}": "Scribe 无法打开文件夹，报告位于 {p0}",
   "{p0} reasoning": "{p0} 段思考",
   'Sub-agent · "{p0}"': "子代理 · “{p0}”",
   "{p0} task list": "{p0}任务列表",
@@ -510,8 +619,8 @@ export const agentTranslations: Record<string, string> = {
     "无法启动 {p0}，请查看 Scribe 日志了解详情。",
   "Checking {p0} setup…": "正在检查 {p0} 的配置…",
   "{p0} isn't set up on this machine yet.": "此设备尚未配置 {p0}。",
-  "No chat model is enabled for {p0} yet. Add a provider and enable a model first.":
-    "{p0} 还没有启用聊天模型。请先添加供应商并启用一个模型。",
+  "No runnable chat model is configured for {p0} yet. Add a provider and model in Models.":
+    "{p0} 尚未配置可运行的聊天模型。请在“模型”中添加供应商和模型。",
   "Failed to {p0}.": "无法{p0}。",
   'No chat link for "{p0}".': "“{p0}”没有聊天链接。",
   "Go to change {p0} of {p1}": "前往第 {p0} 处更改，共 {p1} 处",
@@ -591,10 +700,15 @@ export const agentTranslations: Record<string, string> = {
   edit: "编辑",
   delete: "删除",
   "Didn't {action}": "未{action}",
-  "~{count} tokens": "约 {count} token",
+  "~{count} tokens": "约 {count} 个词元",
+  "Model provider": "模型供应商",
   "+{added} / −{removed} lines": "+{added} / −{removed} 行",
   "{action} vault root": "{action}库根目录",
   "read {count}": "读取了 {count}",
+  "Listing subagent sessions": "正在查看子会话",
+  "Listed subagent sessions": "已查看子会话",
+  "Reading subagent result": "正在查看子代理结果",
+  "Read subagent result": "已查看子代理结果",
   "edited {count}": "编辑了 {count}",
   "ran {count}": "运行了 {count}",
   "thought for {duration}": "思考了 {duration}",
@@ -622,23 +736,290 @@ export const agentTranslations: Record<string, string> = {
   "”.": "”。",
   "Scribe shares a skill by adding a shortcut to each agent’s skills folder, and Windows allows that only for admins or with Developer Mode (Settings → Privacy & security → For developers). Until then, turning a skill on for an agent is saved, but the agent can’t see the skill.":
     "Scribe 通过在各代理技能文件夹中创建快捷链接来共享技能。Windows 仅允许管理员或开发者模式执行此操作（设置 → 隐私和安全性 → 开发者选项）。开启前，技能启用状态会保存，但代理无法看到技能。",
-  "Don't offer again": "不再提示",
-  "Uploading — this can't be canceled…": "正在上传，无法取消…",
   "{count} skill could not be loaded": "有 {count} 个技能无法加载",
   "{count} skills could not be loaded": "有 {count} 个技能无法加载",
   "Show {count} more chat": "显示另外 {count} 个聊天",
   "Show {count} more chats": "显示另外 {count} 个聊天",
   "Configuring…": "正在配置…",
   "Agent Chat requires Obsidian on desktop.": "代理聊天需要桌面版 Obsidian。",
-  "Configure and enable a chat model in your model settings first.":
-    "请先在现有模型设置中配置并启用聊天模型。",
-  "Enable a model for {p0} in Scribe's model settings to start a chat.":
-    "请先在 Scribe 的模型设置中为{p0}启用一个模型，才能开始聊天。",
-  "This agent is disabled. Enable it in Agent settings to continue.":
-    "此代理已停用。请先在代理设置中启用后再继续。",
+  "Configure a runnable chat model in Models first.": "请先在“模型”中配置一个可运行的聊天模型。",
+  "Configure a runnable model for {p0} in Models to start a chat.":
+    "请先在“模型”中为{p0}配置一个可运行的模型，再开始聊天。",
+  "This agent is unavailable. Check its model configuration in Models.":
+    "此代理暂不可用。请在“模型”中检查模型配置。",
   "Runs note tasks inside Scribe using the chat models you configure.":
     "使用已配置的聊天模型，在 Scribe 内执行笔记任务。",
   "Allow once": "允许一次",
   "Allow always": "始终允许",
   "Deny once": "拒绝一次",
+  "Error:": "错误：",
+  "No response or action was returned. Try again, or switch models if this happens repeatedly.":
+    "没有收到回复或操作结果。请重试；如果问题反复出现，请切换模型。",
+  "Custom subagents": "自定义子代理",
+  Refresh: "刷新",
+  "New subagent": "新建子代理",
+  "Edit subagent": "编辑子代理",
+  "Delete subagent": "删除子代理",
+  "No custom subagents yet.": "还没有自定义子代理。",
+  "Subagents use the current chat model and permission policy.":
+    "子代理沿用当前聊天的模型和操作权限。",
+  "Without a custom subagent, general delegation remains available.":
+    "未配置自定义子代理时，仍可使用通用委派。",
+  "Enable {name}": "启用{name}",
+  "Edit {name}": "编辑{name}",
+  "Delete {name}": "删除{name}",
+  "Delete subagent {name}? Existing chats and task results are kept.":
+    "删除子代理{name}？已有聊天和任务结果会保留。",
+  "Built-in": "内置",
+  "Agent created": "Agent 创建",
+  "System imported": "系统导入",
+  Local: "本地",
+  "Use now": "立即使用",
+  "Use {name} now": "立即使用 {name}",
+  "Could not load this skill": "无法加载此技能",
+  "Imported from": "导入来源",
+  Author: "作者",
+  Tags: "标签",
+  "Tags (comma separated)": "标签（用英文逗号分隔）",
+  Preview: "预览",
+  Edit: "编辑",
+  "Skill view": "技能视图",
+  "Skill details": "技能详情",
+  "Ask Agent to repair": "让 Agent 修复",
+  "Restore this built-in skill to repair its files.": "请通过恢复内置技能修复此技能的文件。",
+  "Could not save skill: {reason}": "技能保存失败：{reason}",
+  "Could not open skill: {reason}": "技能打开失败：{reason}",
+  "Please try again.": "请重试。",
+  "Review skill draft": "确认技能草稿",
+  "Review the complete draft. The skill is installed only when you choose Save.":
+    "请检查完整草稿。只有点击“保存”后才会安装技能。",
+  "Update imported skill": "更新已导入技能",
+  "Import skill": "导入技能",
+  "Update and replace": "更新并替换",
+  Import: "导入",
+  "Install as {name}": "将以 {name} 的名称安装",
+  "This replaces the installed copy and all supporting files, including your local edits. The original source is kept.":
+    "这会替换已安装的副本及全部附带文件，包括你在副本中的修改。原始来源文件会保留。",
+  "Importing…": "正在导入…",
+  Cancelled: "已取消",
+  Imported: "已导入",
+  "Could not import skill: {reason}": "技能导入失败：{reason}",
+  "Could not search for skills: {reason}": "技能搜索失败：{reason}",
+  "Import a copy of skills from other tools. Their original folders are never changed.":
+    "把其他工具中的技能复制到 Scribe。原来的文件夹始终保持不变。",
+  "Import selected": "导入所选技能",
+  "Searching for skills…": "正在搜索技能…",
+  "No skills found in the supported locations.": "未在支持的位置找到技能。",
+  "Select {name}": "选择 {name}",
+  Reimport: "重新导入",
+  "Available to import": "可导入",
+  "Already imported": "已导入",
+  "Name conflict": "名称冲突",
+  "Name will change from {from} to {to}.": "名称将从 {from} 调整为 {to}。",
+  "Could not read built-in skill status. Please try again.": "无法读取内置技能状态，请重试。",
+  "Reset built-in skill": "重置内置技能",
+  "Reset {name} to the bundled version? This replaces all local changes. Cancel keeps your files.":
+    "将 {name} 重置为插件内置版本？这会替换全部本地修改。选择“取消”会保留现有文件。",
+  Reset: "重置",
+  Restored: "已恢复",
+  "Could not restore skill: {reason}": "技能恢复失败：{reason}",
+  "Could not restore built-in skills. Your existing files are kept.":
+    "无法恢复内置技能。现有文件会保留。",
+  "Restore uninstalled skills or reset modified built-in skills to the version included with Scribe.":
+    "可恢复已卸载的技能，或把在外部修改过的内置技能重置为 Scribe 附带的版本。",
+  "All built-in skills are installed.": "所有内置技能均已安装。",
+  "Restore all": "恢复全部",
+  Uninstalled: "已卸载",
+  "Modified outside Scribe": "在 Scribe 外修改过",
+  Missing: "文件缺失",
+  "A personal skill already uses this name": "已有个人技能使用此名称",
+  Restore: "恢复",
+  "Could not refresh skills: {reason}": "技能列表刷新失败：{reason}",
+  "Could not update skills: {reason}": "技能更新失败：{reason}",
+  "Enable and use skill": "启用并使用技能",
+  "Enable {name} before opening a chat?": "先启用 {name}，再打开聊天？",
+  "Enable and use": "启用并使用",
+  "Uninstall {name}?": "卸载 {name}？",
+  "This removes the built-in skill and supporting files. You can reinstall it with Restore built-in skills.":
+    "这会移除内置技能及其附带文件。之后可通过“恢复内置技能”重新安装。",
+  "This permanently removes the skill folder and all supporting files. The original imported source is kept.":
+    "这会永久删除技能文件夹及全部附带文件。导入时的原始来源文件不会被删除。",
+  "Skill uninstalled": "技能已卸载",
+  "Skill imported": "技能已导入",
+  "Add skill": "添加技能",
+  "Create with Agent": "Agent 创建",
+  "The built-in skill-creator skill is missing. Restore built-in skills first.":
+    "内置的 skill-creator 技能不存在，请先恢复内置技能。",
+  "System search": "系统搜索",
+  "Local import": "本地导入",
+  "Import folder": "导入文件夹",
+  "Import ZIP archive": "导入 ZIP 压缩包",
+  "Drop a skill folder or a ZIP archive here, or click to choose a ZIP":
+    "拖放技能文件夹或 ZIP 压缩包到此处，或点击选择 ZIP",
+  "Supports .zip files, folders containing SKILL.md, and single skill .md files":
+    "支持 .zip 文件、包含 SKILL.md 的文件夹，以及单个技能 .md 文件",
+  "Drop a skill folder or a ZIP archive.": "请拖放技能文件夹或 ZIP 压缩包。",
+  "The dropped item has no accessible local path. Try the import buttons.":
+    "拖入的项目没有可访问的本地位置，请改用下方按钮导入。",
+  "The current vault path is unavailable.": "无法取得当前资料库的位置。",
+  "Restore built-in skills": "恢复内置技能",
+  "Updating skills…": "正在更新技能…",
+  "Some built-in skills need attention. Open Restore built-in skills to review conflicts or local changes.":
+    "部分内置技能需要处理。打开“恢复内置技能”可查看名称冲突或本地修改。",
+  "Skill catalog budget: normal ({count} skills listed).":
+    "技能目录预算：正常（已列入 {count} 项技能）。",
+  "Skill catalog budget: {omitted} of {total} skills are not in the model-visible list: {names}.":
+    "技能目录预算：{total} 项技能中有 {omitted} 项未进入模型可见列表：{names}。",
+  "Skill catalog budget: degraded to skill names only; {count} skill descriptions are not in the model-visible list.":
+    "技能目录预算：已降级为仅技能名，{count} 项技能描述未进入模型可见列表。",
+  "Skill catalog budget: No skill names are in the model-visible list. Omitted skills ({count}): {names}. Increase the budget to show them.":
+    "技能目录预算：模型可见列表中没有任何技能名称。未列入的技能（{count} 项）：{names}。请提高预算以显示技能。",
+  "Skill catalog budget: descriptions are omitted. Omitted skill names ({count}): {names}.":
+    "技能目录预算：技能描述未列入。未列入的技能名称（{count} 项）：{names}。",
+  "Context share (percent)": "上下文占比（百分比）",
+  "The model-visible skill list is capped by this share of the model context window. Default is {default}.":
+    "模型可见技能列表以模型上下文窗口的该比例封顶。默认值为 {default}。",
+  "Absolute token maximum": "绝对 token 上限",
+  "The catalog never exceeds this token count even for large context windows. Default is {default}.":
+    "即使上下文窗口很大，目录也不超过该 token 数。默认值为 {default}。",
+  "No skills match your search.": "没有符合搜索条件的技能。",
+  "The selected file has no accessible local path. Try choosing it again.":
+    "无法取得所选文件的本地位置，请重新选择。",
+  "Could not determine the selected skill folder.": "无法确定所选技能文件夹的位置。",
+  "The selected folder does not contain any files.": "所选文件夹中没有文件。",
+  "Could not open the skill picker.": "无法打开技能文件选择窗口。",
+  "Could not determine your home folder.": "无法确定你的电脑用户文件夹位置。",
+  "Could not read the Scribe skill library.": "无法读取 Scribe 技能库。",
+  "System search stopped after 10000 folders. Some skills may not be listed.":
+    "扫描已达到 10000 个文件夹的上限，部分技能可能未列出。",
+  "The skill could not be read.": "无法读取此技能。",
+  "Could not read a system skill folder: {path}": "无法读取系统技能文件夹：{path}",
+  "The skill name must contain English letters or numbers.": "技能名称必须包含英文字母或数字。",
+  "SKILL.md must start with a metadata block.": "技能描述文件开头缺少必需的基本信息。",
+  "Skill metadata is invalid or its name is missing.": "技能的基本信息格式有误，或缺少名称。",
+  "The skill name does not match its folder.": "技能名称与所在文件夹不一致。",
+  "The imported skill is invalid: {reason}": "导入的技能格式不符合要求：{reason}",
+  "The skill contains an unsafe file path: {path}": "技能中包含不安全的文件位置：{path}",
+  "A skill can contain at most 2000 files and 50 MB.":
+    "每个技能最多包含 2000 个文件，总大小不能超过 50 MB。",
+  "Choose a folder or ZIP containing exactly one SKILL.md, directly or one folder below.":
+    "请选择只包含一个技能描述文件的文件夹或 ZIP；描述文件应位于顶层或下一层文件夹。",
+  "The source skill changed while it was being read. Try importing it again.":
+    "读取期间原始技能发生变化，请重新导入。",
+  "Skill links and special files cannot be imported.": "不能导入包含文件链接或特殊文件的技能。",
+  "The skill contains too many folders.": "技能包含的文件夹数量过多。",
+  "The skill contains duplicate file paths.": "技能中存在重复的文件位置。",
+  "ZIP links, special files, encryption or unsupported compression cannot be imported.":
+    "不能导入包含文件链接、特殊文件、加密内容或不支持压缩方式的 ZIP。",
+  "Skill import was cancelled.": "技能导入已取消。",
+  "Choose a skill folder, a ZIP archive, or a single skill Markdown file.":
+    "请选择技能文件夹、ZIP 压缩包或单个技能 Markdown 文件。",
+  "This skill has minor format issues. We adjusted {count} lines; confirm to install the repaired copy. The original file is never modified.":
+    "该技能存在轻微格式问题。我们调整了 {count} 行；确认后将安装修复后的副本，原始文件永不修改。",
+  "{count} lines will be adjusted automatically; review the changes before importing.":
+    "导入时将自动调整 {count} 行，请先查看改动再导入。",
+  "Import Markdown file": "导入 Markdown 文件",
+  "Skill dependencies": "技能依赖",
+  "Recheck dependencies": "重新检测依赖",
+  "Not ready": "未就绪",
+  "Checking dependencies…": "正在检测依赖…",
+  "Install this command-line tool yourself before using the skill.":
+    "请先自行安装该命令行工具，再使用此技能。",
+  "Install this community plugin from Obsidian settings yourself.":
+    "请自行从 Obsidian 设置安装该社区插件。",
+  "Install this Python package yourself before using the skill.":
+    "请先自行安装该 Python 包，再使用此技能。",
+  "Interface metadata": "界面元数据",
+  "Display name": "显示名",
+  "Short description": "短描述",
+  "Icon file (inside the skill folder)": "图标文件（技能文件夹内）",
+  "Brand color (#RRGGBB)": "品牌色（#RRGGBB）",
+  "Default prompt for Use now": "“立即使用”的默认提示语",
+  "Save interface metadata": "保存界面元数据",
+  "Used {count} times, last {when}": "已使用 {count} 次，最近 {when}",
+  "These skills have not been used in over {days} days: {names}":
+    "以下技能已超过 {days} 天未使用：{names}",
+  "This scan is incomplete: only confirmed candidates are listed. Retry to cover the failed sources.":
+    "本次扫描不完整：仅列出已确认的候选。重新扫描可覆盖失败的来源。",
+  "{root}: {reason}": "{root}：{reason}",
+  "Login shell environment": "登录 shell 环境",
+  "Could not read the login shell environment; inherited environment was used.":
+    "无法读取登录 shell 环境，已改用继承的环境变量。",
+  "Could not import this skill: {reason}": "无法导入此技能：{reason}",
+  "Builtin skills are read-only. Restore the builtin version instead.":
+    "内置技能为只读，请通过恢复内置技能重置。",
+  "A skill from another source already uses this name.": "其他来源的技能已使用此名称，不能覆盖。",
+  "A skill with this name already exists. Confirm an update from the same source.":
+    "已有同名技能。只有相同来源的技能才可经确认后更新。",
+  "The builtin skill is not installed.": "此内置技能尚未安装。",
+  "Could not save configuration.": "无法保存设置。",
+  "Preview shows the saved version. Your unsaved edits are kept when switching views.":
+    "预览显示已保存的版本，切换视图会保留尚未保存的编辑。",
+  "This skill is disabled or does not permit manual use.": "此技能已停用，或不允许手动调用。",
+  "The skill folder returned an unsafe child path.": "技能文件夹中发现不安全的子文件位置。",
+  "Unrecognized skill recovery files were retained. Review them before changing skills.":
+    "已保留无法识别的技能恢复文件。请先检查这些文件，再更改技能。",
+  "Skill recovery information changed. Original files were retained.":
+    "技能恢复信息发生变化，原文件已保留。",
+  "The backup changed during recovery. Both copies were retained.":
+    "恢复期间备份发生变化，两份文件都已保留。",
+  "Unknown recovery files were retained instead of being removed.":
+    "已保留未知的恢复文件，没有删除。",
+  "Changed recovery files were retained instead of being removed.":
+    "已保留发生变化的恢复文件，没有删除。",
+  "Describe the workflow you want to turn into a skill. Discuss it with me, show the complete name, description and instructions, then submit the complete draft for my review and confirmation. Do not save files or run commands directly.":
+    "请描述你想做成技能的方法或流程。先和我讨论，展示完整的名称、说明和操作步骤，再提交完整草稿让我检查确认。不要直接保存文件或运行命令。",
+  "The skill changed before uninstallation. Refresh and confirm again.":
+    "技能在卸载前发生变化，请刷新后重新确认。",
+  "A skill named “{name}” already exists.": "已存在名为“{name}”的技能。",
+  "Confirm replacement before updating this skill.": "更新此技能前，请先确认替换现有副本。",
+  "The skill changed outside this editor. Refresh before saving again.":
+    "技能已在此编辑界面之外发生变化，请刷新后再保存。",
+  "The skill changed before replacement. Refresh and try again.":
+    "技能在替换前发生变化，请刷新后重试。",
+  "The destination was created by another operation.":
+    "另一个操作已在目标位置创建了内容，未进行覆盖。",
+  "Skill recovery information is damaged. Original files were retained.":
+    "技能恢复信息已损坏，原文件已保留。",
+  "Skill records changed during recovery. Original files were retained.":
+    "恢复期间技能记录发生变化，原文件已保留。",
+  "The new skill changed during recovery. Both copies were retained.":
+    "恢复期间新技能发生变化，两份文件都已保留。",
+  "The original location is occupied. The backup was retained.":
+    "原位置已被其他内容占用，备份已保留。",
+  "The skill contains an unsafe or duplicate file path.": "技能中包含不安全或重复的文件位置。",
+  "The skill exceeds the file count or size limit.": "技能的文件数量或总大小超过上限。",
+  "SKILL.md was not found.": "未找到技能描述文件 SKILL.md。",
+  "Skill source records are damaged. Restore the records before changing skills.":
+    "技能来源记录已损坏，请先恢复记录，再更改技能。",
+  "The skill folder is not safe to manage.": "技能文件夹不符合安全要求，无法进行管理。",
+  "This builtin skill is unavailable.": "此内置技能目前不可用。",
+  "A personal skill uses this name. It was not replaced.": "已有个人技能使用此名称，未进行替换。",
+  "Not enough free space to save this skill. Free some space and try again.":
+    "可用空间不足，无法保存技能。请释放一些空间后重试。",
+  "Scribe cannot change these skill files. Check the folder permissions and try again.":
+    "Scribe 无法修改这些技能文件，请检查文件夹权限后重试。",
+  "The skill operation failed. Refresh and try again.": "技能操作失败，请刷新后重试。",
+  "Skill metadata must be a mapping before enablement can be changed.":
+    "技能的基本信息格式不正确，修复后才能更改启用状态。",
+  "If the installed skill is damaged, the updated copy stays disabled. Review it before enabling it.":
+    "如果原技能已损坏，更新后的副本会保持停用。请检查后再手动开启。",
+  "Back to skills": "返回技能列表",
+  "Source files": "源文件",
+  "File contents": "文件内容",
+  "Read only": "只读",
+  "Global enabled": "全局启用",
+  "Unsaved changes": "尚未保存",
+  Saved: "已保存",
+  "Save or cancel your edits before selecting another file.":
+    "请先保存或取消修改，再选择其他文件。",
+  "Your edits have not been saved.": "当前修改尚未保存。",
+  "Keep editing": "继续编辑",
+  "Discard and return": "放弃修改并返回",
+  "Could not read this skill file.": "无法读取这个技能文件。",
+  "This file cannot be previewed as text.": "这个文件无法以文字形式预览。",
+  "Save failed": "保存失败",
+  "Reload from disk": "重新读取文件",
+  "Retry save": "重试保存",
+  "Restored your unsaved edits.": "已恢复尚未保存的修改。",
 };

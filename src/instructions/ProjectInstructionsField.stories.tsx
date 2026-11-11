@@ -12,12 +12,12 @@ const meta = {
 } satisfies Meta<ProjectInstructionsFieldProps>;
 export default meta;
 
-export const EmptyDraft: StoryObj<ProjectInstructionsFieldProps> = {};
+export const EmptyDraftWithPriorityGuidance: StoryObj<ProjectInstructionsFieldProps> = {};
 
 export const LoadedDraft: StoryObj<ProjectInstructionsFieldProps> = {
   args: {
     value:
-      "Cite only notes tagged #verified.\n\nWhen summarizing an interview, keep the participant's own wording for anything in quotes.",
+      "Write project summaries in concise Chinese.\n\nCite only notes tagged #verified unless the current request specifies other sources.",
   },
 };
 

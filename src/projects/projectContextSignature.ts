@@ -1,6 +1,5 @@
 import type { ProjectConfig } from "@/aiParams";
 import { AGENTS_FILE_NAME, findCachedInstructionFile } from "@/instructions/agentsFile";
-import { getProjectAnchorFromConfigPath } from "@/projects/projectPaths";
 import type { ProjectFileRecord } from "@/projects/type";
 import { App, normalizePath } from "obsidian";
 
@@ -34,6 +33,7 @@ export function getProjectContextSignature(record: ProjectFileRecord): string {
   return JSON.stringify({
     source: normalizeProjectContextSource(record.project),
     filePath: record.filePath,
+    workspacePath: record.project.workspacePath,
   });
 }
 
@@ -45,8 +45,11 @@ export function getProjectLandingCaptureSignature(app: App, record: ProjectFileR
 }
 
 function getInstructionsFingerprint(app: App, record: ProjectFileRecord): string {
-  const projectFolderPath = getProjectAnchorFromConfigPath(record.filePath).projectFolderPath;
-  const agentsPath = normalizePath(`${projectFolderPath}/${AGENTS_FILE_NAME}`);
+  const projectFolderPath = record.project.workspacePath;
+  if (projectFolderPath === undefined) return "workspace:missing";
+  const agentsPath = normalizePath(
+    projectFolderPath ? `${projectFolderPath}/${AGENTS_FILE_NAME}` : AGENTS_FILE_NAME
+  );
   const file = findCachedInstructionFile(app, agentsPath);
   if (file) return `agents:${file.stat.mtime}:${file.stat.size}`;
   return `legacy:${record.project.systemPrompt ?? ""}`;

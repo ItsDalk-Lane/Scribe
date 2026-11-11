@@ -1,3 +1,5 @@
+import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
+import { abortSignalWithDeadline } from "@/utils/abortDeadline";
 import { t } from "@/lib/i18n";
 import type { CustomModel } from "@/aiParams";
 import { createProviderFetch } from "@/LLMProviders/providerTransport";
@@ -16,19 +18,19 @@ interface SapCredentials {
 
 export function createSapLanguageModel(
   model: CustomModel,
-  credentials: SapCredentials
+  credentials: SapCredentials,
+  transport: typeof fetch = createProviderFetch(model)
 ): (options: Pick<ChatStreamOptions, "signal">) => Promise<ProviderStreams["stream"]> {
-  const transport = createProviderFetch(model);
   let cachedToken: { value: string; expiresAt: number } | undefined;
   let pendingToken: Promise<string> | undefined;
   let deploymentId = credentials.deploymentId;
   const token = async (): Promise<string> => {
     if (cachedToken && cachedToken.expiresAt > Date.now()) return cachedToken.value;
     if (!pendingToken) {
-      pendingToken = (async () => {
-        const controller = new AbortController();
-        const timer = window.setTimeout(() => controller.abort(), 15_000);
-        try {
+      const deadline = abortSignalWithDeadline(undefined, 15_000);
+      // 共享刷新超时后必须释放等待，旧响应不能回填新缓存。https://github.com/ItsDalk-Lane/Scribe/issues/61
+      pendingToken = raceWithAbortSignal(
+        (async () => {
           const response = await transport(
             `${credentials.tokenUrl.replace(/\/+$/, "")}/oauth/token`,
             {
@@ -39,7 +41,7 @@ export function createSapLanguageModel(
                 client_id: credentials.clientId,
                 client_secret: credentials.clientSecret,
               }).toString(),
-              signal: controller.signal,
+              signal: deadline.signal,
             }
           );
           if (!response.ok)
@@ -59,22 +61,27 @@ export function createSapLanguageModel(
             throw new Error(
               t("SAP authorization did not return a valid access token and expiration.")
             );
+          deadline.signal.throwIfAborted();
           cachedToken = {
             value: result.access_token,
             expiresAt: Date.now() + Math.max(0, result.expires_in * 1000 - 30000),
           };
           return result.access_token;
-        } finally {
-          window.clearTimeout(timer);
-        }
-      })().finally(() => {
+        })(),
+        deadline.signal
+      ).finally(() => {
+        deadline.dispose();
         pendingToken = undefined;
       });
     }
     return pendingToken;
   };
   return async (options) => {
-    const accessToken = await token();
+    options.signal?.throwIfAborted();
+    const sharedToken = token();
+    const accessToken = await (options.signal
+      ? raceWithAbortSignal(sharedToken, options.signal)
+      : sharedToken);
     const api = new URL(model.baseUrl || credentials.apiUrl);
     if (api.pathname === "/") api.pathname = "/v2";
     const base = api.href.replace(/\/+$/, "");

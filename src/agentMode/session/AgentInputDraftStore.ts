@@ -1,7 +1,9 @@
 import type { PromptContent } from "@/agentMode/session/types";
 import { getSettings } from "@/settings/model";
-import type { MessageContext, WebTabContext } from "@/types/message";
+import type { MessageContext, SelectedTextContext, WebTabContext } from "@/types/message";
 import type { App, TFile } from "obsidian";
+
+export const SUBAGENT_CHAT_DRAFT_PREFIX = "subagent-chat:";
 
 export interface QueuedAgentMessage {
   id: string;
@@ -16,6 +18,7 @@ export interface AgentInputDraft {
   images: File[];
   contextNotes: TFile[];
   webTabs: WebTabContext[];
+  selectedTextContexts?: SelectedTextContext[];
   includeActiveNote: boolean;
   includeActiveWebTab: boolean;
   loading: boolean;

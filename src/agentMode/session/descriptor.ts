@@ -37,7 +37,7 @@ export type InstallState =
       minVersion: string;
       message: string;
     }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; reason?: "configuration" };
 
 export type ManagedInstallActionState =
   | { kind: "idle" }

@@ -24,7 +24,6 @@ const defaultArgs: GlobalRecentChatsSectionProps = {
   onLoadChat: noop,
   onUpdateTitle: noop,
   onDeleteChat: noop,
-  onOpenSourceFile: noop,
   onCopyChatLink: noop,
   onSetChatPinned: noop,
   getChatBookmarkState: async () => "not-bookmarked",

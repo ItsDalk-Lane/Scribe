@@ -85,6 +85,36 @@ export const NativeThinkingOff: StoryObj<Props> = {
   },
 };
 
+export const AlwaysThinking: StoryObj<Props> = {
+  args: {
+    override: {
+      ...ConcreteEffort.args.override,
+      models: [
+        { name: "glm-5.3-flash", displayName: "GLM-5.3-Flash", provider: "agent", enabled: true },
+      ],
+      value: "glm-5.3-flash|agent",
+      effort: {
+        value: "high",
+        options: [
+          { value: "default", label: "Default" },
+          { value: "low", label: "low" },
+          { value: "high", label: "high" },
+          { value: "max", label: "max" },
+        ],
+        onChange: () => undefined,
+      },
+      effortOptionsByModelKey: {
+        "glm-5.3-flash|agent": [
+          { value: "default", label: "Default" },
+          { value: "low", label: "low" },
+          { value: "high", label: "high" },
+          { value: "max", label: "max" },
+        ],
+      },
+    },
+  },
+};
+
 export const CustomEndpointLabels: StoryObj<Props> = {
   args: {
     override: {

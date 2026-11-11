@@ -7,7 +7,6 @@ import type {
   PermissionPrompt,
   QueuedPrompt,
 } from "@/agentMode/session/types";
-import type { FeedbackOffer } from "@/agentMode/session/feedback/feedbackOffer";
 import type { AgentTask } from "@/agentMode/session/AgentSession";
 import { useAgentChatRuntimeState } from "@/agentMode/ui/hooks/useAgentChatRuntimeState";
 import { act, render, renderHook } from "@testing-library/react";
@@ -23,7 +22,6 @@ interface FakeBackendState {
   currentTodoList?: AgentTodoListEntry[] | null;
   pendingToolPermissions: PermissionPrompt[];
   pendingAskUserQuestions: AskUserQuestionPrompt[];
-  feedbackOffer?: FeedbackOffer | null;
   queuedPrompts?: readonly QueuedPrompt[];
   tasks?: readonly AgentTask[];
 }
@@ -39,7 +37,6 @@ function makeFakeBackend(initial: Partial<FakeBackendState> = {}) {
     currentTodoList: initial.currentTodoList ?? null,
     pendingToolPermissions: initial.pendingToolPermissions ?? [],
     pendingAskUserQuestions: initial.pendingAskUserQuestions ?? [],
-    feedbackOffer: initial.feedbackOffer ?? null,
     queuedPrompts: initial.queuedPrompts ?? [],
     tasks: initial.tasks ?? [],
   };
@@ -59,7 +56,6 @@ function makeFakeBackend(initial: Partial<FakeBackendState> = {}) {
     getCurrentTodoList: () => state.currentTodoList ?? null,
     getPendingToolPermissions: () => state.pendingToolPermissions,
     getPendingAskUserQuestions: () => state.pendingAskUserQuestions,
-    getFeedbackOffer: () => state.feedbackOffer ?? null,
     getQueuedPrompts: () => state.queuedPrompts ?? [],
     getTasks: () => state.tasks ?? [],
   } as unknown as AgentChatBackend;
@@ -84,6 +80,67 @@ const msg = (id: string): AgentChatMessage => ({ id }) as unknown as AgentChatMe
 
 describe("useAgentChatRuntimeState", () => {
   describe("useAgentChatRuntimeState", () => {
+    it("keeps the same snapshot and skips renders for unchanged notifications https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+      const fake = makeFakeBackend({ messages: [msg("a")] });
+      let renders = 0;
+      const { result } = renderHook(() => {
+        renders++;
+        return useAgentChatRuntimeState(fake.backend);
+      });
+      const before = result.current;
+      const count = renders;
+      act(() => fake.emit());
+      expect(result.current).toBe(before);
+      expect(renders).toBe(count);
+    });
+
+    it("updates selected status while ignoring growing messages and equivalent permission arrays https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+      const permission = { toolCall: { toolCallId: "permission" } } as PermissionPrompt;
+      const fake = makeFakeBackend({ pendingToolPermissions: [permission] });
+      let renders = 0;
+      const { result } = renderHook(() => {
+        renders++;
+        return useAgentChatRuntimeState(fake.backend, (backend) => ({
+          running: backend.isReplyRunning(),
+          permissions: backend.getPendingToolPermissions(),
+        }));
+      });
+      const initial = result.current;
+      const count = renders;
+      act(() => {
+        fake.state.messages = [msg("new")];
+        fake.state.pendingToolPermissions = [permission];
+        fake.emit();
+      });
+      expect(result.current).toBe(initial);
+      expect(renders).toBe(count);
+      act(() => {
+        fake.state.isReplyRunning = true;
+        fake.emit();
+      });
+      expect(result.current.running).toBe(true);
+      expect(result.current.permissions).toEqual([permission]);
+    });
+
+    it("reads a task's growing output independently of unchanged task metadata https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+      const fake = makeFakeBackend({ tasks: [RUNNING_TASK] });
+      let messages = [msg("first")];
+      fake.backend.getTaskMessages = () => messages;
+      const { result } = renderHook(() =>
+        useAgentChatRuntimeState(fake.backend, (backend) => ({
+          tasks: backend.getTasks(),
+          messages: backend.getTaskMessages("call-1"),
+        }))
+      );
+      const tasks = result.current.tasks;
+      act(() => {
+        messages = [msg("first"), msg("second")];
+        fake.emit();
+      });
+      expect(result.current.tasks).toBe(tasks);
+      expect(result.current.messages).toBe(messages);
+    });
+
     it("returns the backend's initial snapshot", () => {
       const fake = makeFakeBackend({ messages: [msg("a")], isStarting: true });
       const { result } = renderHook(() => useAgentChatRuntimeState(fake.backend));
@@ -111,20 +168,6 @@ describe("useAgentChatRuntimeState", () => {
         fake.emit();
       });
       expect(result.current.isTurnInFlight).toBe(false);
-    });
-
-    it("picks up a feedback card the moment the backend offers it", () => {
-      const fake = makeFakeBackend();
-      const { result } = renderHook(() => useAgentChatRuntimeState(fake.backend));
-      expect(result.current.feedbackOffer).toBeNull();
-      const offer = { status: "open" } as FeedbackOffer;
-
-      act(() => {
-        fake.state.feedbackOffer = offer;
-        fake.emit();
-      });
-
-      expect(result.current.feedbackOffer).toBe(offer);
     });
 
     it("re-syncs every field when the backend notifies", () => {

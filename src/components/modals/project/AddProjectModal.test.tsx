@@ -6,6 +6,15 @@ jest.mock("@/projects/state", () => ({
   getCachedProjectRecordById: () => getCachedProjectRecordById(),
 }));
 
+const mockFetchProjects = jest.fn<Promise<ProjectFileRecord[]>, []>();
+const mockModalRender = jest.fn<void, [React.ReactElement<AddProjectModalContentProps>]>();
+jest.mock("@/projects/ProjectFileManager", () => ({
+  ProjectFileManager: { getInstance: () => ({ fetchProjects: mockFetchProjects }) },
+}));
+jest.mock("@/utils/react/createPluginRoot", () => ({
+  createPluginRoot: () => ({ render: mockModalRender, unmount: jest.fn() }),
+}));
+
 const readAgentsFile = jest.fn(async (): Promise<string> => "");
 const agentsFileIsUninitialized = jest.fn(async (): Promise<boolean> => true);
 const captureInstructionFiles = jest.fn(
@@ -42,6 +51,9 @@ jest.mock("@/instructions/agentsFile", () => ({
    the mocked hooks' exported names. */
 const mockApp = { vault: {} };
 jest.mock("@/context", () => ({ useApp: () => mockApp }));
+jest.mock("@/projects/projectWorkspace", () => ({
+  validateProjectWorkspace: jest.fn(async (_app: unknown, path: string) => path),
+}));
 jest.mock("@/utils", () => ({
   ...jest.requireActual<Record<string, unknown>>("@/utils"),
   randomUUID: () => "new-project-id",
@@ -49,9 +61,11 @@ jest.mock("@/utils", () => ({
 /* eslint-enable @eslint-react/hooks-extra/no-unnecessary-use-prefix */
 
 import {
+  AddProjectModal,
   AddProjectModalContent,
   type AddProjectModalContentProps,
 } from "@/components/modals/project/AddProjectModal";
+import type { App } from "obsidian";
 import type { ProjectConfig } from "@/aiParams";
 import type { ProjectFileRecord } from "@/projects/type";
 import type { InstructionFilesSnapshot } from "@/instructions/agentsFile";
@@ -59,12 +73,13 @@ import type { InstructionFilesSnapshot } from "@/instructions/agentsFile";
 const PROJECT = {
   id: "proj-1",
   name: "My Research",
+  workspacePath: "Research Workspace",
   description: "",
   systemPrompt: "Cite only #verified notes.",
   contextSource: { inclusions: "", exclusions: "", webUrls: "", youtubeUrls: "" },
 } as unknown as ProjectConfig;
 
-const PROJECT_FOLDER = "scribe/projects/proj-1";
+const PROJECT_FOLDER = "Research Workspace";
 
 function renderModal(overrides: Partial<AddProjectModalContentProps> = {}) {
   const onSave = overrides.onSave ?? jest.fn().mockResolvedValue(undefined);
@@ -97,11 +112,40 @@ describe("AddProjectModal", () => {
     });
   });
 
+  describe("AddProjectModal", () => {
+    describe("onOpen()", () => {
+      it("rereads hidden configuration before rendering an editor and saves against that opened baseline", async () => {
+        const latest = { ...PROJECT, name: "External name" };
+        mockFetchProjects.mockResolvedValue([
+          { project: latest, filePath: ".scribe/projects/proj-1/project.md", folderName: "proj-1" },
+        ]);
+        const save = jest.fn(async () => {});
+        const modal = new AddProjectModal({} as App, save, PROJECT);
+        AddProjectModal.prototype.onOpen.call(modal);
+        await waitFor(() => expect(mockModalRender).toHaveBeenCalledTimes(1));
+        const props = mockModalRender.mock.calls[0][0].props;
+        expect(props.initialProject).toBe(latest);
+        const next = { ...latest, name: "Draft" };
+        await props.onSave(next);
+        expect(save).toHaveBeenCalledWith(next, latest);
+        AddProjectModal.prototype.onClose.call(modal);
+      });
+      it("does not render an editor for a project deleted outside the plugin", async () => {
+        mockFetchProjects.mockResolvedValue([]);
+        const modal = new AddProjectModal({} as App, jest.fn(), PROJECT);
+        AddProjectModal.prototype.onOpen.call(modal);
+        await waitFor(() => expect(modal.close).toHaveBeenCalled());
+        expect(mockModalRender).not.toHaveBeenCalled();
+        AddProjectModal.prototype.onClose.call(modal);
+      });
+    });
+  });
+
   describe("AddProjectModalContent", () => {
-    it("shows legacy project.md instructions, so an upgraded project is not edited blank", async () => {
+    it("reads the workspace instruction file without importing configuration-body instructions", async () => {
       renderModal();
 
-      expect((await findInstructionsBox()).value).toBe("Cite only #verified notes.");
+      expect((await findInstructionsBox()).value).toBe("");
     });
 
     it("writes nothing while the dialog is merely open, so Cancel leaves the project untouched", async () => {
@@ -111,7 +155,7 @@ describe("AddProjectModal", () => {
       expect(writeAgentsFile).not.toHaveBeenCalled();
     });
 
-    it("clears the legacy copy on save, completing the move the editor previewed", async () => {
+    it("writes instructions into the selected workspace when saved", async () => {
       const { onSave } = renderModal();
       fireEvent.change(await findInstructionsBox(), { target: { value: "New rules" } });
 
@@ -125,10 +169,12 @@ describe("AddProjectModal", () => {
           ""
         )
       );
-      expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ systemPrompt: "" }));
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ workspacePath: PROJECT_FOLDER })
+      );
     });
 
-    it("respects an AGENTS.md the user deliberately emptied, rather than resurrecting the legacy text", async () => {
+    it("keeps an empty instruction file empty when saving unrelated fields", async () => {
       readAgentsFile.mockResolvedValue("");
       agentsFileIsUninitialized.mockResolvedValue(false);
       const { onSave } = renderModal();
@@ -143,7 +189,7 @@ describe("AddProjectModal", () => {
       );
     });
 
-    it("keeps the legacy copy when AGENTS.md already had its own body", async () => {
+    it("preserves unrelated configuration when workspace instructions are unchanged", async () => {
       readAgentsFile.mockResolvedValue("Rules the user wrote directly.");
       agentsFileIsUninitialized.mockResolvedValue(false);
       const { onSave } = renderModal();
@@ -217,6 +263,22 @@ describe("AddProjectModal", () => {
       fireEvent.click(screen.getByText("Save"));
       await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
       expect((await findInstructionsBox()).value).toBe("Draft rules");
+    });
+
+    it("retains the edited name and keeps the editor open when saving reports an external conflict", async () => {
+      const onSave = jest.fn().mockRejectedValue(new Error("External conflict"));
+      const onCancel = jest.fn();
+      renderModal({ onSave, onCancel });
+      await findInstructionsBox();
+      const input = screen.getByDisplayValue(PROJECT.name);
+      fireEvent.change(input, { target: { value: "Draft name" } });
+      fireEvent.click(screen.getByText("Save"));
+      await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+      await waitFor(() =>
+        expect(screen.getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled).toBe(false)
+      );
+      expect((input as HTMLInputElement).value).toBe("Draft name");
+      expect(onCancel).not.toHaveBeenCalled();
     });
 
     it("offers no instruction field for a project that has no folder record", async () => {

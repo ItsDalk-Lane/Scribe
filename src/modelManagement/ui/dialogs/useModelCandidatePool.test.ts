@@ -7,6 +7,12 @@ jest.mock("@/modelManagement/providers/adapters/listProviderModels", () => ({
   listProviderModels: jest.fn(),
 }));
 
+const mockWithSecret = jest.fn(async (_id: string, execute: (value: string) => Promise<unknown>) =>
+  execute("synthetic-saved-key")
+);
+jest.mock("@/services/secretStore", () => ({
+  SecretStore: { getInstance: () => ({ withSecret: mockWithSecret }) },
+}));
 const listModels = jest.mocked(listProviderModels);
 const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/1";
 
@@ -91,6 +97,55 @@ describe("useModelCandidatePool", () => {
       expect(listModels).toHaveBeenCalledTimes(1);
       expect(listModels).toHaveBeenCalledWith("openai-compatible", "https://ready.example/v1", {
         apiKey: null,
+        extras: {},
+      });
+    });
+
+    it("waits for a nonempty required key before automatically listing a new provider", async () => {
+      const initial = args({
+        mode: "new",
+        autoDiscover: true,
+        effectiveBaseUrl: "https://fixture.invalid/v1",
+        requiresApiKey: true,
+        apiKey: "",
+      });
+      const { rerender } = renderHook(
+        (input: UseModelCandidatePoolArgs) => useModelCandidatePool(input),
+        {
+          initialProps: initial,
+        }
+      );
+      expect(listModels).not.toHaveBeenCalled();
+      rerender({ ...initial, apiKey: "synthetic-key" });
+      expect(listModels).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await listModels.mock.results[0].value;
+      });
+      expect(listModels).toHaveBeenCalledWith("openai-compatible", "https://fixture.invalid/v1", {
+        apiKey: "synthetic-key",
+        extras: {},
+      });
+    });
+
+    it("keeps saved credentials encrypted when opening an edited provider and resolves them only for manual discovery", async () => {
+      const { result } = renderHook(() =>
+        useModelCandidatePool(
+          args({
+            mode: "edit",
+            effectiveBaseUrl: "https://fixture.invalid/v1",
+            requiresApiKey: true,
+            apiKey: "",
+            apiKeyRef: "saved-reference",
+            autoDiscover: true,
+          })
+        )
+      );
+      expect(listModels).not.toHaveBeenCalled();
+      expect(mockWithSecret).not.toHaveBeenCalled();
+      await act(() => result.current.fetchModels());
+      expect(mockWithSecret).toHaveBeenCalledWith("saved-reference", expect.any(Function));
+      expect(listModels).toHaveBeenCalledWith("openai-compatible", "https://fixture.invalid/v1", {
+        apiKey: "synthetic-saved-key",
         extras: {},
       });
     });
@@ -222,6 +277,57 @@ describe("useModelCandidatePool", () => {
       act(() => result.current.removeId("first"));
       expect(result.current.buildSelectedModelInfos().map((model) => model.id)).toEqual(["second"]);
       expect(result.current.availableModels.map((model) => model.id)).toEqual(["second"]);
+    });
+  });
+
+  describe("setSelection()", () => {
+    it("replaces the selection with the given ids, keeping unknown ids listed as manual candidates", () => {
+      const info = { id: "known", displayName: "Known" };
+      const { result } = renderHook(() =>
+        useModelCandidatePool(args({ catalogMetadata: { known: info } }))
+      );
+      act(() => result.current.setSelection(["known", "custom-a"]));
+      expect([...result.current.selectedWireIds]).toEqual(["known", "custom-a"]);
+      const ids = result.current.availableModels.map((model) => model.id);
+      expect(ids).toContain("known");
+      expect(ids).toContain("custom-a");
+      expect(result.current.customIds.has("custom-a")).toBe(true);
+    });
+
+    it("replaces a previous selection entirely on the next call", () => {
+      const { result } = renderHook(() => useModelCandidatePool(args()));
+      act(() => result.current.setSelection(["a", "b"]));
+      act(() => result.current.setSelection(["c"]));
+      expect([...result.current.selectedWireIds]).toEqual(["c"]);
+      expect(result.current.buildSelectedModelInfos()).toEqual([{ id: "c", displayName: "c" }]);
+    });
+
+    it("prefills the initial selection for new providers without an extra mount step", () => {
+      const { result } = renderHook(() =>
+        useModelCandidatePool(args({ initialSelectedIds: ["seeded-a", "seeded-b"] }))
+      );
+      expect([...result.current.selectedWireIds]).toEqual(["seeded-a", "seeded-b"]);
+      expect(result.current.customIds.has("seeded-a")).toBe(true);
+    });
+
+    it("ignores initialSelectedIds in edit mode so saved selections stay authoritative", () => {
+      const { result } = renderHook(() =>
+        useModelCandidatePool(
+          args({
+            mode: "edit",
+            initialSelectedIds: ["seeded-a"],
+            existingModels: [
+              {
+                configuredModelId: "cm",
+                providerId: "p",
+                configuredAt: 0,
+                info: { id: "saved", displayName: "Saved" },
+              },
+            ],
+          })
+        )
+      );
+      expect([...result.current.selectedWireIds]).toEqual(["saved"]);
     });
   });
 });

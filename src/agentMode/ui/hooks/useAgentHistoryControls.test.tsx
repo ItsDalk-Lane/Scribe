@@ -16,8 +16,16 @@ function makeManager() {
     updateChatTitle: jest.fn(async () => {}),
     deleteChatHistory: jest.fn(async () => {}),
     setChatPinned: jest.fn(async (id: string) => ({ id, pinnedAt: 5_000 })),
-    ensureChatNote: jest.fn(async (id: string) => id),
-    saveActiveSession: jest.fn(async () => ({ path: "chats/saved.md" })),
+    getChatLinkId: jest.fn(async (id: string) =>
+      id.startsWith("scribe-agent-session://")
+        ? id
+        : id === "chats/agent__a.md"
+          ? "epoch:1000"
+          : id === "chats/saved.md"
+            ? "epoch:3000"
+            : null
+    ),
+    getSessionHistoryId: jest.fn(() => "chats/saved.md"),
     getActiveSession: jest.fn(() => null),
     getSessionSourcePath: jest.fn(() => "chats/saved.md"),
   } as unknown as AgentSessionManager & {
@@ -25,8 +33,8 @@ function makeManager() {
     updateChatTitle: jest.Mock;
     deleteChatHistory: jest.Mock;
     setChatPinned: jest.Mock;
-    ensureChatNote: jest.Mock;
-    saveActiveSession: jest.Mock;
+    getChatLinkId: jest.Mock;
+    getSessionHistoryId: jest.Mock;
     getActiveSession: jest.Mock;
     getSessionSourcePath: jest.Mock;
   };
@@ -511,61 +519,6 @@ describe("useAgentHistoryControls", () => {
       expect(Notice).toHaveBeenCalledWith("Removed from bookmarks.");
     });
 
-    it("saves a chat with no note before bookmarking the new note's link and shows the row as that note", async () => {
-      const bookmarks = makeBookmarks();
-      const manager = makeManager();
-      manager.getChatHistoryItems.mockResolvedValue([{ id: NATIVE_ID }]);
-      manager.ensureChatNote.mockResolvedValue("chats/saved.md");
-      const { result } = renderHook(() =>
-        useAgentHistoryControls(manager, makeBookmarkingPlugin(bookmarks))
-      );
-      await act(async () => {
-        await result.current.loadChatHistory();
-      });
-
-      await act(async () => {
-        await result.current.setChatBookmarked(NATIVE_ID, "Unsaved chat", true);
-      });
-
-      expect(manager.ensureChatNote).toHaveBeenCalledWith(NATIVE_ID);
-      expect(Object.keys(bookmarks.urlBookmarkLookup)).toEqual([LINK_SAVED]);
-      expect(result.current.chatHistoryItems).toEqual([{ id: "chats/saved.md" }]);
-    });
-
-    it("adds no bookmark and shows a notice when a chat with no note cannot be saved", async () => {
-      const bookmarks = makeBookmarks();
-      const manager = makeManager();
-      manager.ensureChatNote.mockRejectedValue(new Error("backend is not installed"));
-      const { result } = renderHook(() =>
-        useAgentHistoryControls(manager, makeBookmarkingPlugin(bookmarks))
-      );
-
-      await act(async () => {
-        await result.current.setChatBookmarked(NATIVE_ID, "Unsaved chat", true);
-      });
-
-      expect(bookmarks.addItem).not.toHaveBeenCalled();
-      expect(Notice).toHaveBeenCalledWith("Failed to bookmark chat.");
-    });
-
-    it("saves the open chat and bookmarks its note's link under the note's title when the session has no label", async () => {
-      const bookmarks = makeBookmarks();
-      const manager = makeManager();
-      const { result } = renderHook(() =>
-        useAgentHistoryControls(manager, makeBookmarkingPlugin(bookmarks))
-      );
-
-      await act(async () => {
-        await result.current.setActiveChatBookmarked(true);
-      });
-
-      expect(manager.saveActiveSession).toHaveBeenCalledTimes(1);
-      expect(bookmarks.urlBookmarkLookup[LINK_SAVED]).toEqual(
-        expect.objectContaining({ type: "url", url: LINK_SAVED, title: "Saved chat" })
-      );
-      expect(Notice).toHaveBeenCalledWith("Bookmarked.");
-    });
-
     it("titles the open chat's bookmark with its session label, such as a renamed tab, over the note's title", async () => {
       const bookmarks = makeBookmarks();
       const manager = makeManager();
@@ -583,41 +536,6 @@ describe("useAgentHistoryControls", () => {
       );
     });
 
-    it("removes the open chat's bookmark through its saved note without resaving the chat", async () => {
-      const bookmarks = makeBookmarks([LINK_SAVED]);
-      const manager = makeManager();
-      manager.getActiveSession.mockReturnValue({ internalId: "live-1", getLabel: () => undefined });
-      manager.saveActiveSession.mockRejectedValue(new Error("read-only"));
-      const { result } = renderHook(() =>
-        useAgentHistoryControls(manager, makeBookmarkingPlugin(bookmarks))
-      );
-
-      await act(async () => {
-        await result.current.setActiveChatBookmarked(false);
-      });
-
-      expect(manager.getSessionSourcePath).toHaveBeenCalledWith("live-1");
-      expect(manager.saveActiveSession).not.toHaveBeenCalled();
-      expect(bookmarks.urlBookmarkLookup).toEqual({});
-      expect(Notice).toHaveBeenCalledWith("Removed from bookmarks.");
-    });
-
-    it("adds no bookmark and shows a notice when the open chat cannot be saved", async () => {
-      const bookmarks = makeBookmarks();
-      const manager = makeManager();
-      manager.saveActiveSession.mockResolvedValue(null);
-      const { result } = renderHook(() =>
-        useAgentHistoryControls(manager, makeBookmarkingPlugin(bookmarks))
-      );
-
-      await act(async () => {
-        await result.current.setActiveChatBookmarked(true);
-      });
-
-      expect(bookmarks.addItem).not.toHaveBeenCalled();
-      expect(Notice).toHaveBeenCalledWith("Failed to bookmark chat.");
-    });
-
     it("copies the link of the saved chat note the chat id points to", async () => {
       let linkedNotePath: string | undefined;
       const copyChatLink = jest.fn(async (resolveNotePath: () => Promise<string>) => {
@@ -633,28 +551,38 @@ describe("useAgentHistoryControls", () => {
       expect(copyChatLink).toHaveBeenCalledTimes(1);
       expect(linkedNotePath).toBe("chats/agent__a.md");
     });
-
-    it("saves a chat with no note before copying its link and shows the row as that note", async () => {
-      let linkedNotePath: string | undefined;
-      const copyChatLink = jest.fn(async (resolveNotePath: () => Promise<string>) => {
-        linkedNotePath = await resolveNotePath();
-      });
-      const linkingPlugin = { copyChatLink } as unknown as ScribePlugin;
+    it("bookmarks a native chat without creating a note or changing its history identity https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+      const bookmarks = makeBookmarks();
       const manager = makeManager();
-      manager.getChatHistoryItems.mockResolvedValue([{ id: NATIVE_ID }]);
-      manager.ensureChatNote.mockResolvedValue("chats/saved.md");
-      const { result } = renderHook(() => useAgentHistoryControls(manager, linkingPlugin));
+      manager.getChatHistoryItems.mockResolvedValue([item(NATIVE_ID)]);
+      const { result } = renderHook(() =>
+        useAgentHistoryControls(manager, makeBookmarkingPlugin(bookmarks))
+      );
       await act(async () => {
         await result.current.loadChatHistory();
+        await result.current.setChatBookmarked(NATIVE_ID, "Native chat", true);
       });
+      expect(Object.values(bookmarks.urlBookmarkLookup)).toEqual([
+        expect.objectContaining({
+          title: "Native chat",
+          url: `obsidian://scribe-chat?vault=Notes&id=${encodeURIComponent(NATIVE_ID)}`,
+        }),
+      ]);
+      expect(result.current.chatHistoryItems[0].id).toBe(NATIVE_ID);
+    });
 
+    it("copies a native chat identity directly https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+      let id: string | undefined;
+      const copyChatLink = jest.fn(async (resolve: () => Promise<string>) => {
+        id = await resolve();
+      });
+      const { result } = renderHook(() =>
+        useAgentHistoryControls(makeManager(), { copyChatLink } as unknown as ScribePlugin)
+      );
       await act(async () => {
         await result.current.copyChatLink(NATIVE_ID);
       });
-
-      expect(manager.ensureChatNote).toHaveBeenCalledWith(NATIVE_ID);
-      expect(linkedNotePath).toBe("chats/saved.md");
-      expect(result.current.chatHistoryItems).toEqual([{ id: "chats/saved.md" }]);
+      expect(id).toBe(NATIVE_ID);
     });
   });
 });

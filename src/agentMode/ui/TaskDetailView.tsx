@@ -16,7 +16,7 @@ import ChatSingleMessage from "@/components/chat-components/ChatSingleMessage";
 import { Button } from "@/components/ui/button";
 import { USER_SENDER } from "@/constants";
 import { logError } from "@/logger";
-import { Bot, Terminal, X } from "lucide-react";
+import { Bot, Terminal } from "lucide-react";
 import type { App } from "obsidian";
 import React, { useLayoutEffect, useMemo, useRef } from "react";
 
@@ -53,15 +53,6 @@ export const TaskDetailView: React.FC<TaskDetailViewProps> = ({
   return (
     <div className="tw-flex tw-size-full tw-min-h-0 tw-flex-col" data-testid="agent-task-detail">
       <div className="scribe-divider-b tw-flex tw-items-center tw-gap-2 tw-px-2 tw-py-1.5">
-        <Button
-          variant="ghost2"
-          size="icon"
-          aria-label={t("Close task details")}
-          onClick={onBack}
-          autoFocus
-        >
-          <X className="tw-size-4" />
-        </Button>
         <Icon className="tw-size-4 tw-shrink-0 tw-text-normal" />
         <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col">
           <span className="tw-truncate tw-text-sm tw-font-medium tw-text-normal">
@@ -116,7 +107,13 @@ const SubagentDetail: React.FC<{
         ) : null}
         <div className="tw-px-3 tw-pt-2">
           {parts.length > 0 ? (
-            <AgentTrail parts={parts} isStreaming={running} app={app} />
+            <AgentTrail
+              parts={parts}
+              messageId={`${chatId ?? "task"}/${task.toolCallId}`}
+              isStreaming={running}
+              app={app}
+              sourcePath=""
+            />
           ) : (
             <div className="tw-text-sm tw-text-muted">
               {running ? t("Starting…") : t("No activity")}

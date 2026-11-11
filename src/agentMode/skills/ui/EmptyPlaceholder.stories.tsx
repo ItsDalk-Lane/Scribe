@@ -7,7 +7,6 @@ type EmptyPlaceholderProps = React.ComponentProps<typeof EmptyPlaceholder>;
 const meta = {
   title: "Agent Mode/Skills/Empty Placeholder",
   component: EmptyPlaceholder,
-  args: { folder: "Scribe/skills" },
   parameters: { gallery: { host: "settings-tab", layout: "padded" } },
 } satisfies Meta<EmptyPlaceholderProps>;
 export default meta;

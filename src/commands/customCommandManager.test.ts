@@ -2,23 +2,18 @@ import { getCachedCustomCommands, updateCachedCommands } from "./state";
 import { App, TFile } from "obsidian";
 import { parse, stringify } from "yaml";
 import { CustomCommandManager } from "./customCommandManager";
-import { trashFile } from "@/utils/vaultAdapterUtils";
 import {
   EMPTY_COMMAND,
   SCRIBE_COMMAND_ENABLED,
   SCRIBE_COMMAND_CONTEXT_MENU_ENABLED,
-  SCRIBE_COMMAND_SLASH_ENABLED,
 } from "./constants";
 
 jest.mock("@/commands/customCommandUtils", () => ({
-  getCommandFilePath: (title: string) => `commands/${title}.md`,
-  getCustomCommandsFolder: () => "commands",
+  getCommandFilePath: (title: string) => `.scribe/scribe-custom-prompts/${title}.md`,
+  getCustomCommandsFolder: () => ".scribe/scribe-custom-prompts",
   getNextCustomCommandOrder: () => 1,
 }));
 jest.mock("@/utils", () => ({ ensureFolderExists: jest.fn().mockResolvedValue(undefined) }));
-jest.mock("@/utils/vaultAdapterUtils", () => ({
-  trashFile: jest.fn().mockResolvedValue(undefined),
-}));
 
 function deferred() {
   let resolve!: () => void;
@@ -29,13 +24,35 @@ function deferred() {
 }
 
 function setup(initial = "---\ncustom-property: keep\n---\nSaved prompt") {
-  const file = Object.assign(new TFile(), { path: "commands/Review.md", basename: "Review" });
+  const file = Object.assign(new TFile(), {
+    path: ".scribe/scribe-custom-prompts/Review.md",
+    basename: "Review",
+  });
   const files = new Map([[file.path, file]]);
   const texts = new Map([[file.path, initial]]);
   const write = jest.fn(async (path: string, content: string) => {
     texts.set(path, content);
   });
+  const remove = jest.fn(async (path: string) => {
+    texts.delete(path);
+    files.delete(path);
+  });
   const vault = {
+    adapter: {
+      exists: async (path: string) => texts.has(path),
+      read: async (path: string) => texts.get(path)!,
+      write,
+      remove,
+      rename: async (from: string, to: string) => {
+        texts.set(to, texts.get(from)!);
+        texts.delete(from);
+        files.delete(from);
+        files.set(
+          to,
+          Object.assign(new TFile(), { path: to, basename: to.split("/").at(-1)!.slice(0, -3) })
+        );
+      },
+    },
     getAbstractFileByPath: (path: string) => files.get(path),
     read: async (file: TFile) => texts.get(file.path)!,
     modify: jest.fn(async (file: TFile, content: string) => write(file.path, content)),
@@ -65,7 +82,9 @@ function setup(initial = "---\ncustom-property: keep\n---\nSaved prompt") {
       texts.set(path, content);
     }),
   };
-  const frontmatter = (path = "commands/Review.md"): Record<string, unknown> => {
+  const frontmatter = (
+    path = ".scribe/scribe-custom-prompts/Review.md"
+  ): Record<string, unknown> => {
     const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(texts.get(path) ?? "");
     return match ? (parse(match[1]) as Record<string, unknown>) : {};
   };
@@ -103,13 +122,13 @@ describe("customCommandManager", () => {
     describe("createCommand()", () => {
       it("refuses to overwrite a command file created after the editor was opened", async () => {
         const { manager, texts } = setup();
-        const before = texts.get("commands/Review.md");
+        const before = texts.get(".scribe/scribe-custom-prompts/Review.md");
         await expect(
           manager.createCommand({ ...EMPTY_COMMAND, title: "Review", content: "New draft" })
         ).rejects.toThrow();
-        expect(texts.get("commands/Review.md")).toBe(before);
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toBe(before);
       });
-      it("writes the whole-command enabled setting while preserving both menu preferences", async () => {
+      it("writes the whole-command enabled setting while preserving the context-menu preference", async () => {
         const { manager, frontmatter, files, texts } = setup();
         files.clear();
         texts.clear();
@@ -118,11 +137,9 @@ describe("customCommandManager", () => {
           title: "Review",
           enabled: false,
           showInContextMenu: true,
-          showInSlashMenu: true,
         });
         expect(frontmatter()[SCRIBE_COMMAND_ENABLED]).toBe(false);
         expect(frontmatter()[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED]).toBe(true);
-        expect(frontmatter()[SCRIBE_COMMAND_SLASH_ENABLED]).toBe(true);
       });
     });
     describe("recordUsage()", () => {
@@ -155,7 +172,7 @@ describe("customCommandManager", () => {
         release.resolve();
         await Promise.all([usage, edit]);
         expect(writesWhilePending).toBe(1);
-        expect(texts.get("commands/Review.md")).toContain("Edited prompt");
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toContain("Edited prompt");
         expect(frontmatter()["scribe-command-last-used"]).toEqual(expect.any(Number));
         expect(frontmatter()["scribe-command-last-used"]).toBeGreaterThan(0);
         expect(getCachedCustomCommands()[0].content).toBe("Edited prompt");
@@ -172,7 +189,9 @@ describe("customCommandManager", () => {
         };
         updateCachedCommands([original]);
         await manager.recordUsage(original);
-        expect(texts.get("commands/Review.md")).toContain("Externally edited prompt");
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toContain(
+          "Externally edited prompt"
+        );
         expect(frontmatter()["scribe-command-model-key"]).toBe("new-model");
         expect(getCachedCustomCommands()[0]).toMatchObject({
           content: "Externally edited prompt",
@@ -200,7 +219,7 @@ describe("customCommandManager", () => {
           false,
           baseline
         );
-        expect(texts.get("commands/Review.md")).toContain("Edited prompt");
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toContain("Edited prompt");
         expect(getCachedCustomCommands()[0].content).toBe("Edited prompt");
       });
       it("retains original body whitespace for a field-only change while keeping the cached body consistent with the reader", async () => {
@@ -209,7 +228,9 @@ describe("customCommandManager", () => {
         );
         const baseline = { ...EMPTY_COMMAND, title: "Review", content: "Saved prompt" };
         await manager.updateCommand({ ...baseline, enabled: false }, "Review", false, baseline);
-        expect(texts.get("commands/Review.md")?.endsWith("---\n\n  Saved prompt")).toBe(true);
+        expect(
+          texts.get(".scribe/scribe-custom-prompts/Review.md")?.endsWith("---\n\n  Saved prompt")
+        ).toBe(true);
         expect(getCachedCustomCommands()[0].content).toBe("Saved prompt");
       });
       it("edits a command with empty frontmatter while retaining a header comment", async () => {
@@ -218,8 +239,10 @@ describe("customCommandManager", () => {
           { ...EMPTY_COMMAND, title: "Review", content: "Edited prompt" },
           "Review"
         );
-        expect(texts.get("commands/Review.md")).toContain("# retained comment");
-        expect(texts.get("commands/Review.md")).toContain("Edited prompt");
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toContain(
+          "# retained comment"
+        );
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toContain("Edited prompt");
       });
       it("uses the editor baseline to change only the requested field and preserve newer file contents", async () => {
         const { manager, texts, frontmatter } = setup(
@@ -227,7 +250,7 @@ describe("customCommandManager", () => {
         );
         const baseline = { ...EMPTY_COMMAND, title: "Review", content: "Old prompt" };
         await manager.updateCommand({ ...baseline, enabled: false }, "Review", false, baseline);
-        expect(texts.get("commands/Review.md")).toContain("Newer prompt");
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toContain("Newer prompt");
         expect(frontmatter()[SCRIBE_COMMAND_ENABLED]).toBe(false);
       });
       it("rejects a conflicting edit without overwriting a newer version of the same field", async () => {
@@ -236,29 +259,17 @@ describe("customCommandManager", () => {
         await expect(
           manager.updateCommand({ ...baseline, content: "My draft" }, "Review", false, baseline)
         ).rejects.toThrow("其他操作修改");
-        expect(texts.get("commands/Review.md")).toBe("Newer prompt");
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toBe("Newer prompt");
       });
-      it("preserves both files and reports the recovery location if restoring a name is blocked by another file", async () => {
-        const { manager, write, files, texts } = setup();
-        const original = { ...EMPTY_COMMAND, title: "Review", content: "Saved prompt" };
-        updateCachedCommands([original]);
-        write.mockImplementationOnce(async () => {
-          files.set(
-            "commands/Review.md",
-            Object.assign(new TFile(), { path: "commands/Review.md", basename: "Review" })
-          );
-          texts.set("commands/Review.md", "Created elsewhere");
-          throw new Error("Cannot write file");
-        });
+      it("preserves the original filename when staging the renamed command fails", async () => {
+        const { manager, write, texts } = setup();
+        const original = texts.get(".scribe/scribe-custom-prompts/Review.md");
+        write.mockRejectedValueOnce(new Error("Cannot write file"));
         await expect(
-          manager.updateCommand({ ...original, title: "Renamed", content: "Draft" }, "Review")
-        ).rejects.toThrow("commands/Renamed.md");
-        expect(texts.get("commands/Review.md")).toBe("Created elsewhere");
-        expect(texts.get("commands/Renamed.md")).toContain("Saved prompt");
-        expect(getCachedCustomCommands()[0]).toMatchObject({
-          title: "Renamed",
-          content: "Saved prompt",
-        });
+          manager.updateCommand({ ...EMPTY_COMMAND, title: "Renamed", content: "Draft" }, "Review")
+        ).rejects.toThrow("Cannot write file");
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toBe(original);
+        expect(texts.has(".scribe/scribe-custom-prompts/Renamed.md")).toBe(false);
       });
       it("writes a complete document so no saved state loses its metadata between body and configuration updates", async () => {
         const { manager, write, frontmatter } = setup();
@@ -281,18 +292,18 @@ describe("customCommandManager", () => {
         const { manager, write, files, texts } = setup();
         const original = { ...EMPTY_COMMAND, title: "Review", content: "Saved prompt" };
         const changed = { ...original, title: "Renamed", content: "Edited prompt" };
-        const before = texts.get("commands/Review.md");
+        const before = texts.get(".scribe/scribe-custom-prompts/Review.md");
         updateCachedCommands([original]);
         write.mockRejectedValueOnce(new Error("Cannot write file"));
         await expect(manager.updateCommand(changed, original.title)).rejects.toThrow(
           "Cannot write file"
         );
-        expect([...files.keys()]).toEqual(["commands/Review.md"]);
-        expect(texts.get("commands/Review.md")).toBe(before);
+        expect([...files.keys()]).toEqual([".scribe/scribe-custom-prompts/Review.md"]);
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toBe(before);
         expect(getCachedCustomCommands()).toEqual([original]);
         await manager.updateCommand(changed, original.title);
-        expect([...files.keys()]).toEqual(["commands/Renamed.md"]);
-        expect(texts.get("commands/Renamed.md")).toContain("Edited prompt");
+        expect([...files.keys()]).toEqual([".scribe/scribe-custom-prompts/Renamed.md"]);
+        expect(texts.get(".scribe/scribe-custom-prompts/Renamed.md")).toContain("Edited prompt");
       });
       it("keeps the saved command in the cache when writing its replacement fails", async () => {
         const { write, manager } = setup();
@@ -305,7 +316,7 @@ describe("customCommandManager", () => {
         expect(getCachedCustomCommands()).toEqual([original]);
         updateCachedCommands([]);
       });
-      it("restores the saved command without changing either menu preference", async () => {
+      it("restores the saved command without changing the context-menu preference", async () => {
         const { manager, frontmatter } = setup();
         await manager.updateCommand(
           {
@@ -313,13 +324,11 @@ describe("customCommandManager", () => {
             title: "Review",
             enabled: true,
             showInContextMenu: false,
-            showInSlashMenu: true,
           },
           "Review"
         );
         expect(frontmatter()[SCRIBE_COMMAND_ENABLED]).toBe(true);
         expect(frontmatter()[SCRIBE_COMMAND_CONTEXT_MENU_ENABLED]).toBe(false);
-        expect(frontmatter()[SCRIBE_COMMAND_SLASH_ENABLED]).toBe(true);
       });
     });
     describe("updateCommands()", () => {
@@ -355,25 +364,27 @@ describe("customCommandManager", () => {
         };
         updateCachedCommands([stale]);
         await manager.reorderCommands([stale]);
-        expect(texts.get("commands/Review.md")).toContain("Newer prompt");
+        expect(texts.get(".scribe/scribe-custom-prompts/Review.md")).toContain("Newer prompt");
         expect(frontmatter()["scribe-command-model-key"]).toBe("new-model");
         expect(frontmatter()["scribe-command-context-menu-order"]).toBe(0);
       });
     });
     describe("deleteCommand()", () => {
-      it("removes a command from the list after moving its file to the trash", async () => {
-        const { manager } = setup();
+      it("moves the command into the hidden trash before removing it from the list", async () => {
+        const { manager, texts } = setup();
         const original = { ...EMPTY_COMMAND, title: "Review" };
         updateCachedCommands([original]);
         await manager.deleteCommand(original);
         expect(getCachedCustomCommands()).toEqual([]);
-        expect(trashFile).toHaveBeenCalledTimes(1);
+        expect([...texts.keys()]).toHaveLength(1);
+        expect([...texts.keys()][0]).toMatch(/^\.scribe\/trash\/commands\/Review-.+\.md$/);
+        expect([...texts.values()][0]).toContain("Saved prompt");
       });
-      it("keeps a command in the list when moving its file to the trash fails", async () => {
-        const { manager } = setup();
+      it("keeps a command in the list when removing its hidden file fails", async () => {
+        const { manager, vault } = setup();
         const original = { ...EMPTY_COMMAND, title: "Review" };
         updateCachedCommands([original]);
-        jest.mocked(trashFile).mockRejectedValueOnce(new Error("Cannot remove file"));
+        jest.spyOn(vault.adapter, "rename").mockRejectedValueOnce(new Error("Cannot remove file"));
         await expect(manager.deleteCommand(original)).rejects.toThrow("Cannot remove file");
         expect(getCachedCustomCommands()).toEqual([original]);
       });

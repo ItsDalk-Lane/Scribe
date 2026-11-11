@@ -1,6 +1,7 @@
 import * as Obsidian from "obsidian";
 import { TFile } from "obsidian";
 import {
+  ensureFolderExists,
   extractTemplateNoteFiles,
   formatDateTime,
   getNotesFromPath,
@@ -65,6 +66,7 @@ jest.mock("obsidian", () => {
   }
 
   return {
+    normalizePath: (path: string) => path.replace(/\/+/g, "/"),
     TFile: MockTFile,
     Vault: MockVault,
     MarkdownView: class MockMarkdownView {},
@@ -102,6 +104,32 @@ const mockApp = {
 } as unknown as typeof window.app;
 
 describe("utils", () => {
+  describe("ensureFolderExists()", () => {
+    it("uses adapter metadata to create missing hidden directories only once", async () => {
+      const directories = new Set<string>();
+      const vault = {
+        adapter: {
+          stat: async (path: string) => (directories.has(path) ? { type: "folder" } : null),
+          mkdir: jest.fn(async (path: string) => {
+            directories.add(path);
+          }),
+        },
+        getAbstractFileByPath: jest.fn(() => null),
+      };
+      await ensureFolderExists(vault as never, ".scribe/skills/review");
+      await ensureFolderExists(vault as never, ".scribe/skills/review");
+      expect([...directories]).toEqual([".scribe", ".scribe/skills", ".scribe/skills/review"]);
+      expect(vault.adapter.mkdir).toHaveBeenCalledTimes(3);
+      expect(vault.getAbstractFileByPath).not.toHaveBeenCalled();
+    });
+    it("rejects a file blocking the requested directory without creating another path", async () => {
+      const vault = { adapter: { stat: async () => ({ type: "file" }), mkdir: jest.fn() } };
+      await expect(ensureFolderExists(vault as never, ".scribe")).rejects.toThrow(
+        "expected folder"
+      );
+      expect(vault.adapter.mkdir).not.toHaveBeenCalled();
+    });
+  });
   describe("safeFetchNoThrow()", () => {
     it.each([
       [undefined, "application/json", '{"messages":[]}'],

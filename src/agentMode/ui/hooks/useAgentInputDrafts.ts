@@ -4,7 +4,7 @@ import type {
   QueuedAgentMessage,
 } from "@/agentMode/session/AgentInputDraftStore";
 import { useSettingsValue } from "@/settings/model";
-import type { WebTabContext } from "@/types/message";
+import type { SelectedTextContext, WebTabContext } from "@/types/message";
 import { TFile } from "obsidian";
 import React, { useCallback, useMemo, useSyncExternalStore } from "react";
 
@@ -17,6 +17,7 @@ export interface AgentInputDraftControls extends AgentInputDraft {
   setInput: React.Dispatch<React.SetStateAction<string>>;
   setContextNotes: React.Dispatch<React.SetStateAction<TFile[]>>;
   setWebTabs: React.Dispatch<React.SetStateAction<WebTabContext[]>>;
+  setDraftSelectedText: React.Dispatch<React.SetStateAction<SelectedTextContext[]>>;
   setSelectedImages: React.Dispatch<React.SetStateAction<File[]>>;
   addImages: (files: File[]) => void;
   setIncludeActiveNote: (include: boolean) => void;
@@ -29,6 +30,7 @@ export interface AgentInputDraftControls extends AgentInputDraft {
 const EMPTY_IMAGES = Object.freeze([]) as unknown as File[];
 const EMPTY_CONTEXT_NOTES = Object.freeze([]) as unknown as TFile[];
 const EMPTY_WEB_TABS = Object.freeze([]) as unknown as WebTabContext[];
+const EMPTY_SELECTED_TEXT = Object.freeze([]) as unknown as SelectedTextContext[];
 const EMPTY_QUEUE = Object.freeze([]) as unknown as QueuedAgentMessage[];
 
 const applyState = <T>(value: React.SetStateAction<T>, previous: T): T =>
@@ -70,6 +72,17 @@ export function useAgentInputDrafts({
     [updateActive]
   );
 
+  const setDraftSelectedText = useCallback<
+    React.Dispatch<React.SetStateAction<SelectedTextContext[]>>
+  >(
+    (value) =>
+      updateActive((draft) => ({
+        ...draft,
+        selectedTextContexts: applyState(value, draft.selectedTextContexts ?? EMPTY_SELECTED_TEXT),
+      })),
+    [updateActive]
+  );
+
   const addImages = useCallback(
     (files: File[]) => updateActive((draft) => ({ ...draft, images: [...draft.images, ...files] })),
     [updateActive]
@@ -103,6 +116,7 @@ export function useAgentInputDrafts({
         images: [],
         contextNotes: [],
         webTabs: [],
+        selectedTextContexts: [],
       })),
     [updateActive]
   );
@@ -128,6 +142,7 @@ export function useAgentInputDrafts({
       setInput,
       setContextNotes,
       setWebTabs,
+      setDraftSelectedText,
       setSelectedImages,
       addImages,
       setIncludeActiveNote,
@@ -141,6 +156,7 @@ export function useAgentInputDrafts({
       setInput,
       setContextNotes,
       setWebTabs,
+      setDraftSelectedText,
       setSelectedImages,
       addImages,
       setIncludeActiveNote,

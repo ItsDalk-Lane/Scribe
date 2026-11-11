@@ -1,8 +1,6 @@
-import { formatContextWindow, formatReleaseDate } from "./formatModelMetadata";
-import { setInterfaceLocale } from "@/lib/i18n";
+import { formatContextWindow } from "./formatModelMetadata";
 
 describe("formatModelMetadata", () => {
-  afterEach(() => setInterfaceLocale("en"));
   describe("formatContextWindow()", () => {
     it("returns an empty string for a missing or zero context window", () => {
       expect(formatContextWindow(undefined)).toBe("");
@@ -23,23 +21,6 @@ describe("formatModelMetadata", () => {
       expect(formatContextWindow(1_000_000)).toBe("1M");
       expect(formatContextWindow(1_500_000)).toBe("1.5M");
       expect(formatContextWindow(2_000_000)).toBe("2M");
-    });
-  });
-
-  describe("formatReleaseDate()", () => {
-    it("uses Chinese month formatting when the interface is Chinese", () => {
-      setInterfaceLocale("zh-CN");
-      expect(formatReleaseDate("2025-09-01")).toBe("25年9月");
-    });
-    it("returns an empty string for a missing or unparseable date", () => {
-      expect(formatReleaseDate(undefined)).toBe("");
-      expect(formatReleaseDate("")).toBe("");
-      expect(formatReleaseDate("not-a-date")).toBe("");
-    });
-
-    it("formats an ISO date as short month and 2-digit year without shifting first-of-month dates in any timezone", () => {
-      expect(formatReleaseDate("2025-09-01")).toBe("Sep 25");
-      expect(formatReleaseDate("2025-01-01")).toBe("Jan 25");
     });
   });
 });

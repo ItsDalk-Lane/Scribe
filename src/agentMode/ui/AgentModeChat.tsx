@@ -17,15 +17,10 @@ import React from "react";
 
 interface Props {
   plugin: ScribePlugin;
-  onSaveChat: (saveAsNote: () => Promise<void>) => void;
   updateUserMessageHistory: (newMessage: string) => void;
 }
 
-export const AgentModeChat: React.FC<Props> = ({
-  plugin,
-  onSaveChat,
-  updateUserMessageHistory,
-}) => {
+export const AgentModeChat: React.FC<Props> = ({ plugin, updateUserMessageHistory }) => {
   const manager = plugin.agentSessionManager;
   const descriptor = useSessionBackendDescriptor(manager);
   const installState = useBackendInstallState(descriptor, plugin);
@@ -80,7 +75,6 @@ export const AgentModeChat: React.FC<Props> = ({
         chatInputId={activeSession.chatInputId}
         manager={manager}
         plugin={plugin}
-        onSaveChat={onSaveChat}
         updateUserMessageHistory={updateUserMessageHistory}
       />
     );

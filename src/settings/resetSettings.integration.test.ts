@@ -1,139 +1,54 @@
-import type { App } from "obsidian";
-
 import { DEFAULT_SETTINGS } from "@/constants";
-import { KeychainService } from "@/services/keychainService";
 import {
-  loadSettingsWithKeychain,
+  loadStoredSettings,
   persistSettings,
   resetPersistenceState,
 } from "@/services/settingsPersistence";
-import type { CustomModel } from "@/aiParams";
-import type { Provider } from "@/modelManagement";
-import type { ScribeSettings } from "@/settings/model";
-import { getSettings, resetSettings, settingsAtom, settingsStore } from "@/settings/model";
-
-jest.mock("@/logger", () => ({
-  logInfo: jest.fn(),
-  logWarn: jest.fn(),
-  logError: jest.fn(),
-}));
-
-if (typeof window.structuredClone === "undefined") {
-  window.structuredClone = <T>(val: T): T => JSON.parse(JSON.stringify(val)) as T;
-}
-
-const noLegacyBackup = async () => ({ status: "not-needed" }) as const;
-
-const VAULT_ID = "a1b2c3d4";
-const BYOK_POINTER = `scribe-v${VAULT_ID}-provider-my-openai-api-key`;
-
-let secrets: Map<string, string>;
-let app: App;
-
-function makeApp(): App {
-  return {
-    secretStorage: {
-      setSecret: (id: string, value: string) => {
-        secrets.set(id, value);
-      },
-      getSecret: (id: string) => (secrets.has(id) ? secrets.get(id)! : null),
-      listSecrets: () => Array.from(secrets.keys()),
-      deleteSecret: (id: string) => {
-        secrets.delete(id);
-      },
-    },
-    vault: { adapter: {} },
-  } as unknown as App;
-}
-
-function makeProvider(overrides: Partial<Provider>): Provider {
-  return {
-    providerId: "byok_openai",
-    providerType: "openai-compatible",
-    displayName: "My OpenAI",
-    origin: { kind: "byok" },
-    addedAt: 0,
-    requiresApiKey: true,
-    ...overrides,
-  };
-}
+import {
+  getSettings,
+  resetSettings,
+  settingsAtom,
+  settingsStore,
+  type ScribeSettings,
+} from "@/settings/model";
 
 describe("model", () => {
-  describe("resetSettings", () => {
-    beforeEach(() => {
-      secrets = new Map();
-      app = makeApp();
-      resetPersistenceState();
-      KeychainService.resetInstance();
-      KeychainService.getInstance(app).setVaultId(VAULT_ID);
-    });
-
-    it("keeps every credential — top-level, legacy model and BYOK — reachable through reset, persistence, and a fresh hydration cycle", async () => {
-      const customRow: CustomModel = {
-        name: "custom-gpt",
-        provider: "openai",
-        apiKey: "sk-model-key",
-        baseUrl: "http://localhost:9999/v1",
-        enabled: true,
-      };
-      secrets.set(BYOK_POINTER, "sk-provider-key");
-
+  describe("resetSettings()", () => {
+    beforeEach(() => resetPersistenceState());
+    it("preserves encrypted key references and the storage identity through reset and reload", async () => {
       settingsStore.set(settingsAtom, {
         ...DEFAULT_SETTINGS,
-        _keychainVaultId: VAULT_ID,
-        openAIApiKey: "sk-top-level",
-        openAIOrgId: "org-123",
+        storageId: "vault-stable-id",
         autoAttachActiveNote: false,
-        activeModels: [customRow],
         providers: {
-          byok_openai: makeProvider({ apiKeyKeychainId: BYOK_POINTER }),
+          p: {
+            providerId: "p",
+            providerType: "openai-compatible",
+            displayName: "Service",
+            origin: { kind: "byok" },
+            addedAt: 1,
+            apiKeyRef: "encrypted-reference",
+          },
         },
         configuredModels: [
           {
-            configuredModelId: "cm-1",
-            providerId: "byok_openai",
-            info: { id: "gpt-4", displayName: "GPT-4" },
-            configuredAt: 0,
+            configuredModelId: "m",
+            providerId: "p",
+            configuredAt: 1,
+            info: { id: "model", displayName: "Model" },
           },
         ],
       });
-
-      await persistSettings(getSettings(), async () => {});
-
       resetSettings();
-
-      let savedToDisk: ScribeSettings | undefined;
+      let disk: ScribeSettings | undefined;
       await persistSettings(getSettings(), async (data) => {
-        savedToDisk = structuredClone(data);
+        disk = data;
       });
-
-      expect(savedToDisk?.openAIApiKey).toBe("");
-      expect(savedToDisk?.activeModels.find((m) => m.name === "custom-gpt")?.apiKey).toBe("");
-      expect(savedToDisk?._keychainVaultId).toBe(VAULT_ID);
-      expect(savedToDisk?.providers.byok_openai?.apiKeyKeychainId).toBe(BYOK_POINTER);
-
-      KeychainService.resetInstance();
-      KeychainService.getInstance(app);
-      const reloaded = await loadSettingsWithKeychain(
-        app,
-        savedToDisk,
-        async () => {},
-        noLegacyBackup
-      );
-
-      expect(KeychainService.getInstance(app).getVaultId()).toBe(VAULT_ID);
-
-      expect(reloaded.openAIApiKey).toBe("sk-top-level");
-      expect(reloaded.openAIOrgId).toBe("org-123");
-      expect(reloaded.autoAttachActiveNote).toBe(DEFAULT_SETTINGS.autoAttachActiveNote);
-
-      const reloadedCustom = reloaded.activeModels.find((m) => m.name === "custom-gpt");
-      expect(reloadedCustom?.apiKey).toBe("sk-model-key");
-      expect(reloadedCustom?.baseUrl).toBe("http://localhost:9999/v1");
-
-      expect(reloaded.providers.byok_openai?.apiKeyKeychainId).toBe(BYOK_POINTER);
-      expect(secrets.get(BYOK_POINTER)).toBe("sk-provider-key");
-      expect(reloaded.configuredModels.map((m) => m.configuredModelId)).toEqual(["cm-1"]);
+      const loaded = await loadStoredSettings(disk, async () => {});
+      expect(loaded.storageId).toBe("vault-stable-id");
+      expect(loaded.providers.p.apiKeyRef).toBe("encrypted-reference");
+      expect(loaded.configuredModels[0].configuredModelId).toBe("m");
+      expect(loaded.autoAttachActiveNote).toBe(DEFAULT_SETTINGS.autoAttachActiveNote);
     });
   });
 });

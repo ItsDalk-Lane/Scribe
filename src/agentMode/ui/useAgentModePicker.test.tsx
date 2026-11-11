@@ -58,7 +58,7 @@ describe("useAgentModePicker", () => {
         subscribeModelCache: () => jest.fn(),
       } as unknown as AgentSessionManager;
 
-      const { result } = renderHook(() => useAgentModePicker(manager));
+      const { result } = renderHook(() => useAgentModePicker(manager, null));
       expect(result.current?.value).toBe("default");
       expect(result.current?.options.map((option) => option.label)).toEqual(["Default", "Plan"]);
 

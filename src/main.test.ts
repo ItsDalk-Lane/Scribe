@@ -26,21 +26,23 @@ jest.mock("@/logger", () => ({
 jest.mock("@/services/settingsPersistence", () => ({
   flushPersistence: jest.fn().mockResolvedValue(undefined),
   persistSettings: jest.fn(),
-  loadSettingsWithKeychain: jest.fn(),
+  loadStoredSettings: jest.fn(),
+  suppressNextPersistOnce: jest.fn(),
   resetPersistenceState: jest.fn(),
 }));
 jest.mock("@/logFileManager", () => ({
   logFileManager: { flush: jest.fn().mockResolvedValue(undefined), setApp: jest.fn() },
 }));
-jest.mock("@/settings/migrations", () => ({ runSettingsMigrations: jest.fn() }));
-jest.mock("@/commands/migrator", () => ({
-  ...jest.requireActual<typeof import("@/commands/migrator")>("@/commands/migrator"),
-  migrateCommands: jest.fn(async () => null),
+jest.mock("@/services/secretStore", () => ({
+  SecretStore: {
+    resetInstance: jest.fn(),
+    getInstance: jest.fn(() => ({
+      initialize: jest.fn(async () => {}),
+      tryDeviceUnlock: jest.fn(async () => false),
+    })),
+  },
 }));
-jest.mock("@/system-prompts/migration", () => ({
-  ...jest.requireActual<typeof import("@/system-prompts/migration")>("@/system-prompts/migration"),
-  migrateSystemPromptsFromSettings: jest.fn(async () => null),
-}));
+jest.mock("@/utils/vaultFileStore", () => ({ assertScribePath: jest.fn(async () => {}) }));
 jest.mock("@/state/vaultDataAtoms", () => ({
   VaultDataManager: { getInstance: jest.fn(() => ({ cleanup: jest.fn(), initialize: jest.fn() })) },
 }));
@@ -56,27 +58,33 @@ jest.mock("@/utils/chatDeepLink", () => ({
   findChatFileByDeepLinkId: jest.fn(),
 }));
 const mockSkillManagerDispose = jest.fn();
+const mockFlushSkillUsageStore = jest.fn(async () => undefined);
 const mockSkillManagerHasInstance = jest.fn(() => true);
 jest.mock("@/agentMode", () => ({
   SkillManager: {
     hasInstance: () => mockSkillManagerHasInstance(),
     getInstance: () => ({ dispose: mockSkillManagerDispose }),
   },
-  setFrameSinkVaultBasePath: jest.fn(),
+  SKILL_CREATOR_SKILL_NAME: "skill-creator",
   closeRestoredTurnDiffs: jest.fn(),
   registerTurnDiffCommands: jest.fn(),
-  acpFrameSink: { narrowLegacyLogs: jest.fn(async () => undefined) },
   createAgentSessionManager: jest.fn(() => ({})),
   ScribeAgentView: class {},
   PlanPreviewView: class {},
   closeAgentDetailModals: jest.fn(),
+  flushSkillUsageStore: mockFlushSkillUsageStore,
 }));
 
 import ScribePlugin from "@/main";
 import { QuickAskController } from "@/editor";
 import { getSelectedTextContexts } from "@/selection/selectionStore";
 import { DEFAULT_SETTINGS } from "@/constants";
-import { CHAT_AGENT_VIEWTYPE, COMMAND_IDS, PLAN_PREVIEW_VIEW_TYPE } from "@/constants";
+import {
+  CHAT_AGENT_VIEWTYPE,
+  COMMAND_IDS,
+  PLAN_PREVIEW_VIEW_TYPE,
+  SUBAGENT_CHAT_VIEW_TYPE,
+} from "@/constants";
 import { StartupLoadingView } from "@/components/StartupLoadingView";
 import { settingsAtom, settingsStore } from "@/settings/model";
 import type { WebSelectionTrackingOptions } from "@/services/webViewerService/webViewerServiceSelection";
@@ -92,8 +100,6 @@ jest.mock("@/services/webViewerService/webViewerServiceSelection", () => ({
   },
 }));
 import { logError, logFatalError, logInfo, logWarn } from "@/logger";
-import { migrateCommands } from "@/commands/migrator";
-import { migrateSystemPromptsFromSettings } from "@/system-prompts/migration";
 import { logFileManager } from "@/logFileManager";
 import { flushPersistence, resetPersistenceState } from "@/services/settingsPersistence";
 import { startActiveWebTabTracking } from "@/services/webViewerService/webViewerServiceSingleton";
@@ -103,6 +109,7 @@ import { findChatFileByDeepLinkId } from "@/utils/chatDeepLink";
 import { Notice, TFile, type WorkspaceLeaf } from "obsidian";
 import { getLanguage } from "obsidian";
 import { setInterfaceLocale, t } from "@/lib/i18n";
+import { ScribeSettingTab } from "@/settings/SettingsPage";
 
 function createPluginUnderTest(calls: string[]) {
   const plugin = Object.create(ScribePlugin.prototype) as ScribePlugin;
@@ -133,8 +140,48 @@ async function flushTeardown(): Promise<void> {
 
 describe("main", () => {
   describe("ScribePlugin", () => {
+    describe("loadChatById()", () => {
+      it("opens a legacy note with no native session as a readable note https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        const plugin = createPluginUnderTest([]);
+        const file = new (TFile as unknown as new (path: string) => TFile)("scribe/old-chat.md");
+        const openFile = jest.fn(async () => undefined);
+        Object.assign(plugin, {
+          app: {
+            vault: {
+              getAbstractFileByPath: () => file,
+              adapter: {
+                read: async () =>
+                  "---\nmode: agent\nbackendId: native\n---\n\n**user**: Old message",
+              },
+            },
+            metadataCache: { getFileCache: () => ({ frontmatter: { mode: "agent" } }) },
+            workspace: { getLeaf: () => ({ openFile }) },
+          },
+        });
+        await plugin.loadChatById(file.path);
+        expect(openFile).toHaveBeenCalledWith(file);
+      });
+    });
+
     describe("copyChatLink", () => {
       beforeEach(() => jest.clearAllMocks());
+
+      it("copies a native chat link without saving a note https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+        const plugin = createPluginUnderTest([]);
+        const id = "scribe-agent-session://native/s1";
+        const create = jest.fn();
+        Object.assign(plugin, {
+          app: { vault: { getName: () => "Notes", getAbstractFileByPath: () => null, create } },
+          agentSessionManager: { getChatHistoryItems: async () => [{ id, title: "Native chat" }] },
+        });
+        const writeText = jest.fn().mockResolvedValue(undefined);
+        Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+        await plugin.copyChatLink(async () => id);
+        expect(writeText).toHaveBeenCalledWith(
+          `[Native chat](obsidian://scribe-chat?vault=Notes&id=${encodeURIComponent(id)})`
+        );
+        expect(create).not.toHaveBeenCalled();
+      });
 
       it("copies a markdown link titled by the chat topic that targets the note's epoch", async () => {
         const plugin = createPluginUnderTest([]);
@@ -389,7 +436,7 @@ describe("main", () => {
       });
     });
 
-    describe("onload", () => {
+    describe("onload()", () => {
       const pendingTeardown = Symbol.for("obsidian-scribe:pending-teardown");
 
       beforeEach(() => {
@@ -509,6 +556,7 @@ describe("main", () => {
         expect(registrations.registerView.mock.calls.map(([type]) => type)).toEqual([
           CHAT_AGENT_VIEWTYPE,
           PLAN_PREVIEW_VIEW_TYPE,
+          SUBAGENT_CHAT_VIEW_TYPE,
         ]);
         expect(openRegisteredView(CHAT_AGENT_VIEWTYPE)).toBeInstanceOf(StartupLoadingView);
         expect(openRegisteredView("scribe-chat-view")).toBeUndefined();
@@ -573,7 +621,19 @@ describe("main", () => {
           step.resolve();
 
           await finishStartup();
-          expect(registrations.register).not.toHaveBeenCalled();
+          expect(registrations.register).toHaveBeenCalledTimes(1);
+          expect(registrations.addSettingTab).toHaveBeenCalledTimes(1);
+          const settingsTab = registrations.addSettingTab.mock.calls[0][0] as ScribeSettingTab;
+          expect(settingsTab).toBeInstanceOf(ScribeSettingTab);
+          settingsTab.containerEl = Object.assign(document.createElement("div"), {
+            empty(this: HTMLElement) {
+              this.replaceChildren();
+            },
+          });
+          const hideSettings = jest.spyOn(settingsTab, "hide");
+          const cleanupSettings = registrations.register.mock.calls[0][0] as () => void;
+          expect(() => cleanupSettings()).not.toThrow();
+          expect(hideSettings).toHaveBeenCalledTimes(1);
           expect(registrations.addCommand).not.toHaveBeenCalled();
           expect(registrations.addRibbonIcon).not.toHaveBeenCalled();
           expect(plugin.isStarted()).toBe(false);
@@ -751,62 +811,32 @@ describe("main", () => {
         expect(plugin.openChatDeepLink).not.toHaveBeenCalled();
       });
 
-      it("reports a startup failure even with debug logging off, then unloads what startup registered", async () => {
-        const failure = new Error("settings unreadable");
-        const { plugin, finishStartup } = createLoadingPlugin(async () => {
-          throw failure;
-        });
-
-        plugin.onload();
-
-        await finishStartup();
-        expect(logFatalError).toHaveBeenCalledWith("Scribe failed to start.", failure);
-        expect(Notice).toHaveBeenCalledWith(
-          "Scribe failed to start. Check the Scribe log for details."
-        );
-        expect(plugin.unload).toHaveBeenCalledTimes(1);
-      });
-
       it.each([
-        ["runs", "stays loaded", true],
-        ["skips", "unloads", false],
+        [
+          "en",
+          "Scribe failed to start. Back up your files, then disable Scribe until file-safety issues are fixed. Check the developer console for details.",
+        ],
+        [
+          "zh",
+          "Scribe 启动失败。请先备份现有文件，再停用 Scribe，直到文件安全问题修复。请查看开发者控制台了解详情。",
+        ],
       ] as const)(
-        "%s the legacy command migration when Scribe %s while its files load",
-        async (_outcome, _lifecycle, staysLoaded) => {
-          const { plugin, finishStartup } = createLoadingPlugin();
-          plugin.onload();
-          await finishStartup();
-          const layoutReady = (plugin.app.workspace.onLayoutReady as jest.Mock).mock
-            .calls[0][0] as () => void;
-          const filesLoaded = deferred();
-          Object.assign(plugin, {
-            customCommandRegister: { initialize: () => filesLoaded.promise, cleanup: jest.fn() },
-            projectRegister: { initialize: async () => null, cleanup: jest.fn() },
+        "reports a startup failure in %s even with debug logging off, then unloads what startup registered",
+        async (language, expected) => {
+          jest.mocked(getLanguage).mockReturnValue(language);
+          const failure = new Error("settings unreadable");
+          const { plugin, finishStartup } = createLoadingPlugin(async () => {
+            throw failure;
           });
 
-          layoutReady();
-          if (!staysLoaded) plugin.onunload();
-          filesLoaded.resolve();
-          await filesLoaded.promise;
+          plugin.onload();
 
-          expect(migrateCommands).toHaveBeenCalledTimes(staysLoaded ? 1 : 0);
-          expect(migrateSystemPromptsFromSettings).toHaveBeenCalledTimes(1);
+          await finishStartup();
+          expect(logFatalError).toHaveBeenCalledWith("Scribe failed to start.", failure);
+          expect(Notice).toHaveBeenCalledWith(expected);
+          expect(plugin.unload).toHaveBeenCalledTimes(1);
         }
       );
-
-      it("skips legacy prompt and command migration when unloading before layout is ready", async () => {
-        const { plugin, finishStartup } = createLoadingPlugin();
-        plugin.onload();
-        await finishStartup();
-        const layoutReady = (plugin.app.workspace.onLayoutReady as jest.Mock).mock
-          .calls[0][0] as () => void;
-
-        plugin.onunload();
-        layoutReady();
-
-        expect(migrateCommands).not.toHaveBeenCalled();
-        expect(migrateSystemPromptsFromSettings).not.toHaveBeenCalled();
-      });
     });
 
     describe("onunload", () => {
@@ -924,17 +954,93 @@ describe("main", () => {
         await flushTeardown();
 
         expect(mockSkillManagerDispose).toHaveBeenCalledTimes(1);
+        expect(mockFlushSkillUsageStore).toHaveBeenCalledTimes(1);
         expect(logInfo).toHaveBeenCalledWith("Scribe plugin unloaded");
       });
 
-      it("skips the Node-backed skill cleanup on a mobile runtime, where the barrel import would crash", async () => {
+      it("skips desktop skill cleanup and usage flushing on a mobile runtime (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
         const plugin = createPluginUnderTest([]);
 
         plugin.onunload();
         await flushTeardown();
 
         expect(mockSkillManagerDispose).not.toHaveBeenCalled();
+        expect(mockFlushSkillUsageStore).not.toHaveBeenCalled();
         expect(logInfo).toHaveBeenCalledWith("Scribe plugin unloaded");
+      });
+    });
+
+    describe("newSkillAuthoringChat", () => {
+      beforeEach(() => {
+        jest.clearAllMocks();
+        (isDesktopRuntime as jest.Mock).mockReturnValue(true);
+      });
+
+      it("waits for the dedicated authoring session to be ready before opening the complete-review guide", async () => {
+        const plugin = createPluginUnderTest([]);
+        let finishStartup!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          finishStartup = resolve;
+        });
+        let observeFirstStep!: (step: string) => void;
+        const firstStep = new Promise<string>((resolve) => {
+          observeFirstStep = resolve;
+        });
+        const session = {
+          get ready() {
+            observeFirstStep("ready");
+            return ready;
+          },
+        };
+        const createSkillAuthoringSession = jest.fn().mockResolvedValue(session);
+        Object.assign(plugin.agentSessionManager as object, { createSkillAuthoringSession });
+        const activate = jest.spyOn(plugin, "activateAgentView").mockImplementation(async () => {
+          observeFirstStep("activated");
+          return null;
+        });
+        const opening = plugin.newSkillAuthoringChat();
+        expect(await firstStep).toBe("ready");
+        expect(activate).not.toHaveBeenCalled();
+        finishStartup();
+        await opening;
+        const draft = createSkillAuthoringSession.mock.calls[0][0] as string;
+        expect(draft.startsWith("/skill-creator ")).toBe(true);
+        expect(draft).toContain(
+          t(
+            "Describe the workflow you want to turn into a skill. Discuss it with me, show the complete name, description and instructions, then submit the complete draft for my review and confirmation. Do not save files or run commands directly."
+          )
+        );
+        expect(activate).toHaveBeenCalledTimes(1);
+      });
+
+      it.each(["creation", "initialization"])(
+        "keeps the existing view when authoring-session %s fails",
+        async (phase) => {
+          const plugin = createPluginUnderTest([]);
+          const failure = new Error("no configured model");
+          Object.assign(plugin.agentSessionManager as object, {
+            createSkillAuthoringSession: jest.fn(async () => {
+              if (phase === "creation") throw failure;
+              return { ready: Promise.reject(failure) };
+            }),
+          });
+          const activate = jest.spyOn(plugin, "activateAgentView").mockResolvedValue(null);
+          await expect(plugin.newSkillAuthoringChat()).resolves.toBeUndefined();
+          expect(activate).not.toHaveBeenCalled();
+          expect(logWarn).toHaveBeenCalledWith(
+            "[ScribePlugin] Failed to create skill authoring chat",
+            failure
+          );
+        }
+      );
+
+      it("does not create an authoring session on mobile", async () => {
+        const plugin = createPluginUnderTest([]);
+        const createSkillAuthoringSession = jest.fn();
+        Object.assign(plugin.agentSessionManager as object, { createSkillAuthoringSession });
+        (isDesktopRuntime as jest.Mock).mockReturnValue(false);
+        await plugin.newSkillAuthoringChat();
+        expect(createSkillAuthoringSession).not.toHaveBeenCalled();
       });
     });
 
@@ -944,15 +1050,38 @@ describe("main", () => {
         (isDesktopRuntime as jest.Mock).mockReturnValue(true);
       });
 
-      it("opens a global Agent session with reviewable text left as a draft", async () => {
+      it("waits for a global draft session to be ready before revealing the chat", async () => {
         const plugin = createPluginUnderTest([]);
-        const createGlobalSessionWithDraft = jest.fn().mockResolvedValue(undefined);
+        let finishStartup!: () => void;
+        const ready = new Promise<void>((resolve) => {
+          finishStartup = resolve;
+        });
+        let observeFirstStep!: (step: string) => void;
+        const firstStep = new Promise<string>((resolve) => {
+          observeFirstStep = resolve;
+        });
+        const session = {
+          get ready() {
+            observeFirstStep("ready");
+            return ready;
+          },
+        };
+        const createGlobalSessionWithDraft = jest.fn().mockResolvedValue(session);
         Object.assign(plugin.agentSessionManager as object, {
           createGlobalSessionWithDraft,
         });
-        const activateAgentView = jest.spyOn(plugin, "activateAgentView").mockResolvedValue(null);
+        const activateAgentView = jest
+          .spyOn(plugin, "activateAgentView")
+          .mockImplementation(async () => {
+            observeFirstStep("activated");
+            return null;
+          });
 
-        await plugin.newAgentChatWithDraft("Repair this skill");
+        const opening = plugin.newAgentChatWithDraft("Repair this skill");
+        expect(await firstStep).toBe("ready");
+        expect(activateAgentView).not.toHaveBeenCalled();
+        finishStartup();
+        await opening;
 
         expect(createGlobalSessionWithDraft).toHaveBeenCalledWith("Repair this skill");
         expect(activateAgentView).toHaveBeenCalledTimes(1);
@@ -961,22 +1090,28 @@ describe("main", () => {
         );
       });
 
-      it("surfaces session creation failures without sending or throwing", async () => {
-        const plugin = createPluginUnderTest([]);
-        const failure = new Error("create failed");
-        Object.assign(plugin.agentSessionManager as object, {
-          createGlobalSessionWithDraft: jest.fn().mockRejectedValue(failure),
-        });
-        const activateAgentView = jest.spyOn(plugin, "activateAgentView").mockResolvedValue(null);
+      it.each(["creation", "initialization"])(
+        "surfaces draft-session %s failures without sending or throwing",
+        async (phase) => {
+          const plugin = createPluginUnderTest([]);
+          const failure = new Error("create failed");
+          Object.assign(plugin.agentSessionManager as object, {
+            createGlobalSessionWithDraft: jest.fn(async () => {
+              if (phase === "creation") throw failure;
+              return { ready: Promise.reject(failure) };
+            }),
+          });
+          const activateAgentView = jest.spyOn(plugin, "activateAgentView").mockResolvedValue(null);
 
-        await expect(plugin.newAgentChatWithDraft("Repair this skill")).resolves.toBeUndefined();
+          await expect(plugin.newAgentChatWithDraft("Repair this skill")).resolves.toBeUndefined();
 
-        expect(logWarn).toHaveBeenCalledWith(
-          "[ScribePlugin] Failed to create agent session with draft",
-          failure
-        );
-        expect(activateAgentView).not.toHaveBeenCalled();
-      });
+          expect(logWarn).toHaveBeenCalledWith(
+            "[ScribePlugin] Failed to create agent session with draft",
+            failure
+          );
+          expect(activateAgentView).not.toHaveBeenCalled();
+        }
+      );
     });
   });
 });

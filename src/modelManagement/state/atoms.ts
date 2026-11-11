@@ -1,4 +1,5 @@
 import { atom } from "jotai";
+import { isProviderModelsEnabled } from "@/modelManagement/providers/providerEnablement";
 import { isChatModelInfo } from "@/modelManagement/chatModel/modelCapabilityFlags";
 
 import { settingsAtom } from "@/settings/model";
@@ -45,20 +46,18 @@ export const visibleByokProvidersAtom = atom<readonly Provider[]>((get) => {
 });
 
 export const chatBackendPickerAtom = atom<readonly EnabledBackendEntry[]>((get) => {
-  const config = get(backendsAtom).chat ?? { enabledModels: [] };
   const models = get(configuredModelsAtom);
   const providers = get(providersAtom);
-  if (config.enabledModels.length === 0) return EMPTY_PICKER_ENTRIES;
   const entries: EnabledBackendEntry[] = [];
-  for (const configuredModelId of config.enabledModels) {
-    const configuredModel = models.find((m) => m.configuredModelId === configuredModelId);
-    if (configuredModel && !isChatModelInfo(configuredModel.info)) continue;
-    const provider = configuredModel ? providers[configuredModel.providerId] : undefined;
-    if (configuredModel && provider) {
+  // 配置后的聊天模型应直接可用，旧独立开关不能锁住已配置模型。https://github.com/ItsDalk-Lane/Scribe/issues/31
+  for (const configuredModel of models) {
+    if (!isChatModelInfo(configuredModel.info)) continue;
+    const configuredModelId = configuredModel.configuredModelId;
+    const provider = providers[configuredModel.providerId];
+    if (!provider) entries.push({ configuredModelId, state: "broken" });
+    // 关闭的供应商整体退出聊天选择器，配置本身不动，随时可重新打开。https://github.com/ItsDalk-Lane/Scribe/issues/69
+    else if (provider.origin.kind === "byok" && isProviderModelsEnabled(provider))
       entries.push({ configuredModelId, state: "ok", configuredModel, provider });
-    } else {
-      entries.push({ configuredModelId, state: "broken" });
-    }
   }
   return entries.length ? entries : EMPTY_PICKER_ENTRIES;
 });

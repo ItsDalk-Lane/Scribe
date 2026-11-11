@@ -113,6 +113,27 @@ describe("piHttpStream", () => {
       });
     });
 
+    it("keeps signed and unsigned content separate and does not merge text across a tool call (https://github.com/ItsDalk-Lane/Scribe/issues/60)", async () => {
+      const source = streamHttpCompletion(model, undefined, async function* () {
+        yield { text: "Plain" };
+        yield { text: " continuation" };
+        yield { text: "Signed", textSignature: "dGV4dC0x" };
+        yield { text: "", textSignature: "dGV4dC0y" };
+        yield { thinking: "Reason", thinkingSignature: "dGhvdWdodA==" };
+        yield { toolCall: { index: 0, id: "call-one", name: "read_note", arguments: {} } };
+        yield { text: "After tool" };
+        yield { finishReason: "toolUse" };
+      });
+      expect((await source.result()).content).toEqual([
+        { type: "text", text: "Plain continuation" },
+        { type: "text", text: "Signed", textSignature: "dGV4dC0x" },
+        { type: "text", text: "", textSignature: "dGV4dC0y" },
+        { type: "thinking", thinking: "Reason", thinkingSignature: "dGhvdWdodA==" },
+        { type: "toolCall", id: "call-one", name: "read_note", arguments: {} },
+        { type: "text", text: "After tool" },
+      ]);
+    });
+
     it(`turns a disconnected partial reply into an error, never a successful snapshot (${issue})`, async () => {
       const source = streamHttpCompletion(model, undefined, async function* () {
         yield { text: "Partial" };

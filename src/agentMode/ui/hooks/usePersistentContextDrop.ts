@@ -95,7 +95,7 @@ async function persistInclusions(
     ...project,
     contextSource: { ...project.contextSource, inclusions },
   };
-  await ProjectFileManager.getInstance(app).updateProject(projectId, next);
+  await ProjectFileManager.getInstance(app).updateProject(projectId, next, project);
   return added;
 }
 

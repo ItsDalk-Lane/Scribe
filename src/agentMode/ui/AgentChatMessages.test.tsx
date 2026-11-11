@@ -9,7 +9,6 @@ import type {
   PermissionPrompt,
 } from "@/agentMode/session/types";
 import AgentChatMessages from "@/agentMode/ui/AgentChatMessages";
-import type { FeedbackOffer } from "@/agentMode/session/feedback/feedbackOffer";
 import { AI_SENDER } from "@/constants";
 import { openTurnDiff } from "@/agentMode/ui/TurnDiffView";
 import { logError } from "@/logger";
@@ -67,21 +66,32 @@ jest.mock("@/components/chat-components/ChatSingleMessage", () => ({
 
 jest.mock("@/agentMode/ui/AgentTrailView", () => ({
   AgentTrail: ({
+    isStreaming,
+    turnStartedAtMs,
     timestamp,
     parts,
     errorText,
     fileChanges,
     onOpenFileChange,
+    sourcePath,
   }: {
+    isStreaming?: boolean;
+    turnStartedAtMs?: number;
     timestamp?: string;
     parts: unknown[];
     errorText?: string;
     fileChanges?: TurnFileChange[];
     onOpenFileChange?: (change: TurnFileChange) => void;
+    sourcePath?: string;
   }) => {
     mockTrailRender(parts);
     return (
-      <div data-testid="agent-trail-timestamp">
+      <div
+        data-testid="agent-trail-timestamp"
+        data-streaming={isStreaming}
+        data-start={turnStartedAtMs}
+        data-source-path={sourcePath}
+      >
         {timestamp}
         {errorText ? <span data-testid="agent-trail-error">{errorText}</span> : null}
         {fileChanges?.map((change) => (
@@ -123,11 +133,6 @@ jest.mock("@/agentMode/ui/AskUserQuestionCard", () => ({
   ),
 }));
 
-const mockOpenReportIssueModal = jest.fn();
-jest.mock("@/agentMode/ui/ReportIssueModal", () => ({
-  openReportIssueModal: (...args: unknown[]) => mockOpenReportIssueModal(...args),
-}));
-
 const mockSetSettings = jest.fn();
 jest.mock("@/settings/model", () => ({
   ...jest.requireActual<Record<string, unknown>>("@/settings/model"),
@@ -165,29 +170,7 @@ function assistantMessage(
 const chatBackend = {
   resolveToolPermission: jest.fn(),
   resolveAskUserQuestion: jest.fn(),
-  dismissFeedbackOffer: jest.fn(),
-  markFeedbackReported: jest.fn(),
 } as unknown as AgentChatBackend;
-
-const FEEDBACK_OFFER: FeedbackOffer = {
-  trigger: "agent",
-  draft: {
-    title: "Replied in Swedish to an English request",
-    whatHappened: "The agent answered 'hej'.",
-    userSaid: "Why do you switch languages?",
-    repro: "1. Ask in English.",
-  },
-  evidence: { backendId: "codex", model: "gpt-6.1-sol", sessionId: "s-1", raisedAt: "t" },
-  afterUserMessageId: "user-1",
-  status: "open",
-};
-
-const FEEDBACK_TRANSCRIPT = [
-  assistantMessage("user-1", 1, { sender: "user", message: "why?" }),
-  assistantMessage("reply-1", 2, { message: "Sorry about that." }),
-  assistantMessage("user-2", 3, { sender: "user", message: "next question" }),
-  assistantMessage("reply-2", 4, { message: "Next answer." }),
-];
 
 function permission(id: string): PermissionPrompt {
   return {
@@ -229,7 +212,6 @@ function renderMessages(
     pendingAskUserQuestions: [],
     chatBackend,
     isLoading,
-    feedbackOffer: null,
     ...overrides,
   };
   return { ...render(<AgentChatMessages {...props} />), props };
@@ -248,85 +230,44 @@ describe("AgentChatMessages", () => {
 
     afterEach(() => jest.useRealTimers());
 
+    it("opens the latest 30 turns and reveals 30 older turns per request", () => {
+      const history: AgentChatMessage[] = Array.from({ length: 65 }, (_, index) => [
+        {
+          id: `user-${index}`,
+          sender: "user",
+          message: `Question ${index + 1}`,
+          timestamp: null,
+          isVisible: true,
+        },
+        {
+          id: `reply-${index}`,
+          sender: AI_SENDER,
+          message: `Answer ${index + 1}`,
+          timestamp: null,
+          isVisible: true,
+          turnStopReason: "end_turn" as const,
+        },
+      ]).flat();
+      renderMessages(history, false);
+      expect(screen.queryByText("Question 1")).toBeNull();
+      expect(screen.getByText("Question 36")).toBeTruthy();
+      expect(screen.getByText("Answer 65")).toBeTruthy();
+
+      fireEvent.click(screen.getByRole("button", { name: "Load 30 earlier turns" }));
+      expect(screen.getByText("Question 6")).toBeTruthy();
+      expect(screen.queryByText("Question 1")).toBeNull();
+
+      fireEvent.click(screen.getByRole("button", { name: "Load 30 earlier turns" }));
+      expect(screen.getByText("Question 1")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Load 30 earlier turns" })).toBeNull();
+    });
+
     it("shows a return control over the paused transcript and resumes following on click", () => {
       mockScrollState.paused = true;
       renderMessages([assistantMessage("response", 1_000)], false);
 
       fireEvent.click(screen.getByRole("button", { name: "Scroll to end" }));
       expect(mockScrollState.onResume).toHaveBeenCalledTimes(1);
-    });
-
-    it("shows the feedback card right after the reply of the turn that raised it", () => {
-      const { container } = renderMessages(FEEDBACK_TRANSCRIPT, false, {
-        feedbackOffer: FEEDBACK_OFFER,
-      });
-
-      const text = container.textContent ?? "";
-      expect(screen.getByTestId("agent-feedback-card")).toBeTruthy();
-      expect(text.indexOf("Sorry about that.")).toBeLessThan(
-        text.indexOf("Report this to the Scribe team?")
-      );
-      expect(text.indexOf("Report this to the Scribe team?")).toBeLessThan(
-        text.indexOf("next question")
-      );
-    });
-
-    it("hides a dismissed feedback card", () => {
-      renderMessages(FEEDBACK_TRANSCRIPT, false, {
-        feedbackOffer: { ...FEEDBACK_OFFER, status: "dismissed" },
-      });
-
-      expect(screen.queryByTestId("agent-feedback-card")).toBeNull();
-    });
-
-    it("opens the report dialog prefilled from the card with every source checked, and records the sent report", () => {
-      mockOpenReportIssueModal.mockClear();
-      renderMessages(FEEDBACK_TRANSCRIPT, false, { feedbackOffer: FEEDBACK_OFFER });
-      fireEvent.click(screen.getByRole("button", { name: "Review & report" }));
-
-      expect(mockOpenReportIssueModal).toHaveBeenCalledWith(
-        expect.objectContaining({ manifest: { version: "4.1.0" } }),
-        {
-          activeBackend: "codex",
-          initialNote: expect.stringMatching(/^Replied in Swedish to an English request\n/),
-          preselectAllSources: true,
-          onReported: expect.any(Function),
-        }
-      );
-      const { onReported } = mockOpenReportIssueModal.mock.calls[0][1] as {
-        onReported: (report: { reportId: string; issueUrl: string }) => void;
-      };
-      onReported({ reportId: "r1", issueUrl: "https://example.com" });
-      expect(chatBackend.markFeedbackReported).toHaveBeenCalledWith({
-        reportId: "r1",
-        issueUrl: "https://example.com",
-      });
-    });
-
-    it("dismisses the card without opening the report dialog", () => {
-      mockOpenReportIssueModal.mockClear();
-      renderMessages(FEEDBACK_TRANSCRIPT, false, { feedbackOffer: FEEDBACK_OFFER });
-
-      fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
-
-      expect(chatBackend.dismissFeedbackOffer).toHaveBeenCalled();
-      expect(mockOpenReportIssueModal).not.toHaveBeenCalled();
-    });
-
-    it("turns feedback cards off and dismisses this one when the user opts out", () => {
-      mockSetSettings.mockClear();
-      renderMessages(FEEDBACK_TRANSCRIPT, false, { feedbackOffer: FEEDBACK_OFFER });
-
-      fireEvent.click(screen.getByRole("button", { name: "Don't offer again" }));
-
-      const update = mockSetSettings.mock.calls[0][0] as (cur: {
-        agentMode: Record<string, unknown>;
-      }) => { agentMode: Record<string, unknown> };
-      expect(update({ agentMode: { debugFullFrames: true } }).agentMode).toEqual({
-        debugFullFrames: true,
-        offerFeedbackCards: false,
-      });
-      expect(chatBackend.dismissFeedbackOffer).toHaveBeenCalled();
     });
 
     it("forwards the active session conversation path to user messages", () => {
@@ -338,6 +279,15 @@ describe("AgentChatMessages", () => {
       expect(
         container.querySelector('[data-source-path="chat/Conversation.md"]')?.textContent
       ).toContain("[[Findings]]");
+    });
+
+    it("passes the fixed vault-root source to structured assistant responses https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+      renderMessages(
+        [assistantMessage("response", 1_000, { parts: [{ kind: "text", text: "[[Findings]]" }] })],
+        false
+      );
+
+      expect(screen.getByTestId("agent-trail-timestamp").getAttribute("data-source-path")).toBe("");
     });
 
     it("forks the selected completed reply once and blocks repeated clicks until it finishes", async () => {
@@ -394,7 +344,7 @@ describe("AgentChatMessages", () => {
         false
       );
 
-      expect(screen.getByText("2m 18s")).toBeTruthy();
+      expect(screen.getByText("2m 18.0s")).toBeTruthy();
       expect(screen.getByTestId("single-message-footer").textContent).toBe("");
       expect(container.querySelector(".scribe-spinner")).toBeTruthy();
       expect(container.querySelector(".scribe-spinner-dot-0")).toBeNull();
@@ -403,7 +353,7 @@ describe("AgentChatMessages", () => {
     it("retains the prior duration when the next turn starts", () => {
       const completed = assistantMessage("answer-1", 1_000, { turnDurationMs: 51_000 });
       const { container, rerender, props } = renderMessages([completed], false);
-      expect(screen.getByText("51s")).toBeTruthy();
+      expect(screen.getByText("51.0s")).toBeTruthy();
 
       rerender(
         <AgentChatMessages
@@ -413,12 +363,12 @@ describe("AgentChatMessages", () => {
         />
       );
 
-      expect(screen.getByText("51s")).toBeTruthy();
-      expect(screen.getByText("2s")).toBeTruthy();
+      expect(screen.getByText("51.0s")).toBeTruthy();
+      expect(screen.getByText("2.0s")).toBeTruthy();
       expect(container.querySelector(".scribe-spinner")).toBeTruthy();
 
       act(() => jest.advanceTimersByTime(1_000));
-      expect(screen.getByText("3s")).toBeTruthy();
+      expect(screen.getByText("3.0s")).toBeTruthy();
     });
 
     it("retains each recorded duration as three consecutive replies finish", () => {
@@ -428,9 +378,9 @@ describe("AgentChatMessages", () => {
       const { rerender, props } = renderMessages([first], false);
       rerender(<AgentChatMessages {...props} messages={[first, second]} />);
       rerender(<AgentChatMessages {...props} messages={[first, second, third]} />);
-      expect(screen.getByText("8s")).toBeTruthy();
-      expect(screen.getByText("18s")).toBeTruthy();
-      expect(screen.getByText("12s")).toBeTruthy();
+      expect(screen.getByText("8.0s")).toBeTruthy();
+      expect(screen.getByText("18.0s")).toBeTruthy();
+      expect(screen.getByText("12.0s")).toBeTruthy();
     });
 
     it("shows a finished reply's duration without a live timer while the agent keeps working on its subagents", () => {
@@ -445,7 +395,7 @@ describe("AgentChatMessages", () => {
         true
       );
 
-      expect(screen.getByText("12s")).toBeTruthy();
+      expect(screen.getByText("12.0s")).toBeTruthy();
       expect(screen.queryByText("Agent is working")).toBeNull();
     });
 
@@ -462,6 +412,45 @@ describe("AgentChatMessages", () => {
       );
 
       expect(screen.getByTestId("agent-trail-timestamp").textContent).toBe(timestamp);
+    });
+
+    it("uses the delivered child round's actual start for a live steering slice without replacing its recorded timestamp https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const message = assistantMessage("subagent-run:wake:reply:2", 1000, {
+        parts: [{ kind: "thought", text: "正在核对追加要求", startedAtMs: 5200, segmentSeq: 20 }],
+        turnMetrics: { partial: true, sources: [], roundStartedAtMs: 5000 },
+      });
+      renderMessages([message], true);
+      expect(screen.getByTestId("agent-trail-timestamp").getAttribute("data-streaming")).toBe(
+        "true"
+      );
+      expect(screen.getByTestId("agent-trail-timestamp").getAttribute("data-start")).toBe("5000");
+      expect(message.timestamp?.epoch).toBe(1000);
+    });
+
+    it("separates an existing failed reply's body from its error without altering the message", () => {
+      const message = assistantMessage("failed-partial", 62_000, {
+        message: "Original body\n\n**Error:** disconnected",
+        isErrorMessage: true,
+        parts: [{ kind: "text", text: "Original body" }],
+      });
+      const original = JSON.stringify(message);
+      renderMessages([message], false);
+      expect(screen.getByTestId("agent-trail-error").textContent).toBe("**Error:** disconnected");
+      expect(JSON.stringify(message)).toBe(original);
+    });
+    it("keeps a separately stored error intact even when it begins with the reply body", () => {
+      renderMessages(
+        [
+          assistantMessage("failed-separate", 62_000, {
+            message: "Body\n\n**Error:** Body\n\nDetail",
+            isErrorMessage: true,
+            errorText: "Body\n\nDetail",
+            parts: [{ kind: "text", text: "Body" }],
+          }),
+        ],
+        false
+      );
+      expect(screen.getByTestId("agent-trail-error").textContent).toBe("Body\n\nDetail");
     });
 
     it("hands a failed structured turn's error to its trail, which shows no error text for a message without parts", () => {
@@ -490,6 +479,21 @@ describe("AgentChatMessages", () => {
       expect(screen.getAllByTestId("agent-trail-error").map((el) => el.textContent)).toEqual([
         "**Error:** stream error",
       ]);
+    });
+
+    it("keeps the main reply streaming when a child collaboration notice arrives https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const live = assistantMessage("answer-live", 3000, {
+        message: "",
+        parts: [{ kind: "thought", text: "Working on the final response" }],
+      });
+      const notice = assistantMessage("child-notice", 4000, {
+        synthetic: true,
+        message: "Child task finished",
+      });
+      renderMessages([live, notice], true);
+      expect(screen.getByTestId("agent-trail-timestamp").getAttribute("data-streaming")).toBe(
+        "true"
+      );
     });
 
     it("keeps completed plain and structured turns mounted without rendering them again while the live turn streams", () => {
@@ -629,7 +633,6 @@ describe("AgentChatMessages", () => {
             pendingAskUserQuestions={[]}
             chatBackend={chatBackend}
             isLoading={false}
-            feedbackOffer={null}
           />
         </AgentTasksProvider>
       );

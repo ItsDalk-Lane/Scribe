@@ -20,7 +20,7 @@ need unit tests; use end-to-end tests when unit tests can't answer the question.
 - For how to structure code so it's unit-testable — dependency injection, pure
   leaf modules, the litmus test — see [`STYLE_GUIDE.md`](./STYLE_GUIDE.md).
 
-### BYOK transport regression checks
+### Provider transport regression checks
 
 The pi-ai provider and session suites run without user credentials or paid calls:
 
@@ -29,8 +29,8 @@ npm test -- --runInBand src/LLMProviders src/modelManagement src/hooks/use-strea
 npm run test:mobile-load
 ```
 
-`localStreaming.integration.test.ts` uses an ephemeral loopback HTTP server to
-prove that text arrives before the response ends, Stop closes the native socket,
+`localStreaming.integration.test.ts` uses an ephemeral loopback HTTP server without
+browser CORS headers through the shared desktop streaming bridge to prove that text arrives before the response ends, Stop closes the native socket,
 and accepted partial history is sent on the next turn. These are protocol fixtures,
 not running Ollama or LM Studio models. Buffered `requestUrl` tests instead prove
 prompt local cancellation and isolation of late results.
@@ -241,7 +241,7 @@ Check that:
 ## 1. Setup once per session
 
 ```bash
-$OBS dev:debug on        # attach Chrome DevTools Protocol (required for dev:console, dev:errors, dev:cdp)
+$OBS vault=$VAULT dev:debug on  # attach Chrome DevTools Protocol (required for dev:console, dev:errors, dev:cdp)
 $OBS vault=$VAULT eval code='app.plugins.loadPlugin("scribe")'  # if not auto-loaded
 ```
 
@@ -565,3 +565,9 @@ $OBS vault=$VAULT dev:errors > /tmp/uncaught.txt
 | DOM scale                          | `dev:cdp method=Memory.getDOMCounters`                                                                           |
 | Heap                               | `eval code='JSON.stringify(performance.memory)'`                                                                 |
 | Full perf metrics                  | `dev:cdp method=Performance.getMetrics` (after `Performance.enable`)                                             |
+
+## 聊天渲染管线固定工作负载
+
+`Markdown/StressWorkbench` 组件预览提供相同的短回答、长段落、超长代码、多图表、多轮历史和并行正文输入。只使用合成文本，不发送模型请求。对照构建应使用同一故事与逐帧输入，在同一专用测试资料库、窗口宽度和主题下运行。分别记录宿主调用数、累计输入字符、最大在途工作、渲染耗时与主线程长任务；不要把这些指标混同为模型速度。检查终态原文与输入一致、链接来源、图表源码回退、选区、历史阅读锚点与卸载清理。
+
+基线采用改造前提交，候选采用当前工作树；不得直接从候选的调用次数推算基线。保存结果时只记录合成数据与聚合指标。真实宿主后处理无法强制中断，排版失败或超预算的完整原文降级属于预期行为。

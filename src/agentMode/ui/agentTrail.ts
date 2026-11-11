@@ -28,6 +28,36 @@ export function agentResponseText(parts: AgentMessagePart[]): string {
   return cleanMessageForCopy(text);
 }
 
+export interface CompletedAgentTrail {
+  process: AgentMessagePart[];
+  response: AgentMessagePart[];
+}
+
+export function splitCompletedAgentTrail(
+  parts: AgentMessagePart[],
+  finalResponseSegmentSeq: number | undefined
+): CompletedAgentTrail | undefined {
+  // 中间正文属于过程，只能用已确认的最后响应段拆分；缺失身份的历史记录保持原序展示。https://github.com/ItsDalk-Lane/Scribe/issues/52
+  if (finalResponseSegmentSeq === undefined) return undefined;
+  const start = parts.findIndex(
+    (part) =>
+      part.kind === "text" &&
+      part.segmentSeq === finalResponseSegmentSeq &&
+      !part.synthetic &&
+      part.text.trim().length > 0
+  );
+  if (start < 0) return undefined;
+  const response = parts.slice(start);
+  if (
+    response.some(
+      (part) =>
+        part.kind !== "text" || part.segmentSeq !== finalResponseSegmentSeq || part.synthetic
+    )
+  )
+    return undefined;
+  return { process: parts.slice(0, start), response };
+}
+
 function isHiddenTool(part: AgentMessagePart): boolean {
   return part.kind === "tool_call" && part.vendorToolName === "ToolSearch";
 }
@@ -82,6 +112,8 @@ function foldNodes(
   const out: RenderNode[] = [];
   for (const p of peers) {
     if (p.kind === "thought") {
+      // 服务商可能保留空思考块；仅在投影中跳过，避免纯正文出现空过程折叠。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      if (p.text.trim().length === 0) continue;
       out.push({ type: "reasoning", part: p });
       continue;
     }
@@ -91,6 +123,8 @@ function foldNodes(
       continue;
     }
     if (p.kind === "plan") {
+      // 没有条目的计划没有可显示内容，不能独自撑起过程折叠块。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      if (p.entries.length === 0) continue;
       out.push({ type: "plan", part: p });
       continue;
     }

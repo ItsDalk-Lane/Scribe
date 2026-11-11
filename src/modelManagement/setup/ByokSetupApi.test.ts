@@ -53,7 +53,7 @@ describe("ByokSetupApi", () => {
       expect(provider.origin).toEqual({ kind: "byok", catalogProviderId: "anthropic" });
       expect(provider.providerType).toBe("anthropic");
       expect(provider.baseUrl).toBe("https://api.anthropic.com/v1");
-      expect(await providers.getApiKey(result.providerId)).toBe("sk-ant");
+      expect(await providers.withApiKey(result.providerId, async (key) => key)).toBe("sk-ant");
 
       expect(
         models
@@ -82,19 +82,18 @@ describe("ByokSetupApi", () => {
       const provider = providers.get(result.providerId)!;
       expect(provider.origin).toEqual({ kind: "byok" });
       expect(provider.baseUrl).toBe("http://localhost:11434/v1");
-      expect(provider.apiKeyKeychainId).toBeNull();
+      expect(provider.apiKeyRef).toBeNull();
     });
 
-    it("persists the provider's Quick tools CORS choice", async () => {
+    it("creates a provider without a manual transport preference https://github.com/ItsDalk-Lane/Scribe/issues/51", async () => {
       const result = await api.setupProvider({
         providerType: "openai-compatible",
         displayName: "Work endpoint",
         baseUrl: "https://work.example.com/v1",
-        enableCors: true,
         models: [{ id: "work-model", displayName: "Work model" }],
       });
 
-      expect(providers.get(result.providerId)?.enableCors).toBe(true);
+      expect(providers.get(result.providerId)).not.toHaveProperty("enableCors");
     });
 
     it("does not enroll a model the caller flags as isEmbedding", async () => {
@@ -134,7 +133,7 @@ describe("ByokSetupApi", () => {
       expect(providers.list()).toHaveLength(0);
     });
 
-    it("enrolls models only into the backends listed in autoEnrollIn", async () => {
+    it("enrolls only into listed backends, leaving native and retired backend entries empty", async () => {
       const result = await api.setupProvider({
         providerType: "openai-compatible",
         displayName: "Ollama",
@@ -143,6 +142,7 @@ describe("ByokSetupApi", () => {
         autoEnrollIn: ["chat"],
       });
       expect(backends.get("chat").enabledModels).toEqual([...result.configuredModelIds]);
+      expect(backends.get("native").enabledModels).toEqual([]);
       expect(backends.get("claude").enabledModels).toEqual([]);
     });
   });

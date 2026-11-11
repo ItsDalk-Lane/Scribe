@@ -1,5 +1,7 @@
+import { writeVaultFile } from "@/utils/vaultFileStore";
+import { openWithSystemDefault } from "@/utils/openWithSystemDefault";
 import { err2String } from "@/lib/errorFormat";
-import { App, Notice, TFile } from "obsidian";
+import { App, Notice, FileSystemAdapter } from "obsidian";
 import { ensureFolderExists } from "@/utils";
 import { getSettings } from "@/settings/model";
 import { getEffectiveScribeFolder } from "@/settings/scribeFolder";
@@ -95,7 +97,7 @@ class LogFileManager {
       const path = this.getLogPath();
       if (await app.vault.adapter.exists(path)) {
         const content = this.buffer.join("\n") + (this.buffer.length ? "\n" : "");
-        await app.vault.adapter.write(path, content);
+        await writeVaultFile(app.vault, path, content);
       }
     } catch {
       return;
@@ -135,10 +137,16 @@ class LogFileManager {
     if (typeof value === "object" && value.constructor === Object) {
       const result: Record<string, unknown> = {};
       const obj = value as Record<string, unknown>;
+      // 授权凭据也可能放在通用名称和值中，不能写入诊断记录。 https://github.com/ItsDalk-Lane/Scribe/issues/17
+      const authorization = /^(?:proxy[-_]?)?authorization$/i;
+      const sensitivePair =
+        typeof obj.name === "string" && (isSensitiveKey(obj.name) || authorization.test(obj.name));
 
       for (const [key, val] of Object.entries(obj)) {
         if (
           isSensitiveKey(key) ||
+          authorization.test(key) ||
+          (key === "value" && sensitivePair) ||
           /orgId$/i.test(key) ||
           /instanceName$/i.test(key) ||
           /deploymentName$/i.test(key) ||
@@ -176,25 +184,14 @@ class LogFileManager {
         await ensureFolderExists(app.vault, folder);
       }
 
-      const fileExists = await app.vault.adapter.exists(path);
-      if (fileExists) {
-        await app.vault.adapter.write(path, content);
-      } else {
-        await app.vault.create(path, content);
-      }
+      await writeVaultFile(app.vault, path, content);
     } catch (error) {
       new Notice(`Could not write the Scribe log file: ${String(error)}`);
     }
 
-    const abstract = app.vault.getAbstractFileByPath(path);
-    const file = abstract instanceof TFile ? abstract : null;
-    try {
-      if (file) {
-        const leaf = app.workspace.getLeaf(true);
-        await leaf.openFile(file);
-      }
-    } catch {
-      return;
+    const adapter = app.vault.adapter;
+    if (adapter instanceof FileSystemAdapter) {
+      await openWithSystemDefault(`${adapter.getBasePath()}/${path}`);
     }
   }
 }

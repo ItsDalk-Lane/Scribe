@@ -1,7 +1,9 @@
 import { ModelCapability, ReasoningEffort } from "@/constants";
+import type { ModelCostCurrency } from "@/modelManagement";
 export interface ProjectConfig {
   id: string;
   name: string;
+  workspacePath?: string;
   description?: string;
   systemPrompt: string;
   contextSource: {
@@ -29,11 +31,12 @@ export interface ModelConfig {
   openAIProxyBaseUrl?: string;
   groqApiKey?: string;
   mistralApiKey?: string;
-  enableCors?: boolean;
 }
 
 export interface CustomModel {
   configuredModelId?: string;
+  providerDisplayName?: string;
+  credentialRef?: string;
   providerCatalogId?: string;
   providerNpm?: string;
   providerOptions?: Record<string, unknown>;
@@ -45,7 +48,6 @@ export interface CustomModel {
   requiresApiKey?: boolean;
   enabled: boolean;
   isEmbeddingModel?: boolean;
-  enableCors?: boolean;
   stream?: boolean;
   streamUsage?: boolean;
   maxTokens?: number;
@@ -57,9 +59,25 @@ export interface CustomModel {
   enablePromptCaching?: boolean;
 
   capabilities?: ModelCapability[];
+  reasoning?: boolean;
   displayName?: string;
+
+  // 目录声明的模型能力契约：本迭代只透传给运行时读取，不改变请求行为。https://github.com/ItsDalk-Lane/Scribe/issues/67
+  attachment?: boolean;
+  toolCall?: boolean;
+  structuredOutput?: boolean;
+  temperatureSupport?: boolean;
+  defaultTemperature?: number;
+  cost?: {
+    input?: number;
+    output?: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    currency?: ModelCostCurrency;
+  };
 
   openAIOrgId?: string;
 
   reasoningEffort?: ReasoningEffort;
+  reasoningEfforts?: readonly string[];
 }

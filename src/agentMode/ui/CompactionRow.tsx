@@ -48,18 +48,26 @@ export const CompactionRow: React.FC<CompactionRowProps> = ({ part }) => {
         <AgentTurnDurationIndicator
           status="running"
           startedAtMs={part.startedAtMs}
-          label={RUNNING_LABEL[part.trigger]}
+          label={t(RUNNING_LABEL[part.trigger])}
           icon={<CompactionIcon />}
           inline
         />
       );
     case "completed":
       return (
-        <div className="tw-flex tw-items-center tw-gap-2 tw-py-1 tw-text-ui-small tw-text-muted">
-          <Hairline />
-          <CompactionIcon />
-          <span>{completedText(part)}</span>
-          <Hairline />
+        <div>
+          <div className="tw-flex tw-items-center tw-gap-2 tw-py-1 tw-text-ui-small tw-text-muted">
+            <Hairline />
+            <CompactionIcon />
+            <span>{completedText(part)}</span>
+            <Hairline />
+          </div>
+          {part.summary ? (
+            <details className="tw-py-1 tw-text-ui-small tw-text-muted">
+              <summary>{t("Summary used by the model; original conversation preserved")}</summary>
+              <p className="tw-whitespace-pre-wrap">{part.summary}</p>
+            </details>
+          ) : null}
         </div>
       );
     case "failed":

@@ -13,6 +13,26 @@ describe("AgentActivityCard", () => {
       expect(screen.queryByRole("button")).toBeNull();
     });
 
+    it("animates only the running title and stops on completion https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const { container, rerender } = render(
+        <AgentActivityCard icon={Brain} label="Reading notes" isRunning />
+      );
+      expect(container.querySelector(".scribe-shimmer-text")?.textContent).toBe("Reading notes");
+      rerender(<AgentActivityCard icon={Brain} label="Read notes" />);
+      expect(container.querySelector(".scribe-shimmer-text")).toBeNull();
+    });
+    it("puts the moving highlight around the actual text rather than the full flex row, including nested colored labels https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const { container } = render(
+        <AgentActivityCard
+          icon={Brain}
+          label={<span className="tw-text-normal">Searching files</span>}
+          isRunning
+        />
+      );
+      expect(container.querySelector(".scribe-shimmer-text")?.tagName).toBe("SPAN");
+      expect(container.querySelector(".scribe-shimmer-text")?.textContent).toBe("Searching files");
+    });
+
     it("toggles on click, Enter, and Space and reveals its details only while open", () => {
       const onToggle = jest.fn();
       const { rerender } = render(

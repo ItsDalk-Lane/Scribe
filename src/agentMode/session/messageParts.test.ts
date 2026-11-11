@@ -57,20 +57,35 @@ describe("messageParts", () => {
       expect(part).toMatchObject({ status: "pending", output: undefined });
     });
 
-    it("trims a text output past 256,000 characters and says how much the display left out", () => {
+    it("retains long text and every mixed content block without display truncation https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const text = "x".repeat(300_005);
+      const annotated = {
+        type: "text",
+        text: "Full text",
+        annotations: { priority: 1 },
+        _meta: { version: 99 },
+      };
+      const image = { type: "image", data: "aGVsbG8=", mimeType: "image/png" };
+      const resource = {
+        type: "resource",
+        resource: { uri: "file:///note", mimeType: "text/markdown", text: "# Full result" },
+      };
       const part = toolCallToPart({
         toolCallId: "t1",
         title: "Read",
-        content: [{ type: "content", content: { type: "text", text: "x".repeat(256_005) } }],
+        content: [
+          { type: "content", content: { type: "text", text } },
+          { type: "content", content: image },
+          { type: "content", content: annotated },
+          { type: "content", content: resource },
+        ] as never,
       });
-
-      const text = part.kind === "tool_call" ? part.output?.[0] : undefined;
-      expect(text).toEqual({
-        type: "text",
-        text:
-          "x".repeat(256_000) +
-          "\n\n[Display trimmed: 5 more characters. The agent received the full output.]",
-      });
+      expect(part.kind === "tool_call" ? part.output : undefined).toEqual([
+        { type: "text", text },
+        { type: "content", content: image },
+        { type: "content", content: annotated },
+        { type: "content", content: resource },
+      ]);
     });
   });
 

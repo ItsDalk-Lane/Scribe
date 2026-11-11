@@ -1,7 +1,13 @@
+import type { App } from "obsidian";
+import {
+  buildInstructionPromptState,
+  renderInstructionPrompt,
+} from "@/instructions/instructionPolicy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CustomModel } from "@/aiParams";
 import {
+  DEFAULT_CHAT_SYSTEM_PROMPT,
   createChatChain,
   createChatMemory,
   type ChatChain,
@@ -20,11 +26,14 @@ export interface StreamingChatTurnContext {
 }
 
 export interface UseStreamingChatSessionParams {
+  app?: App;
+  projectId?: string;
   model: CustomModel | null;
   systemPrompt: string;
   excludeThinking?: boolean;
   onNoModel?: () => void;
   onNonAbortError?: (error: unknown) => void;
+  onTruncated?: () => void;
 }
 
 export interface StreamingChatSessionApi {
@@ -64,7 +73,16 @@ function shouldSkipPersistOnAbort(signal: AbortSignal): boolean {
 export function useStreamingChatSession(
   params: UseStreamingChatSessionParams
 ): StreamingChatSessionApi {
-  const { model, systemPrompt, excludeThinking = true, onNoModel, onNonAbortError } = params;
+  const {
+    app,
+    projectId,
+    model,
+    systemPrompt,
+    excludeThinking = true,
+    onNoModel,
+    onNonAbortError,
+    onTruncated,
+  } = params;
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState("");
@@ -79,17 +97,19 @@ export function useStreamingChatSession(
 
   const onNoModelRef = useRef(onNoModel);
   const onNonAbortErrorRef = useRef(onNonAbortError);
+  const onTruncatedRef = useRef(onTruncated);
   useEffect(() => {
     onNoModelRef.current = onNoModel;
     onNonAbortErrorRef.current = onNonAbortError;
-  }, [onNoModel, onNonAbortError]);
+    onTruncatedRef.current = onTruncated;
+  }, [onNoModel, onNonAbortError, onTruncated]);
 
   const memoryRef = useRef<ChatMemory | null>(null);
   const chainRef = useRef<ChatChain | null>(null);
   const currentModelKeyRef = useRef<string | null>(null);
-  const currentSystemPromptRef = useRef<string | null>(null);
 
-  const modelKey = useMemo(() => model?.configuredModelId ?? null, [model]);
+  // 完整模型快照覆盖连接、能力和预算，任何请求配置变化都应让下一轮重建链路。https://github.com/ItsDalk-Lane/Scribe/issues/62
+  const modelKey = useMemo(() => (model ? JSON.stringify(model) : null), [model]);
 
   const setStreamingTextThrottled = useRafThrottledCallback((text: string) => {
     if (!isMountedRef.current) return;
@@ -112,12 +132,7 @@ export function useStreamingChatSession(
         return null;
       }
 
-      const needsRecreate =
-        !chainRef.current ||
-        currentModelKeyRef.current !== modelKey ||
-        currentSystemPromptRef.current !== systemPrompt;
-
-      if (needsRecreate) {
+      if (!chainRef.current || currentModelKeyRef.current !== modelKey) {
         if (!memoryRef.current) {
           memoryRef.current = createChatMemory();
         }
@@ -128,7 +143,6 @@ export function useStreamingChatSession(
 
         chainRef.current = nextChain;
         currentModelKeyRef.current = modelKey;
-        currentSystemPromptRef.current = systemPrompt;
       }
 
       if (!chainRef.current || !memoryRef.current) return null;
@@ -152,8 +166,7 @@ export function useStreamingChatSession(
     }
     chainRef.current = null;
     currentModelKeyRef.current = null;
-    currentSystemPromptRef.current = null;
-  }, [modelKey, systemPrompt]);
+  }, [app, projectId, modelKey, systemPrompt]);
 
   const getIsFirstTurn = useCallback((): boolean => {
     return !hasSavedContextOnceRef.current;
@@ -177,7 +190,6 @@ export function useStreamingChatSession(
 
     chainRef.current = null;
     currentModelKeyRef.current = null;
-    currentSystemPromptRef.current = null;
 
     memoryRef.current = createChatMemory();
     hasSavedContextOnceRef.current = false;
@@ -224,6 +236,7 @@ export function useStreamingChatSession(
       let chain: ChatChain | null = null;
       let prompt = "";
       let committed: string | null = null;
+      let stopReason: "stop" | "length" = "stop";
 
       try {
         const isFirstTurn = !hasSavedContextOnceRef.current;
@@ -241,12 +254,23 @@ export function useStreamingChatSession(
         const chainAndMemory = await getOrCreateChain(abortController.signal);
         if (!chainAndMemory) return null;
 
+        // 首次准备模型可能等待协议加载，之后才读取规则才能应用期间的保存。https://github.com/ItsDalk-Lane/Scribe/issues/71
+        const requestSystemPrompt = app
+          ? renderInstructionPrompt(
+              await buildInstructionPromptState(app, systemPrompt || DEFAULT_CHAT_SYSTEM_PROMPT, {
+                projectId,
+              })
+            )
+          : systemPrompt;
+        if (abortController.signal.aborted) return null;
+
         chain = chainAndMemory.chain;
         const providerSession = getProviderSessionOptions(model, chainAndMemory.memory.chatHistory);
-        const stream = chain.stream(prompt, {
-          signal: abortController.signal,
-          headers: providerSession?.options.headers,
-        });
+        const stream = chain.stream(
+          prompt,
+          { signal: abortController.signal, headers: providerSession?.options.headers },
+          requestSystemPrompt
+        );
 
         for await (const event of stream) {
           if (event.type === "text_delta") thinkStreamer.processChunk({ content: event.delta });
@@ -254,11 +278,13 @@ export function useStreamingChatSession(
             thinkStreamer.processChunk({
               content: [{ type: "thinking", thinking: event.delta }],
             });
+          // 达到输出上限仍要保留已生成内容，但不能把终态改写成自然完成。https://github.com/ItsDalk-Lane/Scribe/issues/64
+          if (event.type === "done" && event.message.stopReason === "length") stopReason = "length";
           if (abortController.signal.aborted) break;
         }
       } catch (error) {
-        const isAbort =
-          (error instanceof Error && error.name === "AbortError") || abortController.signal.aborted;
+        // 供应商内部中止不能冒充用户停止，否则失败提示和重试入口都会丢失。https://github.com/ItsDalk-Lane/Scribe/issues/58
+        const isAbort = abortController.signal.aborted;
 
         if (!isAbort) {
           didNonAbortError = true;
@@ -278,7 +304,8 @@ export function useStreamingChatSession(
               const compactedResult = compactAssistantOutput(result);
               chain.saveContext(
                 prompt,
-                typeof compactedResult === "string" ? compactedResult : result
+                typeof compactedResult === "string" ? compactedResult : result,
+                stopReason
               );
               hasSavedContextOnceRef.current = true;
             } catch (error) {
@@ -286,6 +313,14 @@ export function useStreamingChatSession(
             }
           }
         }
+
+        if (
+          !didNonAbortError &&
+          !isStale &&
+          !abortController.signal.aborted &&
+          stopReason === "length"
+        )
+          onTruncatedRef.current?.();
 
         if (!isStale) {
           streamingTextRef.current = "";
@@ -305,7 +340,16 @@ export function useStreamingChatSession(
 
       return committed;
     },
-    [excludeThinking, getOrCreateChain, handleDelta, model, setStreamingTextThrottled]
+    [
+      app,
+      excludeThinking,
+      getOrCreateChain,
+      handleDelta,
+      model,
+      projectId,
+      setStreamingTextThrottled,
+      systemPrompt,
+    ]
   );
 
   return {

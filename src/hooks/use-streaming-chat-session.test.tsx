@@ -1,8 +1,17 @@
+import { Platform, type App } from "obsidian";
+import { readAgentsFile } from "@/instructions/agentsFile";
+jest.mock("@/instructions/agentsFile", () => ({ readAgentsFile: jest.fn() }));
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
+
 import { act, renderHook } from "@testing-library/react";
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders } from "@/constants";
 import { useStreamingChatSession } from "@/hooks/use-streaming-chat-session";
 import { fixtureSse } from "@/LLMProviders/testing/piFixtures";
+import ChatModelManager from "@/LLMProviders/chatModelManager";
 import * as obsidian from "obsidian";
 
 jest.mock("@/logger");
@@ -15,10 +24,10 @@ const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
 const mockTextUpdate = jest.fn();
 
 jest.mock("@/hooks/use-raf-throttled-callback", () => ({
-  useRafThrottledCallback: (callback: (text: string) => void) => (text: string) => {
+  useRafThrottledCallback: jest.fn((callback: (text: string) => void) => (text: string) => {
     callback(text);
     mockTextUpdate(text);
-  },
+  }),
 }));
 
 function deferred<T>() {
@@ -79,7 +88,6 @@ const model: CustomModel = {
   baseUrl: "https://fixture.invalid/v1",
   apiKey: "fixture-key",
   enabled: true,
-  enableCors: false,
 };
 
 function observeText(expected: string): Promise<void> {
@@ -96,10 +104,101 @@ describe("use-streaming-chat-session", () => {
 
     beforeEach(() => {
       mockTextUpdate.mockReset();
+      Platform.isMobile = false;
     });
 
     afterEach(() => {
       window.fetch = originalFetch;
+      Platform.isMobile = false;
+    });
+
+    it("refreshes shared vault rules for each quick request, removes cleared rules and preserves user history without adding agent tools", async () => {
+      const payloads: Array<{
+        messages: Array<{ role: string; content: string }>;
+        tools?: unknown;
+      }> = [];
+      window.fetch = jest.fn(async (_url, init) => {
+        payloads.push(JSON.parse(init?.body as string) as (typeof payloads)[number]);
+        return new Response(
+          'data: {"choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+          { status: 200, headers: { "content-type": "text/event-stream" } }
+        );
+      });
+      jest.mocked(readAgentsFile).mockResolvedValue("Vault first version");
+      const app = {} as App;
+      const { result } = renderHook(() =>
+        useStreamingChatSession({ model, systemPrompt: "Editing defaults", app })
+      );
+      await act(async () => {
+        await result.current.runTurn(async () => "First");
+      });
+      jest.mocked(readAgentsFile).mockResolvedValue("Vault updated version");
+      await act(async () => {
+        await result.current.runTurn(async () => "Second");
+      });
+      jest.mocked(readAgentsFile).mockResolvedValue("");
+      await act(async () => {
+        await result.current.runTurn(async () => "Third");
+      });
+      expect(payloads[0].messages[0].content).toContain("Vault first version");
+      expect(payloads[1].messages[0].content).toContain("Vault updated version");
+      expect(payloads[1].messages[0].content).not.toContain("Vault first version");
+      expect(payloads[2].messages[0].content).not.toContain("Vault updated version");
+      expect(payloads[2].messages[0].content).toContain(
+        "current user request > project instructions > vault instructions > application defaults"
+      );
+      expect(payloads[2].messages).toContainEqual(
+        expect.objectContaining({ role: "user", content: "First" })
+      );
+      expect(payloads.every((payload) => payload.tools === undefined)).toBe(true);
+    });
+
+    it("uses rules saved while the lightweight model is preparing without rebuilding it for later rule changes https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+      const manager = ChatModelManager.getInstance();
+      const createModel = manager.createModelInstanceFromBridged.bind(
+        manager
+      ) as typeof manager.createModelInstanceFromBridged;
+      const preparing = deferred<void>();
+      const release = deferred<void>();
+      const create = jest
+        .spyOn(manager, "createModelInstanceFromBridged")
+        .mockImplementationOnce(async (input) => {
+          preparing.resolve();
+          await release.promise;
+          return createModel(input);
+        });
+      const payloads: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+      window.fetch = jest.fn(async (_url, init) => {
+        payloads.push(JSON.parse(init?.body as string) as (typeof payloads)[number]);
+        return new Response(
+          'data: {"choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+          { status: 200, headers: { "content-type": "text/event-stream" } }
+        );
+      });
+      jest.mocked(readAgentsFile).mockResolvedValue("Earlier file rules");
+      const app = {} as App;
+      const { result } = renderHook(() =>
+        useStreamingChatSession({ model, systemPrompt: "Editing defaults", app })
+      );
+      try {
+        await act(async () => {
+          const turn = result.current.runTurn(async () => "First");
+          await preparing.promise;
+          jest.mocked(readAgentsFile).mockResolvedValue("Rules saved during preparation");
+          release.resolve();
+          await turn;
+        });
+        jest.mocked(readAgentsFile).mockResolvedValue("Rules saved before follow-up");
+        await act(async () => {
+          await result.current.runTurn(async () => "Follow-up");
+        });
+        expect(payloads[0].messages[0].content).toContain("Rules saved during preparation");
+        expect(payloads[0].messages[0].content).not.toContain("Earlier file rules");
+        expect(payloads[1].messages[0].content).toContain("Rules saved before follow-up");
+        expect(create).toHaveBeenCalledTimes(1);
+      } finally {
+        create.mockRestore();
+      }
     });
 
     it(`publishes each received text increment before the connection completes (${issue})`, async () => {
@@ -147,6 +246,128 @@ describe("use-streaming-chat-session", () => {
       expect(result.current.streamingText).toBe("");
       expect(result.current.isStreaming).toBe(false);
       expect(result.current.getIsFirstTurn()).toBe(false);
+    });
+
+    it(`rebuilds the chain when the endpoint changes under one configuration id (https://github.com/ItsDalk-Lane/Scribe/issues/62)`, async () => {
+      const requested: string[] = [];
+      window.fetch = jest.fn(async (url: RequestInfo | URL) => {
+        requested.push(typeof url === "string" ? url : url instanceof URL ? url.href : url.url);
+        return new Response(
+          'data: {"choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+          { status: 200, headers: { "content-type": "text/event-stream" } }
+        );
+      });
+      const { result, rerender } = renderHook(
+        ({ current }: { current: CustomModel }) =>
+          useStreamingChatSession({ model: current, systemPrompt: "Prompt." }),
+        { initialProps: { current: model } }
+      );
+      await act(async () => {
+        await result.current.runTurn(async () => "First");
+      });
+      rerender({ current: { ...model, baseUrl: "https://rotated.invalid/v1" } });
+      await act(async () => {
+        await result.current.runTurn(async () => "Second");
+      });
+      expect(requested).toHaveLength(2);
+      expect(new URL(requested[0]).host).toBe("fixture.invalid");
+      expect(new URL(requested[1]).host).toBe("rotated.invalid");
+    });
+
+    it("uses an updated output ceiling under one model identity and retains accepted history https://github.com/ItsDalk-Lane/Scribe/issues/62", async () => {
+      const payloads: Array<{ max_tokens: number; messages: unknown[] }> = [];
+      window.fetch = jest.fn(async (_url, init) => {
+        payloads.push(
+          JSON.parse(init?.body as string) as { max_tokens: number; messages: unknown[] }
+        );
+        return new Response(
+          fixtureSse({
+            id: "msg",
+            type: "message",
+            role: "assistant",
+            model: "private-anthropic",
+            content: [{ type: "text", text: "Done" }],
+            stop_reason: "end_turn",
+            usage: { input_tokens: 1, output_tokens: 1 },
+          }),
+          { headers: { "content-type": "text/event-stream" } }
+        );
+      });
+      const selected: CustomModel = {
+        ...model,
+        providerNpm: "@ai-sdk/anthropic",
+        name: "private-anthropic",
+        maxTokens: 20000,
+      };
+      const { result, rerender } = renderHook(
+        ({ current }: { current: CustomModel }) =>
+          useStreamingChatSession({ model: current, systemPrompt: "System" }),
+        { initialProps: { current: selected } }
+      );
+      await act(async () => {
+        expect(await result.current.runTurn(async () => "First")).toBe("Done");
+      });
+      rerender({ current: { ...selected, maxTokens: 8192 } });
+      await act(async () => {
+        expect(await result.current.runTurn(async () => "Second")).toBe("Done");
+      });
+      expect(payloads.map((payload) => payload.max_tokens)).toEqual([20000, 8192]);
+      expect(payloads[1].messages).toEqual([
+        { role: "user", content: "First" },
+        { role: "assistant", content: [{ type: "text", text: "Done" }] },
+        { role: "user", content: "Second" },
+      ]);
+    });
+
+    it("shows a provider error when internal abort failures exhaust retries without a user stop https://github.com/ItsDalk-Lane/Scribe/issues/58", async () => {
+      jest.useFakeTimers({ doNotFake: ["nextTick", "queueMicrotask"] });
+      try {
+        window.fetch = jest.fn(async () => {
+          throw new DOMException("SDK timeout", "AbortError");
+        });
+        const onNonAbortError = jest.fn();
+        const { result } = renderHook(() =>
+          useStreamingChatSession({ model, systemPrompt: "System", onNonAbortError })
+        );
+        await act(async () => {
+          const pending = result.current.runTurn(async () => "Question");
+          await jest.runAllTimersAsync();
+          expect(await pending).toBeNull();
+        });
+        expect(window.fetch).toHaveBeenCalledTimes(4);
+        expect(onNonAbortError).toHaveBeenCalledTimes(1);
+        expect(result.current.getMemory()?.chatHistory.messages).toEqual([]);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("keeps an output-limited answer, preserves its stop reason and reports truncation separately from failure https://github.com/ItsDalk-Lane/Scribe/issues/64", async () => {
+      window.fetch = jest.fn(
+        async () =>
+          new Response(
+            fixtureSse({
+              choices: [
+                { index: 0, message: { content: "Partial answer" }, finish_reason: "length" },
+              ],
+            })
+          )
+      );
+      const onNonAbortError = jest.fn();
+      const onTruncated = jest.fn();
+      const { result } = renderHook(() =>
+        useStreamingChatSession({ model, systemPrompt: "System", onNonAbortError, onTruncated })
+      );
+      await act(async () => {
+        expect(await result.current.runTurn(async () => "Question")).toBe("Partial answer");
+      });
+      expect(onTruncated).toHaveBeenCalledTimes(1);
+      expect(onNonAbortError).not.toHaveBeenCalled();
+      expect(result.current.getMemory()?.chatHistory.messages[1]).toMatchObject({
+        stopReason: "length",
+        content: [{ type: "text", text: "Partial answer" }],
+      });
+      expect(result.current.isStreaming).toBe(false);
     });
 
     it(`replays a stopped partial answer in the follow-up without duplicating text (${issue})`, async () => {
@@ -342,6 +563,7 @@ describe("use-streaming-chat-session", () => {
 
     it(`ignores a late buffered compatibility response after stop and reset (${issue})`, async () => {
       const opened = deferred<void>();
+      Platform.isMobile = true;
       const oldResponse = deferred<unknown>();
       const body = (text: string) => ({
         status: 200,
@@ -367,7 +589,7 @@ describe("use-streaming-chat-session", () => {
       const onNonAbortError = jest.fn();
       const { result } = renderHook(() =>
         useStreamingChatSession({
-          model: { ...model, enableCors: true },
+          model,
           systemPrompt: "System",
           onNonAbortError,
         })

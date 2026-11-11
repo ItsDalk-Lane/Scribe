@@ -9,6 +9,7 @@ export interface TypeaheadOption {
   subtitle?: string;
   content?: string;
   category?: string;
+  group?: string;
   icon?: React.ReactNode;
   trailingContent?: React.ReactNode;
   disabled?: boolean;
@@ -33,6 +34,18 @@ export interface TypeaheadMenuContentProps {
 
 const PREVIEW_MIN_HEIGHT = 120;
 const PREVIEW_MAX_HEIGHT = 240;
+
+export interface SlashSourceBadgeProps {
+  label: string;
+}
+
+export function SlashSourceBadge({ label }: SlashSourceBadgeProps) {
+  return (
+    <span className="tw-rounded tw-bg-modifier-hover tw-px-1.5 tw-py-0.5 tw-text-ui-smaller tw-text-muted">
+      {label}
+    </span>
+  );
+}
 
 export function TypeaheadMenuContent({
   options,
@@ -132,6 +145,7 @@ export function TypeaheadMenuContent({
           }}
         >
           <div className="tw-p-2 tw-text-normal">
+            {/* 组标题只随条目渲染、不进入 options 数组，键盘导航与选中索引无需感知分组。https://github.com/ItsDalk-Lane/Scribe/issues/54 */}
             {options.map((option, index) => {
               const isSelected = index === selectedIndex;
               const isHovered = index === hoveredIndex;
@@ -139,62 +153,70 @@ export function TypeaheadMenuContent({
               const shouldHighlight = (isSelected || isHovered) && !isDisabled;
               const isCategory =
                 mode === "category" && !query && option.icon && !("data" in option);
+              const startsGroup =
+                option.group !== undefined && options[index - 1]?.group !== option.group;
 
               return (
-                <div
-                  key={option.key}
-                  ref={isSelected ? selectedItemRef : undefined}
-                  className={cn(
-                    "tw-flex tw-items-center tw-rounded-md tw-px-3 tw-py-2 tw-text-sm",
-                    isDisabled
-                      ? "tw-cursor-not-allowed tw-text-muted tw-opacity-50"
-                      : "tw-cursor-pointer tw-text-normal",
-                    shouldHighlight && "tw-bg-modifier-hover"
-                  )}
-                  title={isDisabled ? option.disabledReason : undefined}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    if (isDisabled) return;
-                    onSelect(option);
-                  }}
-                  onMouseEnter={() => {
-                    if (isDisabled) return;
-                    setHoveredIndex(index);
-                    onHighlight(index);
-                  }}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                >
-                  {isCategory ? (
-                    <div className="tw-flex tw-w-full tw-items-center tw-justify-between">
-                      <div className="tw-flex tw-items-center tw-gap-2">
-                        {option.icon}
-                        <span className="tw-font-medium">{option.title}</span>
-                      </div>
-                      <ChevronRight className="tw-size-4 tw-text-muted" />
+                <React.Fragment key={option.key}>
+                  {startsGroup && (
+                    <div className="tw-px-3 tw-py-1 tw-text-ui-smaller tw-font-semibold tw-text-faint">
+                      {option.group}
                     </div>
-                  ) : (
-                    <div className="tw-flex tw-min-w-0 tw-flex-1 tw-items-center tw-gap-2">
-                      {option.icon && (
-                        <div className="tw-flex tw-h-full tw-shrink-0 tw-items-center">
+                  )}
+                  <div
+                    ref={isSelected ? selectedItemRef : undefined}
+                    className={cn(
+                      "tw-flex tw-items-center tw-rounded-md tw-px-3 tw-py-2 tw-text-sm",
+                      isDisabled
+                        ? "tw-cursor-not-allowed tw-text-muted tw-opacity-50"
+                        : "tw-cursor-pointer tw-text-normal",
+                      shouldHighlight && "tw-bg-modifier-hover"
+                    )}
+                    title={isDisabled ? option.disabledReason : undefined}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      if (isDisabled) return;
+                      onSelect(option);
+                    }}
+                    onMouseEnter={() => {
+                      if (isDisabled) return;
+                      setHoveredIndex(index);
+                      onHighlight(index);
+                    }}
+                    onMouseLeave={() => setHoveredIndex(null)}
+                  >
+                    {isCategory ? (
+                      <div className="tw-flex tw-w-full tw-items-center tw-justify-between">
+                        <div className="tw-flex tw-items-center tw-gap-2">
                           {option.icon}
+                          <span className="tw-font-medium">{option.title}</span>
                         </div>
-                      )}
-                      <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-gap-0.5">
-                        <div className="tw-flex tw-min-w-0 tw-items-center tw-gap-1">
-                          <span className="tw-truncate tw-font-medium tw-text-normal">
-                            {option.title}
-                          </span>
-                          {option.trailingContent}
-                        </div>
-                        {option.subtitle && (
-                          <div className="tw-truncate tw-text-xs tw-text-muted">
-                            {option.subtitle}
+                        <ChevronRight className="tw-size-4 tw-text-muted" />
+                      </div>
+                    ) : (
+                      <div className="tw-flex tw-min-w-0 tw-flex-1 tw-items-center tw-gap-2">
+                        {option.icon && (
+                          <div className="tw-flex tw-h-full tw-shrink-0 tw-items-center">
+                            {option.icon}
                           </div>
                         )}
+                        <div className="tw-flex tw-min-w-0 tw-flex-1 tw-flex-col tw-gap-0.5">
+                          <div className="tw-flex tw-min-w-0 tw-items-center tw-gap-1">
+                            <span className="tw-truncate tw-font-medium tw-text-normal">
+                              {option.title}
+                            </span>
+                            {option.trailingContent}
+                          </div>
+                          {option.subtitle && (
+                            <div className="tw-truncate tw-text-xs tw-text-muted">
+                              {option.subtitle}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
+                </React.Fragment>
               );
             })}
           </div>

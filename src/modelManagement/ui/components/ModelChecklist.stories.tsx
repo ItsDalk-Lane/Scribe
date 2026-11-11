@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@/lib/story";
-import { ModelChecklist, type ModelChecklistProps } from "./ModelChecklist";
+import { ModelChecklist } from "./ModelChecklist";
 
 const meta = {
   title: "Settings/Model Checklist",
@@ -9,21 +9,19 @@ const meta = {
     selected: new Set<string>(),
     onToggle: () => {},
     onAddId: () => {},
-    query: "",
-    onQueryChange: () => {},
   },
   parameters: { gallery: { host: "modal", layout: "padded" } },
-} satisfies Meta<ModelChecklistProps>;
+} satisfies Meta<React.ComponentProps<typeof ModelChecklist>>;
 export default meta;
 
-export const ManualEntry: StoryObj<ModelChecklistProps> = {
+export const ManualEntry: StoryObj<React.ComponentProps<typeof ModelChecklist>> = {
   args: {
     modelInputHint: "e.g. qwen/qwen3.8-27b",
     fetchError: "Endpoint did not return a model list.",
   },
 };
 
-export const DiscoveredModels: StoryObj<ModelChecklistProps> = {
+export const DiscoveredModels: StoryObj<React.ComponentProps<typeof ModelChecklist>> = {
   args: {
     availableModels: [
       { id: "qwen/qwen3.8-27b", displayName: "Qwen 3.8 27B" },
@@ -32,7 +30,7 @@ export const DiscoveredModels: StoryObj<ModelChecklistProps> = {
   },
 };
 
-export const NonChatModels: StoryObj<ModelChecklistProps> = {
+export const NonChatModels: StoryObj<React.ComponentProps<typeof ModelChecklist>> = {
   args: {
     availableModels: [
       { id: "chat-model", displayName: "通用聊天模型", modalities: { output: ["text"] } },
@@ -44,7 +42,7 @@ export const NonChatModels: StoryObj<ModelChecklistProps> = {
   },
 };
 
-export const LongNames: StoryObj<ModelChecklistProps> = {
+export const LongNames: StoryObj<React.ComponentProps<typeof ModelChecklist>> = {
   args: {
     availableModels: [
       {
@@ -57,6 +55,25 @@ export const LongNames: StoryObj<ModelChecklistProps> = {
     ],
     customIds: new Set(["custom-model"]),
     selected: new Set(["custom-model"]),
+    onRemoveId: () => {},
+  },
+};
+
+export const Fetching: StoryObj<React.ComponentProps<typeof ModelChecklist>> = {
+  args: {
+    fetching: true,
+  },
+};
+
+export const ManyModels: StoryObj<React.ComponentProps<typeof ModelChecklist>> = {
+  args: {
+    availableModels: Array.from({ length: 30 }, (_, index) => ({
+      id: `chat-model-${String(index + 1).padStart(2, "0")}`,
+      displayName: `通用聊天模型 ${index + 1} · 长上下文与推理能力`,
+      limits: { context: 128000 },
+    })),
+    selected: new Set(["chat-model-01"]),
+    customIds: new Set(["chat-model-01"]),
     onRemoveId: () => {},
   },
 };

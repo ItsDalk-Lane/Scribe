@@ -5,8 +5,10 @@ import React, { useId } from "react";
 export interface AgentActivityCardProps {
   icon: LucideIcon;
   label: React.ReactNode;
+  ariaLabel?: string;
   trailing?: React.ReactNode;
   secondary?: React.ReactNode;
+  isRunning?: boolean;
   expandable?: boolean;
   open?: boolean;
   onToggle?: () => void;
@@ -16,13 +18,16 @@ export interface AgentActivityCardProps {
 export const AgentActivityCard: React.FC<AgentActivityCardProps> = ({
   icon: Icon,
   label,
+  ariaLabel,
   trailing,
   secondary,
+  isRunning = false,
   expandable = false,
   open = false,
   onToggle,
   children,
 }) => {
+  // 动效只跟随真实执行状态，等待批准或已结束的活动不能冒充仍在运行。https://github.com/ItsDalk-Lane/Scribe/issues/52
   const bodyId = useId();
   const canToggle = expandable && onToggle !== undefined;
 
@@ -38,6 +43,7 @@ export const AgentActivityCard: React.FC<AgentActivityCardProps> = ({
         )}
         role={canToggle ? "button" : undefined}
         tabIndex={canToggle ? 0 : undefined}
+        aria-label={ariaLabel}
         aria-expanded={canToggle ? open : undefined}
         aria-controls={canToggle ? bodyId : undefined}
         onClick={canToggle ? onToggle : undefined}
@@ -55,7 +61,14 @@ export const AgentActivityCard: React.FC<AgentActivityCardProps> = ({
           <Icon className="tw-size-3.5 tw-text-normal" />
         </span>
         <div className="tw-flex tw-min-w-0 tw-flex-1 tw-items-center tw-gap-1 tw-truncate tw-font-medium">
-          {label}
+          <span
+            className={cn(
+              "tw-inline-flex tw-min-w-0 tw-max-w-full tw-items-center tw-gap-1 tw-truncate",
+              isRunning && "scribe-shimmer-text motion-reduce:tw-animate-none"
+            )}
+          >
+            {label}
+          </span>
         </div>
         {trailing}
         {canToggle ? (

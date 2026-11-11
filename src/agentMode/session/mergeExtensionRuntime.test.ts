@@ -1,5 +1,6 @@
 import type { AgentExtensionGroup, AgentExtensionRuntimeSnapshot } from "./extensionInventory";
 import { mergeExtensionRuntime } from "./mergeExtensionRuntime";
+import { translate } from "@/lib/i18n";
 
 const groups = (): AgentExtensionGroup[] => [
   {
@@ -82,7 +83,7 @@ describe("mergeExtensionRuntime", () => {
         capabilities: { edit: false, delete: false, toggle: false },
       });
     });
-    it("attaches Claude's reported loading and connection states without changing configuration flags", () => {
+    it("attaches reported loading and connection states without changing configuration flags", () => {
       const result = mergeExtensionRuntime(groups(), runtime());
       expect(result.slice(0, 3).map((g) => g.items[0].availability)).toEqual([
         "loaded",
@@ -93,7 +94,7 @@ describe("mergeExtensionRuntime", () => {
       expect(result[4].items[0].availability).toBeUndefined();
       expect(result[0].items[0].enabled).toBeUndefined();
     });
-    it("preserves the original groups when no running Claude query exists", () => {
+    it("preserves the original groups when no runtime report exists", () => {
       const local = groups();
       expect(mergeExtensionRuntime(local, null)).toBe(local);
     });
@@ -123,7 +124,7 @@ describe("mergeExtensionRuntime", () => {
         undefined,
       ]);
     });
-    it("includes extensions reported by Claude that the local scan did not find", () => {
+    it("includes runtime extensions that the local scan did not find", () => {
       const result = mergeExtensionRuntime(
         groups(),
         runtime({
@@ -297,7 +298,7 @@ describe("mergeExtensionRuntime", () => {
       );
       expect(result[1].items[0].availability).toBe("failed");
     });
-    it("keeps a plugin loaded when Claude reports a failed component", () => {
+    it("keeps a plugin loaded when the runtime reports a failed component", () => {
       const result = mergeExtensionRuntime(
         groups(),
         runtime({ failedPlugins: [{ name: "notes@team" }] })
@@ -342,7 +343,7 @@ describe("mergeExtensionRuntime", () => {
       expect(result[0].items[0].availability).toBe("loaded");
       expect(result[3].items[0].availability).toBe("connected");
     });
-    it("distinguishes manual-only and disabled skills using Claude's own reported state", () => {
+    it("distinguishes manual-only and disabled skills using the reported runtime state", () => {
       const result = mergeExtensionRuntime(
         groups(),
         runtime({
@@ -364,8 +365,11 @@ describe("mergeExtensionRuntime", () => {
       );
       expect(result[1].items[0].availability).toBe("loaded");
       expect(result[1].warnings).toEqual([
-        "Claude reported plugin errors; details for each plugin were not provided.",
+        "The agent reported plugin errors; details for each plugin were not provided.",
       ]);
+      expect(translate("zh-CN", result[1].warnings[0])).toBe(
+        "代理报告了插件错误，但未提供每个插件的具体原因。"
+      );
     });
     it("does not attribute one reported skill to two local files with the same name", () => {
       const local = groups();

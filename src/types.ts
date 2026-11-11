@@ -35,9 +35,3 @@ declare module "obsidian" {
     saveLocalStorage(key: string, data: unknown): void;
   }
 }
-
-export enum PromptSortStrategy {
-  TIMESTAMP = "timestamp",
-  ALPHABETICAL = "alphabetical",
-  MANUAL = "manual",
-}

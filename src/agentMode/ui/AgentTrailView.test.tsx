@@ -7,9 +7,29 @@ import type { AgentMessagePart, TurnFileChange } from "@/agentMode/session/types
 import { excalidrawToolCall } from "@/excalidraw/agentMode/testing/excalidrawToolCall";
 import { AgentTasksProvider } from "@/agentMode/ui/AgentTasksContext";
 import { makeCommandTask, makeTask } from "@/agentMode/ui/testing/taskFixtures";
+import { setInterfaceLocale } from "@/lib/i18n";
 
 jest.mock("@/agentMode/ui/AgentMarkdownText", () => ({
-  AgentMarkdownText: ({ text }: { text: string }) => <div data-testid="agent-md">{text}</div>,
+  AgentMarkdownText: ({
+    text,
+    renderIdentity,
+    isStreaming,
+    sourcePath,
+  }: {
+    text: string;
+    renderIdentity?: string;
+    isStreaming?: boolean;
+    sourcePath?: string;
+  }) => (
+    <div
+      data-testid="agent-md"
+      data-render-identity={renderIdentity}
+      data-streaming={String(isStreaming)}
+      data-source-path={sourcePath}
+    >
+      {text}
+    </div>
+  ),
 }));
 
 jest.mock("@/utils", () => ({
@@ -81,10 +101,12 @@ function toolCall(id: string, overrides: Partial<ToolCallPart> = {}): ToolCallPa
 const READ_A = toolCall("r1", {
   vendorToolName: "Read",
   locations: [{ path: "notes/a.md" }],
+  output: [{ type: "text", text: "Notes A content" }],
 });
 const READ_B = toolCall("r2", {
   vendorToolName: "Read",
   locations: [{ path: "notes/b.md" }],
+  output: [{ type: "text", text: "Notes B content" }],
 });
 const LINT = toolCall("b1", {
   vendorToolName: "Bash",
@@ -104,71 +126,376 @@ describe("AgentTrail", () => {
     });
   });
 
-  it("opens all running groups and their tool details, closes them on completion, and lets the user reopen them", () => {
-    const read = { ...READ_A, output: [{ type: "text" as const, text: "First file contents" }] };
-    const running: AgentMessagePart[] = [
-      read,
-      LINT,
-      text("Visible response"),
-      READ_B,
-      { ...LINT, id: "second-command", status: "in_progress" },
+  it("keeps the final response mounted when a streaming turn finishes and its process folds https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+    const parts: AgentMessagePart[] = [
+      { ...text("Progress update"), segmentSeq: 1, contentIndex: 0 },
+      READ_A,
+      { ...text("Final response"), segmentSeq: 7, contentIndex: 0 },
     ];
     const { rerenderTrail } = renderTrail({
-      parts: running,
+      parts,
+      messageId: "stable-final",
       isStreaming: true,
       turnStopReason: undefined,
-      turnStartedAtMs: Date.now() - 2_000,
     });
-    const groups = screen.getAllByRole("button", { name: /Ran 2 commands, read 1 file/ });
-    expect(groups.map((group) => group.getAttribute("aria-expanded"))).toEqual(["true", "true"]);
-    expect(screen.getByText("First file contents")).toBeTruthy();
-    fireEvent.click(groups[0]);
-    fireEvent.click(groups[0]);
-    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
-    expect(screen.getByText("First file contents")).toBeTruthy();
+    const response = screen.getByText("Final response");
+    const parent = response.parentElement;
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(response);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    expect(response.getAttribute("data-render-identity")).toBe("stable-final/text:7:0");
+    expect(response.getAttribute("data-streaming")).toBe("true");
+    expect(response.getAttribute("data-source-path")).toBe("");
     rerenderTrail({
-      parts: running,
-      isStreaming: false,
-      turnStopReason: "end_turn",
-      turnDurationMs: 2_000,
+      parts: parts.map((part) => ({ ...part })),
+      messageId: "stable-final",
+      metrics: { partial: false, sources: [], hasActiveWork: false, finalResponseSegmentSeq: 7 },
     });
-    const completed = screen.getAllByRole("button", { name: /Ran 2 commands, read 1 file/ });
-    expect(completed.map((group) => group.getAttribute("aria-expanded"))).toEqual([
-      "false",
-      "false",
-    ]);
-    expect(screen.queryByText("First file contents")).toBeNull();
-    expect(screen.getByText("Visible response")).toBeTruthy();
-    fireEvent.click(completed[0]);
-    expect(screen.queryByText("First file contents")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
-    expect(screen.getByText("First file contents")).toBeTruthy();
+    expect(screen.getByText("Final response")).toBe(response);
+    expect(response.parentElement).toBe(parent);
+    expect(response.getAttribute("data-render-identity")).toBe("stable-final/text:7:0");
+    expect(response.getAttribute("data-streaming")).toBe("false");
+    expect(selection.toString()).toBe("Final response");
+    selection.removeAllRanges();
+    expect(screen.queryByText("Progress update")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Process details/ }));
+    expect(screen.getByText("Progress update")).not.toBeNull();
+    expect(screen.getByText("Final response")).toBe(response);
   });
 
-  it("keeps a single tool open while running and closes a manually reopened detail when the reply ends", () => {
+  it("preserves legacy final response identity by its original position when completed process nodes disappear https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+    const parts: AgentMessagePart[] = [READ_A, { ...text("Legacy final"), segmentSeq: 7 }];
+    const { rerenderTrail } = renderTrail({
+      parts,
+      messageId: "legacy-final",
+      isStreaming: true,
+      turnStopReason: undefined,
+    });
+    const response = screen.getByText("Legacy final");
+    rerenderTrail({
+      parts: parts.map((part) => ({ ...part })),
+      messageId: "legacy-final",
+      metrics: { partial: false, sources: [], hasActiveWork: false, finalResponseSegmentSeq: 7 },
+    });
+    expect(screen.getByText("Legacy final")).toBe(response);
+    expect(response.getAttribute("data-render-identity")).toBe("legacy-final/text:7:1");
+  });
+
+  it("folds the completed process in its original order and keeps only the identified final response outside https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+    const parts: AgentMessagePart[] = [
+      { kind: "thought", text: "First thought", durationMs: 1_200, segmentSeq: 1 },
+      { ...text("First progress update"), segmentSeq: 1 },
+      READ_A,
+      { ...text("Second progress update"), segmentSeq: 3 },
+      READ_B,
+      { kind: "thought", text: "Final thought", durationMs: 2_000, segmentSeq: 7 },
+      { ...text("The only final response"), segmentSeq: 7 },
+    ];
+    const metrics = {
+      hasActiveWork: false,
+      finalResponseSegmentSeq: 7,
+      thinkingDurationMs: 3_200,
+      toolCallCount: 2,
+    } as NonNullable<TrailProps["metrics"]>;
+    const { container, rerenderTrail } = renderTrail({
+      parts,
+      messageId: "one",
+      metrics,
+      turnDurationMs: 12_345,
+    });
+    const process = screen.getByRole("button", { name: /Process details/ });
+    expect(process.getAttribute("aria-expanded")).toBe("false");
+    expect(process.textContent).toContain("12.3s");
+    expect(process.textContent).toContain("3.2s");
+    expect(process.textContent).toContain("2");
+    expect(screen.queryByText("First progress update")).toBeNull();
+    expect(screen.getByText("The only final response")).toBeTruthy();
+    fireEvent.click(process);
+    const originalOrder = [
+      ...container.querySelectorAll('[data-testid="agent-md"], [data-agent-activity-card-header]'),
+    ].map((element) => element.textContent);
+    expect(originalOrder.slice(1)).toEqual([
+      "Thought for1.2s",
+      "First progress update",
+      "Readnotes/a.md",
+      "Second progress update",
+      "Readnotes/b.md",
+      "Thought for2.0s",
+      "The only final response",
+    ]);
+    rerenderTrail({ parts: [...parts], messageId: "one", metrics, turnDurationMs: 12_345 });
+    expect(
+      screen.getByRole("button", { name: /Process details/ }).getAttribute("aria-expanded")
+    ).toBe("true");
+    await act(async () => {
+      fireEvent.click(screen.getByTitle("Copy"));
+    });
+    expect(writeText).toHaveBeenCalledWith("The only final response");
+    rerenderTrail({ parts, messageId: "two", metrics, turnDurationMs: 12_345 });
+    expect(
+      screen.getByRole("button", { name: /Process details/ }).getAttribute("aria-expanded")
+    ).toBe("false");
+    rerenderTrail({ parts, messageId: "one", metrics, turnDurationMs: 12_345 });
+    expect(
+      screen.getByRole("button", { name: /Process details/ }).getAttribute("aria-expanded")
+    ).toBe("true");
+  });
+
+  it("retains manual inner-tool and thinking expansion when the completed process is closed and reopened https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+    const parts: AgentMessagePart[] = [
+      READ_A,
+      { kind: "thought", text: "Private complete thought", durationMs: 1_200, segmentSeq: 7 },
+      { ...text("Final"), segmentSeq: 7 },
+    ];
+    const metrics = {
+      partial: false,
+      sources: [],
+      hasActiveWork: false,
+      finalResponseSegmentSeq: 7,
+    };
+    const { rerenderTrail } = renderTrail({
+      parts,
+      messageId: "stable",
+      isStreaming: true,
+      turnStopReason: undefined,
+    });
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
+    rerenderTrail({ parts, messageId: "stable", metrics });
+    expect(screen.queryByText("Notes A content")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Process details/ }));
+    expect(screen.getByText("Notes A content")).toBeTruthy();
+    expect(screen.getByText("Private complete thought")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Process details/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Process details/ }));
+    expect(screen.getByText("Notes A content")).toBeTruthy();
+    expect(screen.getByText("Private complete thought")).toBeTruthy();
+  });
+
+  it("does not create an empty process group around a plain final response https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+    renderTrail({
+      parts: [{ ...text("Plain final"), segmentSeq: 7 }],
+      metrics: { partial: false, sources: [], hasActiveWork: false, finalResponseSegmentSeq: 7 },
+      turnDurationMs: 1234,
+    });
+    expect(screen.queryByRole("button", { name: /Process details/ })).toBeNull();
+    expect(screen.getByText("Plain final")).toBeTruthy();
+    expect(screen.getByText("1.2s")).toBeTruthy();
+  });
+
+  it.each([
+    ["empty thought", { kind: "thought", text: "", segmentSeq: 7 }],
+    ["whitespace thought", { kind: "thought", text: " \n\t ", segmentSeq: 7 }],
+    ["empty plan", { kind: "plan", entries: [] }],
+  ] as const)(
+    "does not create an empty process group for a plain response preceded by an %s https://github.com/ItsDalk-Lane/Scribe/issues/52",
+    (_label, emptyPart) => {
+      renderTrail({
+        parts: [emptyPart as AgentMessagePart, { ...text("Only the final answer"), segmentSeq: 7 }],
+        metrics: { partial: false, sources: [], hasActiveWork: false, finalResponseSegmentSeq: 7 },
+      });
+      expect(screen.queryByRole("button", { name: /Process details/ })).toBeNull();
+      expect(screen.queryByText("Thought for")).toBeNull();
+      expect(screen.queryByText("Plan")).toBeNull();
+      expect(screen.getByText("Only the final answer")).toBeTruthy();
+    }
+  );
+
+  it.each([
+    ["running", true, undefined, false, 7],
+    ["related work", false, "end_turn", true, 7],
+    ["cancelled", false, "cancelled", false, 7],
+    ["failed", false, "request_error", false, 7],
+    ["unknown final response", false, "end_turn", false, undefined],
+  ] as const)(
+    "keeps the original process visible for %s instead of treating it as a normal completed reply https://github.com/ItsDalk-Lane/Scribe/issues/52",
+    (_label, streaming, reason, active, finalSeq) => {
+      renderTrail({
+        parts: [READ_A, { ...text("Visible response"), segmentSeq: 7 }],
+        isStreaming: streaming,
+        turnStopReason: reason,
+        metrics: { hasActiveWork: active, finalResponseSegmentSeq: finalSeq } as NonNullable<
+          TrailProps["metrics"]
+        >,
+      });
+      expect(screen.queryByRole("button", { name: /Process details/ })).toBeNull();
+      expect(screen.getByRole("button", { name: /Read notes\/a.md/ })).toBeTruthy();
+      expect(screen.getByText("Visible response")).toBeTruthy();
+    }
+  );
+
+  it("animates the active plan heading and stops when its steps complete https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+    const plan: AgentMessagePart = {
+      kind: "plan",
+      entries: [{ content: "Check a note", status: "in_progress", priority: "medium" }],
+    };
+    const { container, rerenderTrail } = renderTrail({
+      parts: [plan],
+      isStreaming: true,
+      turnStopReason: undefined,
+    });
+    expect(container.querySelector(".scribe-shimmer-text")?.textContent).toBe("Plan");
+    rerenderTrail({
+      parts: [
+        {
+          ...plan,
+          entries: [{ content: "Check a note", status: "completed", priority: "medium" }],
+        },
+      ],
+    });
+    expect(container.querySelector(".scribe-shimmer-text")).toBeNull();
+  });
+
+  it.each([
+    ["failed tool", { ...READ_A, status: "failed" }],
+    ["cancelled tool", { ...READ_A, status: "cancelled" }],
+    [
+      "failed compaction",
+      {
+        kind: "compaction",
+        id: "failed-compact",
+        status: "failed",
+        trigger: "auto",
+        startedAtMs: 0,
+        error: "Summary request failed",
+      },
+    ],
+    [
+      "cancelled compaction",
+      {
+        kind: "compaction",
+        id: "cancelled-compact",
+        status: "cancelled",
+        trigger: "auto",
+        startedAtMs: 0,
+      },
+    ],
+  ] as const)(
+    "folds a recovered %s after normal completion while keeping its status visible in the process heading https://github.com/ItsDalk-Lane/Scribe/issues/52",
+    (_label, failedPart) => {
+      renderTrail({
+        parts: [
+          failedPart,
+          { ...text("Final response after the unsuccessful step"), segmentSeq: 7 },
+        ],
+        metrics: { partial: false, sources: [], hasActiveWork: false, finalResponseSegmentSeq: 7 },
+      });
+      const process = screen.getByRole("button", { name: /Process details/ });
+      expect(process.getAttribute("aria-expanded")).toBe("false");
+      expect(process.textContent).toContain(
+        failedPart.status === "failed" ? "Failed 1" : "Cancelled 1"
+      );
+      expect(screen.getByText("Final response after the unsuccessful step")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /Read notes\/a.md/ })).toBeNull();
+      fireEvent.click(process);
+      if (failedPart.kind === "tool_call") {
+        expect(screen.getByRole("button", { name: /Read notes\/a.md/ })).toBeTruthy();
+      } else {
+        expect(
+          screen.getByText(
+            failedPart.status === "failed"
+              ? "Couldn't compact: Summary request failed"
+              : "Compaction cancelled"
+          )
+        ).toBeTruthy();
+      }
+    }
+  );
+
+  it.each(["end_turn", "cancelled", "request_error"] as const)(
+    "stops the plan title animation after %s without rewriting unfinished entries https://github.com/ItsDalk-Lane/Scribe/issues/52",
+    (turnStopReason) => {
+      const plan: AgentMessagePart = {
+        kind: "plan",
+        entries: [{ content: "An unfinished check", status: "in_progress", priority: "medium" }],
+      };
+      const parts = [plan, { ...text("Reply"), segmentSeq: 7 }];
+      const { container, rerenderTrail } = renderTrail({
+        parts,
+        isStreaming: true,
+        turnStopReason: undefined,
+      });
+      expect(container.querySelector(".scribe-shimmer-text")?.textContent).toBe("Plan");
+      rerenderTrail({ parts, isStreaming: false, turnStopReason });
+      expect(container.querySelector(".scribe-shimmer-text")).toBeNull();
+      expect(screen.getByText("An unfinished check")).toBeTruthy();
+      expect(plan.entries[0].status).toBe("in_progress");
+    }
+  );
+
+  it("keeps each process card directly visible and its details folded before, during, and after a reply", () => {
+    const read = { ...READ_A, output: [{ type: "text" as const, text: "First file contents" }] };
+    const parts: AgentMessagePart[] = [
+      text("Before tools"),
+      read,
+      LINT,
+      text("Between tools"),
+      READ_B,
+      { kind: "thought", text: "Internal reasoning", durationMs: 2_000 },
+      text("Final response"),
+    ];
+    const { container, rerenderTrail } = renderTrail({
+      parts,
+      isStreaming: true,
+      turnStopReason: undefined,
+    });
+    const visibleOrder = () =>
+      [
+        ...container.querySelectorAll(
+          '[data-testid="agent-md"], [data-agent-activity-card-header]'
+        ),
+      ].map((element) => element.textContent);
+    const initialOrder = visibleOrder();
+    expect(initialOrder).toEqual([
+      "Before tools",
+      "Readnotes/a.md",
+      "Ran `npm run lint`",
+      "Between tools",
+      "Readnotes/b.md",
+      "Thought for2.0s",
+      "Final response",
+    ]);
+    expect(screen.queryByText("First file contents")).toBeNull();
+    expect(screen.queryByText("Internal reasoning")).toBeNull();
+    expect(screen.queryByText(/Ran 3 commands/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    expect(screen.getByText("First file contents")).toBeTruthy();
+    rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn", turnDurationMs: 2_000 });
+    expect(visibleOrder()).toEqual(initialOrder);
+    expect(screen.getByText("First file contents")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    expect(screen.queryByText("First file contents")).toBeNull();
+  });
+
+  it("defaults a tool to collapsed and preserves its manual expansion after the reply ends", () => {
     const parts = [{ ...READ_A, output: [{ type: "text" as const, text: "Tool details" }] }];
     const { rerenderTrail } = renderTrail({ parts, isStreaming: true, turnStopReason: undefined });
-    expect(screen.getByText("Tool details")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
-    rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn" });
     expect(screen.queryByText("Tool details")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
     expect(screen.getByText("Tool details")).toBeTruthy();
+    rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn" });
+    expect(screen.getByText("Tool details")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    expect(screen.queryByText("Tool details")).toBeNull();
   });
 
-  it("expands standalone reasoning for the running reply and folds it at reply completion", () => {
+  it("defaults reasoning to collapsed and respects manual choices through reply completion", () => {
     const parts: AgentMessagePart[] = [
       { kind: "thought", text: "Detailed thought", durationMs: 2_000 },
     ];
     const { rerenderTrail } = renderTrail({ parts, isStreaming: true, turnStopReason: undefined });
-    expect(screen.getByText("Detailed thought")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
-    rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn" });
     expect(screen.queryByText("Detailed thought")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
     expect(screen.getByText("Detailed thought")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
+    expect(screen.queryByText("Detailed thought")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
+    rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn" });
+    expect(screen.getByText("Detailed thought")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Thought for/ }));
+    expect(screen.queryByText("Detailed thought")).toBeNull();
   });
 
   it("keeps a plain response visible and retains the running timer animation", () => {
@@ -190,21 +517,23 @@ describe("AgentTrail", () => {
     expect(container.querySelector(".scribe-spinner-dot-0")).toBeNull();
   });
 
-  it("keeps a running group's manual close when later tools join it", () => {
+  it("keeps each running tool independently closed when later tools arrive", () => {
     const { rerenderTrail } = renderTrail({
       parts: [READ_A, LINT],
       isStreaming: true,
       turnStopReason: undefined,
     });
-    fireEvent.click(screen.getByRole("button", { name: /Ran 2 commands/ }));
+    const read = screen.getByRole("button", { name: /Read notes\/a.md/ });
+    fireEvent.click(read);
+    fireEvent.click(read);
     rerenderTrail({ parts: [READ_A, LINT, READ_B], isStreaming: true, turnStopReason: undefined });
     expect(
-      screen.getByRole("button", { name: /Ran 3 commands/ }).getAttribute("aria-expanded")
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).getAttribute("aria-expanded")
     ).toBe("false");
-    expect(screen.queryByRole("link", { name: "notes/b.md" })).toBeNull();
+    expect(screen.getByRole("link", { name: "notes/b.md" })).toBeTruthy();
   });
 
-  it("resets a legacy subagent's prompt and nested work when the main reply finishes", () => {
+  it("keeps a legacy subagent's manually opened prompt visible when the main reply finishes", () => {
     const parts: AgentMessagePart[] = [
       toolCall("nested-task", {
         vendorToolName: "Task",
@@ -219,34 +548,37 @@ describe("AgentTrail", () => {
     ];
     const { rerenderTrail } = renderTrail({ parts, isStreaming: true, turnStopReason: undefined });
     const header = screen.getByRole("button", { name: /Explore.*Nested work/ });
-    expect(header.getAttribute("aria-expanded")).toBe("true");
+    expect(header.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(header);
     expect(
-      screen.getByRole("button", { name: /Ran 2 commands/ }).getAttribute("aria-expanded")
-    ).toBe("true");
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).getAttribute("aria-expanded")
+    ).toBe("false");
     fireEvent.click(screen.getByRole("button", { name: "Prompt" }));
     expect(screen.getByText("Private task prompt")).toBeTruthy();
     rerenderTrail({ parts, isStreaming: false, turnStopReason: "end_turn" });
     expect(
       screen.getByRole("button", { name: /Explore.*Nested work/ }).getAttribute("aria-expanded")
-    ).toBe("false");
-    fireEvent.click(screen.getByRole("button", { name: /Explore.*Nested work/ }));
+    ).toBe("true");
     expect(
-      screen.getByRole("button", { name: /Ran 2 commands/ }).getAttribute("aria-expanded")
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).getAttribute("aria-expanded")
     ).toBe("false");
-    expect(screen.queryByText("Private task prompt")).toBeNull();
+    expect(screen.getByText("Private task prompt")).toBeTruthy();
   });
 
-  it("places the completed duration before the first activity summary and keeps the footer timestamp", () => {
+  it("shows a non-collapsible completed duration before the first process card and keeps the footer timestamp", () => {
     renderTrail({
       parts: [READ_A, READ_B, text("Answer")],
       turnDurationMs: 12_000,
       timestamp: "2026/10/31 21:00:00",
     });
     const duration = screen.getByText("Worked for");
-    const summary = screen.getByText(/Ran 2 commands/);
-    expect(summary.textContent).toBe("Worked for 12s, Ran 2 commands, read 2 files");
+    expect(screen.getByText("12.0s")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Worked for/ })).toBeNull();
+    expect(
+      duration.compareDocumentPosition(screen.getByRole("button", { name: /Read notes\/a.md/ })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(screen.getByText("2026/10/31 21:00:00")).toBeTruthy();
-    expect(duration.closest(".tw-justify-between")).toBeNull();
   });
 
   it("offers a fork next to insert for a completed reply and calls the supplied action", () => {
@@ -371,7 +703,7 @@ describe("AgentTrail", () => {
     });
 
     expect(screen.getByText("Worked for")).toBeTruthy();
-    expect(screen.getByText("2m 18s")).toBeTruthy();
+    expect(screen.getByText("2m 18.0s")).toBeTruthy();
     expect(screen.getByText("2026/08/07 20:31:10")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Worked for/i })).toBeNull();
     expect(screen.getByText("Worked for").closest(".tw-justify-between")).toBeNull();
@@ -470,6 +802,25 @@ describe("AgentTrail", () => {
     expect(screen.getAllByRole("status")).toHaveLength(1);
   });
 
+  it.each([
+    { trigger: "manual" as const, label: "正在压缩对话…" },
+    { trigger: "auto" as const, label: "上下文已满，正在压缩…" },
+  ])("shows the running $trigger compaction in Chinese", ({ trigger, label }) => {
+    setInterfaceLocale("zh-CN");
+    try {
+      renderTrail({
+        parts: [compaction({ status: "in_progress", trigger, startedAtMs: Date.now() - 5_000 })],
+        isStreaming: true,
+        turnStopReason: undefined,
+      });
+
+      expect(screen.getByRole("status").textContent).toBe(label);
+      expect(screen.getAllByText(label)).toHaveLength(2);
+    } finally {
+      setInterfaceLocale("en");
+    }
+  });
+
   it("shows a failed turn's error under a reply that holds parts but no answer text", () => {
     renderTrail({
       parts: [compaction()],
@@ -481,14 +832,41 @@ describe("AgentTrail", () => {
     expect(screen.getByTestId("agent-md").textContent).toBe("**Error:** stream error");
   });
 
-  it("leaves a reply that has answer text alone, since its error text would repeat the answer", () => {
+  it.each([
+    [
+      "quota_exhausted",
+      "**Service quota exhausted.** This is an account limit, not a code problem. Add quota or reopen the chat, then send another message to continue.",
+    ],
+    [
+      "authentication_error",
+      "**Authentication failed.** Check the provider credentials in Models, then send another message to continue.",
+    ],
+    [
+      "context_limit",
+      "**Context limit reached.** Context could not be compacted safely. Your conversation is preserved; shorten the request or choose a model with a larger context window.",
+    ],
+    [
+      "request_error",
+      "**Model request failed.** Check the provider connection and settings, then send another message to retry.",
+    ],
+  ] as const)(
+    "shows the %s termination separately from answer text (https://github.com/ItsDalk-Lane/Scribe/issues/31)",
+    (turnStopReason, notice) => {
+      renderTrail({ parts: [text("Work already completed.")], turnStopReason });
+      expect(screen.getByText(notice)).toBeTruthy();
+      expect(screen.getAllByText("Work already completed.")).toHaveLength(1);
+    }
+  );
+
+  it("shows a partial reply once followed by its separate failure reason", () => {
     renderTrail({
       parts: [text("Partial answer."), compaction()],
-      errorText: "Partial answer.\n\n**Error:** stream error",
+      errorText: "**Error:** stream error",
     });
 
     expect(screen.getAllByTestId("agent-md").map((el) => el.textContent)).toEqual([
       "Partial answer.",
+      "**Error:** stream error",
     ]);
   });
 
@@ -510,7 +888,7 @@ describe("AgentTrail", () => {
   it("says why the turn stopped at the agent's step limit or a safety stop", () => {
     const { rerenderTrail } = renderTrail({ turnStopReason: "max_turn_requests" });
     expect(screen.getAllByTestId("agent-md")[1].textContent).toBe(
-      "**Stopped early:** the agent hit its step limit, so its last step may not have run. Send another message to continue."
+      "**Step limit reached.** The agent has ended this turn. Review its summary and send another message to continue."
     );
 
     rerenderTrail({ turnStopReason: "refusal" });
@@ -519,12 +897,24 @@ describe("AgentTrail", () => {
     );
   });
 
-  it("shows no stop notice for a reply that ended normally or was cancelled", () => {
+  it("explains the shared task budget without promising that saved progress was lost https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+    renderTrail({ turnStopReason: "max_task_requests" });
+    expect(screen.getAllByTestId("agent-md")[1].textContent).toContain(
+      "Task request limit reached"
+    );
+    expect(screen.getAllByTestId("agent-md")[1].textContent).toContain(
+      "Saved progress is preserved"
+    );
+  });
+
+  it("shows a distinct notice for user cancellation and none for a normal reply (https://github.com/ItsDalk-Lane/Scribe/issues/31)", () => {
     const { rerenderTrail } = renderTrail({ turnStopReason: "end_turn" });
     expect(screen.getAllByTestId("agent-md")).toHaveLength(1);
 
     rerenderTrail({ turnStopReason: "cancelled" });
-    expect(screen.getAllByTestId("agent-md")).toHaveLength(1);
+    expect(
+      screen.getByText("**Cancelled by you.** Send another message when you want to continue.")
+    ).toBeTruthy();
   });
 
   it("uses one aligned folding header for reasoning and every tool-card family", () => {
@@ -546,10 +936,10 @@ describe("AgentTrail", () => {
     });
 
     const headers = [...container.querySelectorAll("[data-agent-activity-card-header]")];
-    expect(headers).toHaveLength(4);
+    expect(headers).toHaveLength(5);
     expect(headers.every((header) => header.classList.contains("tw-pl-1"))).toBe(true);
     expect(headers.every((header) => header.getAttribute("aria-expanded") === "false")).toBe(true);
-    expect(container.querySelectorAll(".lucide-chevron-right")).toHaveLength(4);
+    expect(container.querySelectorAll(".lucide-chevron-right")).toHaveLength(5);
   });
 
   it("shows progress on a childless background subagent card", () => {
@@ -583,23 +973,21 @@ describe("AgentTrail", () => {
     { ...LINT, status: "in_progress" },
   ];
 
-  it("shows the live row on the group at the live edge only", () => {
+  it("shows the running command status directly while completed reasoning remains quiet", () => {
     renderTrail({ parts: STREAMING_PARTS, isStreaming: true, turnStopReason: undefined });
 
-    expect(screen.getByText("Running `npm run lint`")).toBeTruthy();
-    expect(screen.queryByText("Reasoning")).toBeNull();
+    expect(screen.getByText("Running command `npm run lint`")).toBeTruthy();
+    expect(screen.queryByText("Thinking")).toBeNull();
   });
 
-  it("keeps trailing reasoning live when the streaming group is expanded", () => {
+  it("previews active reasoning beside a completed tool while its full content stays folded https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
     renderTrail({
       parts: [READ_A, { kind: "thought", text: "still mulling it over" }],
       isStreaming: true,
       turnStopReason: undefined,
     });
-
-    fireEvent.click(screen.getByRole("button", { name: /read 1 file/i }));
-
-    expect(screen.getByText("Reasoning")).toBeTruthy();
+    expect(screen.getByText("Thinking")).toBeTruthy();
+    expect(screen.getByText("still mulling it over")).toBeTruthy();
     expect(screen.queryByText("Thought for")).toBeNull();
   });
 
@@ -622,8 +1010,9 @@ describe("AgentTrail", () => {
         turnStopReason: undefined,
       });
 
-      expect(screen.getByText("Ran 1 command, read 1 file, thought for 18s")).toBeTruthy();
-      expect(screen.queryByText("Reasoning")).toBeNull();
+      expect(screen.getByText("Thought for")).toBeTruthy();
+      expect(screen.getByText("18.0s")).toBeTruthy();
+      expect(screen.queryByText("Thinking")).toBeNull();
     } finally {
       jest.useRealTimers();
     }
@@ -648,42 +1037,48 @@ describe("AgentTrail", () => {
     });
 
     expect(screen.getByText("Thought for")).toBeTruthy();
-    expect(screen.getByText("18s")).toBeTruthy();
-    expect(screen.queryByText("Reasoning")).toBeNull();
+    expect(screen.getByText("18.0s")).toBeTruthy();
+    expect(screen.queryByText("Thinking")).toBeNull();
   });
 
-  it("renders prose between two groups at full size", () => {
-    renderTrail({ parts: STREAMING_PARTS, isStreaming: true, turnStopReason: undefined });
-
+  it("keeps progress prose between its original individual process cards", () => {
+    const { container } = renderTrail({
+      parts: STREAMING_PARTS,
+      isStreaming: true,
+      turnStopReason: undefined,
+    });
     const prose = screen.getByText("Halfway there.");
     expect(prose.getAttribute("data-testid")).toBe("agent-md");
-    expect(screen.getByText("Ran 1 command, read 1 file")).toBeTruthy();
-    expect(screen.getByText("Ran 2 commands, read 1 file")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).compareDocumentPosition(prose) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(
+      prose.compareDocumentPosition(screen.getByRole("button", { name: /Read notes\/b.md/ })) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(container.querySelectorAll("[data-agent-activity-card-header]")).toHaveLength(4);
   });
 
-  it("keeps a group the user opened open as more parts stream into it", () => {
+  it("preserves a tool's manual expansion when more process cards arrive", () => {
+    const read = { ...READ_A, output: [{ type: "text" as const, text: "file contents" }] };
     const { rerenderTrail } = renderTrail({
-      parts: [READ_A, LINT],
+      parts: [read, LINT],
       isStreaming: true,
       turnStopReason: undefined,
     });
-
-    fireEvent.click(screen.getByRole("button", { name: /read 1 file/i }));
-    fireEvent.click(screen.getByRole("button", { name: /read 1 file/i }));
-    expect(screen.getByRole("link", { name: "notes/a.md" })).toBeTruthy();
-
-    rerenderTrail({
-      parts: [READ_A, LINT, READ_B],
-      isStreaming: true,
-      turnStopReason: undefined,
-    });
-
-    const grown = screen.getByRole("button", { name: /read 2 files/i });
-    expect(grown.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("link", { name: "notes/b.md" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    rerenderTrail({ parts: [read, LINT, READ_B], isStreaming: true, turnStopReason: undefined });
+    expect(
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).getAttribute("aria-expanded")
+    ).toBe("true");
+    expect(screen.getByText("file contents")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Read notes\/b.md/ }).getAttribute("aria-expanded")
+    ).toBe("false");
   });
 
-  it("groups a sub-agent's children too", () => {
+  it("shows a sub-agent's individual child steps inside its own card", () => {
     renderTrail({
       parts: [
         toolCall("task1", {
@@ -698,7 +1093,8 @@ describe("AgentTrail", () => {
     fireEvent.click(screen.getByText('Explore · "Look around"'));
 
     expect(screen.getByText("2 tools")).toBeTruthy();
-    expect(screen.getByText("Ran 2 commands, read 1 file")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Read notes\/a.md/ })).toBeTruthy();
+    expect(screen.getByText("Ran `npm run lint`")).toBeTruthy();
   });
 
   it("counts each call folded into a sub-agent's Excalidraw card as a tool", () => {
@@ -719,60 +1115,81 @@ describe("AgentTrail", () => {
     expect(screen.getByText("2 tools")).toBeTruthy();
   });
 
-  it("keeps an opened tool visible when streaming turns it into a group", () => {
-    const readWithOutput = {
-      ...READ_A,
-      output: [{ type: "text" as const, text: "file contents" }],
-    };
+  it("preserves an opened tool when a second tool arrives without inserting a group wrapper", () => {
+    const read = { ...READ_A, output: [{ type: "text" as const, text: "file contents" }] };
     const { rerenderTrail } = renderTrail({
-      parts: [readWithOutput],
+      parts: [read],
       isStreaming: true,
       turnStopReason: undefined,
     });
-
     fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
+    rerenderTrail({ parts: [read, LINT], isStreaming: true, turnStopReason: undefined });
+    expect(screen.queryByText(/Ran 2 commands/)).toBeNull();
+    expect(screen.getByText("file contents")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
-    expect(screen.getByText("file contents")).toBeTruthy();
-
-    rerenderTrail({
-      parts: [readWithOutput, LINT],
-      isStreaming: true,
-      turnStopReason: undefined,
-    });
-
-    const group = screen.getByRole("button", { name: /Ran 2 commands, read 1 file/ });
-    expect(group.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByText("file contents")).toBeTruthy();
-
-    fireEvent.click(group);
     expect(screen.queryByText("file contents")).toBeNull();
   });
 
-  it("keeps nested group expansion independent from the root trail", () => {
+  it("keeps a nested tool's expansion independent from a root tool", () => {
     renderTrail({
       parts: [
-        READ_A,
+        { ...READ_A, output: [{ type: "text", text: "Root output" }] },
         LINT,
         toolCall("task1", {
           vendorToolName: "Task",
           input: { subagent_type: "Explore", description: "Look around" },
         }),
-        { ...READ_B, parentToolCallId: "task1" },
-        {
-          ...toolCall("b2", { vendorToolName: "Bash", input: { command: "npm test" } }),
-          parentToolCallId: "task1",
-        },
+        { ...READ_B, parentToolCallId: "task1", output: [{ type: "text", text: "Child output" }] },
       ],
     });
-
-    fireEvent.click(screen.getByRole("button", { name: /Ran 2 commands, read 1 file/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/a.md/ }));
     fireEvent.click(screen.getByText('Explore · "Look around"'));
-
-    const groups = screen.getAllByRole("button", { name: /Ran 2 commands, read 1 file/ });
-    expect(groups.map((group) => group.getAttribute("aria-expanded"))).toEqual(["true", "false"]);
+    expect(screen.getByText("Root output")).toBeTruthy();
+    expect(screen.queryByText("Child output")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Read notes\/b.md/ }));
+    expect(screen.getByText("Root output")).toBeTruthy();
+    expect(screen.getByText("Child output")).toBeTruthy();
   });
 
-  it("keeps live activity inside an earlier sub-agent quiet", () => {
+  it("keeps synthetic recovery warnings visible while completed process details are folded", () => {
+    renderTrail({
+      parts: [
+        {
+          ...READ_A,
+          synthetic: true,
+          status: "failed",
+          output: [
+            {
+              type: "text",
+              text: "Files may have changed. Check the actual files before retrying.",
+            },
+          ],
+        },
+        text("The saved reply remains visible."),
+        LINT,
+      ],
+    });
+    expect(screen.getByRole("alert").textContent).toContain("Files may have changed");
+    expect(screen.getByText("Recovered after interruption")).toBeTruthy();
+    expect(screen.getByText("The saved reply remains visible.")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: /Read notes\/a.md/ }).getAttribute("aria-expanded")
+    ).toBe("false");
+  });
+
+  it("identifies an interrupted reply as system recovery without claiming the user cancelled it", () => {
+    renderTrail({
+      parts: [text("The partial reply remains intact.")],
+      turnStopReason: "interrupted",
+    });
+    expect(screen.getByRole("alert").textContent).toContain(
+      "System recovery: this reply was interrupted"
+    );
+    expect(screen.queryByText(/Cancelled by you/)).toBeNull();
+    expect(screen.getByText("The partial reply remains intact.")).toBeTruthy();
+  });
+
+  it("shows root and nested command statuses directly within their owning cards", () => {
     renderTrail({
       parts: [
         toolCall("task1", {
@@ -802,11 +1219,11 @@ describe("AgentTrail", () => {
 
     fireEvent.click(screen.getByText('Explore · "Look around"'));
 
-    expect(screen.queryByText("Running `npm run child`")).toBeNull();
-    expect(screen.getByText("Running `npm run root`")).toBeTruthy();
+    expect(screen.getByText("Running command `npm run child`")).toBeTruthy();
+    expect(screen.getByText("Running command `npm run root`")).toBeTruthy();
   });
 
-  it("renders an Excalidraw write as a Scribe card between grouped work and opens the drawing in a new tab", () => {
+  it("renders an Excalidraw write directly among process cards and opens the drawing in a new tab", () => {
     const openLinkText = jest.fn();
     const app = {
       workspace: { getActiveFile: jest.fn(() => null), openLinkText },
@@ -817,10 +1234,13 @@ describe("AgentTrail", () => {
       path: "Drawings/Release plan.excalidraw.md",
       elements: [],
     });
-    renderTrail({ app, parts: [READ_A, LINT, write, READ_B, LINT, text("Drew it.")] });
+    renderTrail({
+      app,
+      parts: [READ_A, LINT, write, READ_B, { ...LINT, id: "second-lint" }, text("Drew it.")],
+    });
 
     expect(screen.getByText("Drew in Excalidraw")).toBeTruthy();
-    expect(screen.getAllByText("Ran 2 commands, read 1 file")).toHaveLength(2);
+    expect(screen.getByText("Drew it.")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Release plan" }));
     expect(openLinkText).toHaveBeenCalledWith("Drawings/Release plan.excalidraw.md", "", "tab");
   });
@@ -836,8 +1256,8 @@ describe("AgentTrail", () => {
           status: "failed",
           output: [{ type: "text", text: "INVALID_INPUT: Unsupported field" }],
         }),
-        READ_A,
         excalidrawToolCall("excalidraw_write", board, { id: "w3" }),
+        READ_A,
         text("Updated the board."),
       ],
     });
@@ -850,6 +1270,22 @@ describe("AgentTrail", () => {
     fireEvent.click(screen.getAllByText(/Excalidraw write/)[1]);
 
     expect(screen.getByText(/Unsupported field/)).toBeTruthy();
+  });
+
+  it("keeps separate drawing cards on each side of a normal tool so later drawing steps do not move earlier", () => {
+    const board = { path: "Boards/Launch board.excalidraw.md", operations: [] };
+    renderTrail({
+      parts: [
+        excalidrawToolCall("excalidraw_write", board, { id: "draw-before" }),
+        READ_A,
+        excalidrawToolCall("excalidraw_write", board, { id: "draw-after" }),
+      ],
+    });
+    expect(screen.getAllByText("Edited in Excalidraw")).toHaveLength(2);
+    const [before, after] = screen.getAllByText("Edited in Excalidraw");
+    const read = screen.getByRole("button", { name: /Read notes\/a.md/ });
+    expect(before.compareDocumentPosition(read) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(read.compareDocumentPosition(after) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   describe("with task state from the session", () => {
@@ -882,7 +1318,9 @@ describe("AgentTrail", () => {
     it("shows a task's launching call as a compact card with the task's status that opens the task", () => {
       const { openTask } = renderWithTasks([AGENT_LAUNCH, text("Started.")]);
 
-      expect(screen.getByText("general-purpose · Count words in Welcome")).toBeTruthy();
+      expect(
+        screen.getByText("Calling subagent · general-purpose · Count words in Welcome")
+      ).toBeTruthy();
       expect(screen.getByText("Running")).toBeTruthy();
       expect(screen.queryByText(/Sub-agent/)).toBeNull();
 
@@ -894,14 +1332,16 @@ describe("AgentTrail", () => {
     it("keeps a background command's card out of the surrounding command group", () => {
       renderWithTasks([READ_A, BASH_LAUNCH, LINT, text("Started.")]);
 
-      expect(screen.getByText("Print 30 progress lines")).toBeTruthy();
+      expect(screen.getByText("Running command · Print 30 progress lines")).toBeTruthy();
       expect(screen.queryByText(/Ran 2 commands/)).toBeNull();
     });
 
     it("renders a launching call that has no task as before", () => {
       renderWithTasks([AGENT_LAUNCH, text("Started.")], []);
 
-      expect(screen.getByText('general-purpose · "Count words in Welcome"')).toBeTruthy();
+      expect(
+        screen.getByText('Calling subagent · general-purpose · "Count words in Welcome"')
+      ).toBeTruthy();
     });
   });
 });

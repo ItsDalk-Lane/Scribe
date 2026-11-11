@@ -17,7 +17,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     displayName: "Google",
     origin: { kind: "byok" },
     addedAt: 0,
-    apiKeyKeychainId: null,
+    apiKeyRef: null,
     ...overrides,
   };
 }

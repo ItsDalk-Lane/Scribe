@@ -1,210 +1,105 @@
-import { AppContext } from "@/context";
-import type { Skill } from "@/agentMode/skills/types";
-import { act, fireEvent, render, screen } from "@testing-library/react";
-import { Bot } from "lucide-react";
-import type { App } from "obsidian";
 import React from "react";
-import { SkillRow } from "./SkillRow";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { SkillActions, SkillRow, SkillSourceBadge } from "@/agentMode/skills/ui/SkillRow";
+import type { Skill } from "@/agentMode/skills/types";
 
-const getEffectiveSkillsFolder = jest.fn(() => "scribe/skills");
-jest.mock("@/settings/scribeFolder", () => ({
-  getEffectiveSkillsFolder: () => getEffectiveSkillsFolder(),
-}));
-
-const resolveCanonicalNameForMigration = jest.fn((name: string) => name);
-const getSuppressMigrationConfirm = jest.fn(() => false);
-const toggleAgent = jest.fn().mockResolvedValue({ ok: true });
-jest.mock("@/agentMode/skills/SkillManager", () => ({
-  SkillManager: {
-    getInstance: () => ({
-      resolveCanonicalNameForMigration: (name: string) => resolveCanonicalNameForMigration(name),
-      getSuppressMigrationConfirm: () => getSuppressMigrationConfirm(),
-      consolidateMirroredSkill: jest.fn(),
-      toggleAgent,
-    }),
-  },
-}));
-
-let lastMigrateModalOptions: { actionLines: { verb: string; detail: string }[] } | null = null;
-jest.mock("./MigrateSkillConfirmModal", () => ({
-  MigrateSkillConfirmModal: class {
-    constructor(_app: unknown, options: { actionLines: { verb: string; detail: string }[] }) {
-      lastMigrateModalOptions = options;
-    }
-    open = jest.fn();
-  },
-}));
-
-beforeAll(() => {
-  (window as unknown as { activeDocument: Document }).activeDocument = window.document;
-  if (!("PointerEvent" in window)) {
-    (window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = MouseEvent;
-  }
-  Element.prototype.hasPointerCapture = () => false;
-  Element.prototype.releasePointerCapture = () => {};
-  Element.prototype.scrollIntoView = () => {};
-});
-
-const SCROLL_LOCK_ATTR = "data-scroll-locked";
-
-const canonicalSkill: Skill = {
-  name: "writing-helper",
-  description: "Helps with writing.",
-  filePath: "/vault/.scribe/skills/writing-helper/SKILL.md",
-  dirPath: "/vault/.scribe/skills/writing-helper",
-  body: "",
-  enabledAgents: [],
+const skill: Skill = {
+  name: "review-notes",
+  description: "Review notes",
+  body: "Read notes",
+  filePath: "/vault/.scribe/skills/review-notes/SKILL.md",
+  dirPath: "/vault/.scribe/skills/review-notes",
+  enabledAgents: ["native"],
   location: { kind: "canonical" },
 };
-
-function openMenu() {
-  fireEvent.pointerDown(screen.getByLabelText(/More actions/i), { button: 0, ctrlKey: false });
-}
-
-function renderRow(
-  onRevealInVault: () => void,
-  overrides: Partial<React.ComponentProps<typeof SkillRow>> = {}
-) {
-  const containerRef: React.RefObject<HTMLDivElement> = { current: null };
-  const utils = render(
-    <AppContext.Provider value={{} as App}>
-      <div ref={containerRef} />
-      <SkillRow
-        skill={canonicalSkill}
-        agents={[]}
-        agentDirsProjectRel={{}}
-        onRevealInVault={onRevealInVault}
-        containerRef={containerRef}
-        {...overrides}
-      />
-    </AppContext.Provider>
-  );
-  return { ...utils, containerRef };
-}
-
-const mirroredSkill: Skill = {
-  name: "writing-helper",
-  description: "Helps with writing.",
-  filePath: "/vault/.claude/skills/writing-helper/SKILL.md",
-  dirPath: "/vault/.claude/skills/writing-helper",
-  body: "",
-  enabledAgents: [],
-  location: { kind: "project", agentDirs: ["claude", "codex"] },
-};
-
-function renderMirroredRow() {
-  const containerRef: React.RefObject<HTMLDivElement> = { current: null };
-  return render(
-    <AppContext.Provider value={{} as App}>
-      <div ref={containerRef} />
-      <SkillRow
-        skill={mirroredSkill}
-        agents={[]}
-        agentDirsProjectRel={{ claude: ".claude/skills", codex: ".codex/skills" }}
-        onRevealInVault={() => {}}
-        containerRef={containerRef}
-      />
-    </AppContext.Provider>
-  );
-}
+const actions = () => ({ onUse: jest.fn(), onToggle: jest.fn(), onUninstall: jest.fn() });
 
 describe("SkillRow", () => {
+  beforeAll(() => {
+    (window as unknown as { activeDocument: Document }).activeDocument = document;
+    (window as unknown as { PointerEvent: typeof MouseEvent }).PointerEvent = MouseEvent;
+    Element.prototype.hasPointerCapture = () => false;
+    Element.prototype.releasePointerCapture = () => {};
+    Element.prototype.scrollIntoView = () => {};
+  });
   describe("SkillRow()", () => {
-    beforeEach(() => {
-      toggleAgent.mockClear();
+    it("uninstalls directly without opening the detail view", () => {
+      const onOpen = jest.fn();
+      const handlers = actions();
+      render(<SkillRow skill={skill} onOpen={onOpen} {...handlers} />);
+      fireEvent.click(screen.getByRole("button", { name: "Uninstall review-notes" }));
+      expect(handlers.onUninstall).toHaveBeenCalledTimes(1);
+      expect(onOpen).not.toHaveBeenCalled();
     });
-    afterEach(() => {
-      activeDocument.body.removeAttribute(SCROLL_LOCK_ATTR);
-      lastMigrateModalOptions = null;
+    it("opens details from its name and keeps use, enablement, and uninstall in that order", () => {
+      const onOpen = jest.fn();
+      const handlers = actions();
+      const view = render(<SkillRow skill={skill} onOpen={onOpen} {...handlers} />);
+      fireEvent.click(screen.getByRole("button", { name: /review-notes.*Review notes/ }));
+      expect(onOpen).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole("button", { name: "Use review-notes now" }));
+      expect(handlers.onUse).toHaveBeenCalledTimes(1);
+      expect(onOpen).toHaveBeenCalledTimes(1);
+      const control = view.container.querySelectorAll(
+        '[aria-label="Use review-notes now"], [role="switch"], [aria-label="Uninstall review-notes"]'
+      );
+      expect(Array.from(control).map((item) => item.getAttribute("aria-label"))).toEqual([
+        "Use review-notes now",
+        "Enable review-notes",
+        "Uninstall review-notes",
+      ]);
     });
-
-    it("lists Reveal in vault in the overflow menu without engaging a body scroll lock", () => {
-      renderRow(() => {});
-
-      openMenu();
-
-      expect(screen.getByText("Reveal in vault")).not.toBeNull();
-      expect(activeDocument.body.hasAttribute(SCROLL_LOCK_ATTR)).toBe(false);
+    it("shows rejected skills as detail rows while disabling use and enablement", () => {
+      render(
+        <SkillRow
+          skill={{
+            name: "broken",
+            filePath: "/vault/.scribe/skills/broken/SKILL.md",
+            dirPath: "/vault/.scribe/skills/broken",
+            reason: "Missing description",
+          }}
+          onOpen={jest.fn()}
+          {...actions()}
+        />
+      );
+      expect(screen.getByText("Could not load this skill")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Use broken now" }).hasAttribute("disabled")).toBe(
+        true
+      );
+      expect(screen.getByRole("switch").getAttribute("aria-disabled")).toBe("true");
     });
-
-    it("invokes the reveal handler when Reveal in vault is selected", () => {
-      const onRevealInVault = jest.fn();
-      renderRow(onRevealInVault);
-
-      openMenu();
-      fireEvent.click(screen.getByText("Reveal in vault"));
-
-      expect(onRevealInVault).toHaveBeenCalledTimes(1);
+  });
+  describe("SkillActions()", () => {
+    it("offers a direct uninstall action for built-in skills", () => {
+      const handlers = actions();
+      render(<SkillActions skill={{ ...skill, source: { kind: "builtin" } }} {...handlers} />);
+      fireEvent.click(screen.getByRole("button", { name: "Uninstall review-notes" }));
+      expect(handlers.onUninstall).toHaveBeenCalledTimes(1);
     });
-
-    it("uses the checked runtime result and waits for rechecking after switching a managed skill", async () => {
-      let finish!: () => void;
-      const checked = new Promise<void>((resolve) => {
-        finish = resolve;
-      });
-      const onChanged = jest.fn(() => checked);
-      renderRow(jest.fn(), {
-        agents: [{ id: "claude", displayName: "Claude", Icon: Bot }],
-        runtimeItems: [
-          {
-            id: canonicalSkill.filePath,
-            name: canonicalSkill.name,
-            source: "project",
-            location: canonicalSkill.filePath,
-            availability: "loaded",
-          },
-        ],
-        onChanged,
-      });
-      const control = screen.getByRole("switch", { name: "Enable writing-helper" });
-      expect(control.getAttribute("aria-checked")).toBe("true");
-      await act(async () => {
-        fireEvent.click(control);
-      });
-      expect(toggleAgent).toHaveBeenCalledWith(canonicalSkill, "claude", false);
-      expect(onChanged).toHaveBeenCalledTimes(1);
-      expect(control.getAttribute("aria-disabled")).toBe("true");
-      await act(async () => finish());
-      expect(control.getAttribute("aria-disabled")).toBe("false");
+    it("preserves saved enablement and allows switching without runtime checks", () => {
+      const handlers = actions();
+      render(<SkillActions skill={skill} {...handlers} />);
+      expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("true");
+      fireEvent.click(screen.getByRole("switch"));
+      expect(handlers.onToggle).toHaveBeenCalledWith(false);
     });
-
-    it("keeps a configured managed skill switchable when no runtime check result exists", () => {
-      renderRow(jest.fn(), {
-        agents: [{ id: "claude", displayName: "Claude", Icon: Bot }],
-        skill: { ...canonicalSkill, enabledAgents: ["claude"] },
-      });
-      const control = screen.getByRole("switch", { name: "Enable writing-helper" });
-      expect(control.getAttribute("aria-disabled")).toBe("false");
-      expect(control.getAttribute("aria-checked")).toBe("true");
+    it("prevents immediate use of a skill hidden from manual invocation", () => {
+      render(<SkillActions skill={{ ...skill, userInvocable: false }} {...actions()} />);
+      expect(
+        screen.getByRole("button", { name: "Use review-notes now" }).hasAttribute("disabled")
+      ).toBe(true);
     });
-
-    it("keeps a managed skill switchable when the backend reports it as not loaded", () => {
-      renderRow(jest.fn(), {
-        agents: [{ id: "claude", displayName: "Claude", Icon: Bot }],
-        skill: { ...canonicalSkill, enabledAgents: ["claude"] },
-        runtimeItems: [
-          {
-            id: canonicalSkill.filePath,
-            name: canonicalSkill.name,
-            source: "project",
-            location: canonicalSkill.filePath,
-            availability: "not_loaded",
-          },
-        ],
-      });
-      const control = screen.getByRole("switch", { name: "Enable writing-helper" });
-      expect(control.getAttribute("aria-disabled")).toBe("false");
-    });
-
-    it("confirms migration into the folder derived from the Scribe root, not the retired skills field", () => {
-      getEffectiveSkillsFolder.mockReturnValue("team/scribe/skills");
-      renderMirroredRow();
-
-      openMenu();
-      fireEvent.click(screen.getByText("Migrate to shared folder"));
-
-      const moveLine = lastMigrateModalOptions?.actionLines.find((line) => line.verb === "Move");
-      expect(moveLine?.detail).toContain("<vault>/team/scribe/skills/writing-helper/");
+  });
+  describe("SkillSourceBadge()", () => {
+    it.each([
+      [undefined, "Local"],
+      ["builtin", "Built-in"],
+      ["agent", "Agent created"],
+      ["system", "System imported"],
+      ["local", "Local"],
+    ] as const)("shows %s as %s", (kind, label) => {
+      render(<SkillSourceBadge source={kind ? { kind } : undefined} />);
+      expect(screen.getByText(label)).toBeTruthy();
     });
   });
 });

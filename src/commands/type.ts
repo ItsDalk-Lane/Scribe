@@ -3,11 +3,11 @@ export interface CustomCommand {
 
   enabled?: boolean;
 
+  enableTemplating?: boolean;
+
   content: string;
 
   showInContextMenu: boolean;
-
-  showInSlashMenu: boolean;
 
   order: number;
 

@@ -1,3 +1,6 @@
+import { Platform } from "obsidian";
+import { clearProviderTokenCaches } from "@/LLMProviders/providerTransport";
+import { clearProviderResolverCaches } from "@/LLMProviders/createHttpProviderChatModel";
 import { generateKeyPairSync, randomBytes, webcrypto } from "node:crypto";
 import { runInThisContext } from "node:vm";
 import type { App } from "obsidian";
@@ -8,10 +11,15 @@ import { createProviderChatModel } from "@/LLMProviders/createProviderChatModel"
 import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import { configuredModelToCustomModel } from "@/modelManagement";
 import type { Provider, ModelInfo } from "@/modelManagement";
-import { KeychainService } from "@/services/keychainService";
+import { SecretStore } from "@/services/secretStore";
 import { logFileManager } from "@/logFileManager";
 import { logError } from "@/logger";
 import { getSettings, setSettings } from "@/settings/model";
+
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
 
 const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
 const nativeClasses = runInThisContext("({ Headers, Request, Response })") as {
@@ -38,7 +46,7 @@ interface CapturedRequest {
   body?: string;
 }
 
-function installNetwork(tokenStatus = 200): CapturedRequest[] {
+function installNetwork(tokenStatus = 200, replyText = "fixture success"): CapturedRequest[] {
   const requests: CapturedRequest[] = [];
   function reply(url: string, options: RequestInit = {}) {
     requests.push({
@@ -58,9 +66,7 @@ function installNetwork(tokenStatus = 200): CapturedRequest[] {
           )
         : url.includes(":streamGenerateContent")
           ? fixtureSse({
-              candidates: [
-                { content: { parts: [{ text: "fixture success" }] }, finishReason: "STOP" },
-              ],
+              candidates: [{ content: { parts: [{ text: replyText }] }, finishReason: "STOP" }],
             })
           : url.includes(":streamRawPredict") &&
               typeof options.body === "string" &&
@@ -70,11 +76,21 @@ function installNetwork(tokenStatus = 200): CapturedRequest[] {
                 role: "assistant",
                 model: "fixture-model",
                 id: "fixture-message",
-                content: [{ type: "text", text: "fixture success" }],
+                content: [{ type: "text", text: replyText }],
                 stop_reason: "end_turn",
                 usage: { input_tokens: 1, output_tokens: 1 },
               })
-            : completion;
+            : replyText === "fixture success"
+              ? completion
+              : fixtureSse({
+                  choices: [
+                    {
+                      index: 0,
+                      message: { role: "assistant", content: replyText },
+                      finish_reason: "stop",
+                    },
+                  ],
+                });
     return {
       status,
       text,
@@ -94,7 +110,8 @@ function installNetwork(tokenStatus = 200): CapturedRequest[] {
   return requests;
 }
 
-function savedVertexModel(npm: string, enableCors: boolean, pretty: boolean): CustomModel {
+function savedVertexModel(npm: string, mobile: boolean, pretty: boolean): CustomModel {
+  Platform.isMobile = mobile;
   const secret = JSON.stringify(
     {
       type: "service_account",
@@ -114,8 +131,7 @@ function savedVertexModel(npm: string, enableCors: boolean, pretty: boolean): Cu
     displayName: "Synthetic Vertex",
     origin: { kind: "byok", catalogProviderId: "google-vertex" },
     addedAt: 0,
-    apiKeyKeychainId: id,
-    enableCors,
+    apiKeyRef: id,
     extras: { GOOGLE_VERTEX_PROJECT: "synthetic-project", GOOGLE_VERTEX_LOCATION: "us-central1" },
   };
   const info: ModelInfo = {
@@ -137,7 +153,6 @@ function savedVertexModel(npm: string, enableCors: boolean, pretty: boolean): Cu
       configuredAt: 0,
       info,
     },
-    apiKey: KeychainService.getInstance().getSecretById(id),
   });
 }
 
@@ -156,6 +171,15 @@ async function attempt(model: CustomModel): Promise<{ reply: string; error?: Err
 }
 
 describe("providerTransport authentication integration", () => {
+  beforeEach(() => {
+    clearProviderTokenCaches();
+    clearProviderResolverCaches();
+    Platform.isMobile = true;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   const previousClasses = {
     Headers: window.Headers,
     Request: window.Request,
@@ -168,11 +192,15 @@ describe("providerTransport authentication integration", () => {
   beforeAll(() => {
     Object.assign(window, nativeClasses);
     Object.defineProperty(window.crypto, "subtle", { configurable: true, value: webcrypto.subtle });
-    KeychainService.resetInstance();
-    KeychainService.getInstance({
-      vault: { adapter: { getBasePath: () => "/synthetic-vault" } },
-      secretStorage: { getSecret: (id: string) => secretEntries.get(id) ?? null },
-    } as unknown as App);
+    SecretStore.resetInstance();
+    const store = SecretStore.getInstance({ vault: { adapter: {} } } as unknown as App);
+    Object.assign(store, {
+      withSecret: async <T>(id: string, execute: (value: string) => Promise<T>) => {
+        const value = secretEntries.get(id);
+        if (!value) throw new Error("Missing synthetic credential");
+        return execute(value);
+      },
+    });
   });
   beforeEach(async () => {
     secretEntries.clear();
@@ -184,22 +212,33 @@ describe("providerTransport authentication integration", () => {
     window.fetch = previousFetch;
     Object.defineProperty(window.crypto, "subtle", { configurable: true, value: previousSubtle });
     setRequestUrlImpl(undefined);
-    KeychainService.resetInstance();
+    SecretStore.resetInstance();
     setSettings({ debug: previousDebug });
   });
 
   describe("createProviderChatModel", () => {
+    it.each([
+      "@ai-sdk/google-vertex",
+      "@ai-sdk/google-vertex/anthropic",
+      "@ai-sdk/openai-compatible",
+    ])(
+      "masks an echoed derived OAuth token from the actual %s request before the reply is stored",
+      async (npm) => {
+        installNetwork(200, "short-lived-access-token");
+        const result = await attempt(savedVertexModel(npm, false, true));
+        expect(result.error).toBeUndefined();
+        expect(result.reply).toBe("[redacted]");
+      }
+    );
     it.each(
       ["@ai-sdk/mistral", "@ai-sdk/openai-compatible"].flatMap((npm) =>
-        [false, true].flatMap((enableCors) =>
-          [false, true].map((pretty) => ({ npm, enableCors, pretty }))
-        )
+        [false, true].flatMap((mobile) => [false, true].map((pretty) => ({ npm, mobile, pretty })))
       )
     )(
-      `exchanges stored Vertex JSON before inference without exposing it for %j (${issue})`,
-      async ({ npm, enableCors, pretty }) => {
+      `exchanges stored Vertex JSON before inference without exposing it for %j (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async ({ npm, mobile, pretty }) => {
         const requests = installNetwork();
-        const model = savedVertexModel(npm, enableCors, pretty);
+        const model = savedVertexModel(npm, mobile, pretty);
         const result = await attempt(model);
         expect(result.reply).toBe("fixture success");
         expect(requests).toHaveLength(2);
@@ -227,15 +266,13 @@ describe("providerTransport authentication integration", () => {
         "@ai-sdk/google-vertex",
         "@ai-sdk/google-vertex/anthropic",
       ].flatMap((npm) =>
-        [false, true].flatMap((enableCors) =>
-          [false, true].map((bearer) => ({ npm, enableCors, bearer }))
-        )
+        [false, true].flatMap((mobile) => [false, true].map((bearer) => ({ npm, mobile, bearer })))
       )
     )(
-      `preserves supplied OAuth tokens without a duplicate Bearer prefix for %j (${issue})`,
-      async ({ npm, enableCors, bearer }) => {
+      `preserves supplied OAuth tokens without a duplicate Bearer prefix for %j (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async ({ npm, mobile, bearer }) => {
         const requests = installNetwork();
-        const model = savedVertexModel("@ai-sdk/mistral", enableCors, true);
+        const model = savedVertexModel("@ai-sdk/mistral", mobile, true);
         model.providerNpm = npm;
         if (npm.startsWith("@ai-sdk/google-vertex")) model.baseUrl = undefined;
         model.apiKey = `${bearer ? "Bearer " : ""}ya29.synthetic-access-token`;
@@ -252,20 +289,20 @@ describe("providerTransport authentication integration", () => {
         "@ai-sdk/google-vertex",
         "@ai-sdk/google-vertex/anthropic",
       ].flatMap((npm) =>
-        [false, true].flatMap((enableCors) =>
+        [false, true].flatMap((mobile) =>
           ["pretty-array", "compact-array", "bearer-json", "quoted-json"].map((form) => ({
             npm,
-            enableCors,
+            mobile,
             form,
           }))
         )
       )
     )(
-      `rejects incorrectly wrapped Vertex credentials locally without exposing secrets for %j (${issue})`,
-      async ({ npm, enableCors, form }) => {
+      `rejects incorrectly wrapped Vertex credentials locally without exposing secrets for %j (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async ({ npm, mobile, form }) => {
         const requests = installNetwork();
-        const model = savedVertexModel("@ai-sdk/mistral", enableCors, true);
-        const credentials = JSON.parse(model.apiKey!) as unknown;
+        const model = savedVertexModel("@ai-sdk/mistral", mobile, true);
+        const credentials = JSON.parse(secretEntries.get(model.credentialRef!)!) as unknown;
         model.providerNpm = npm;
         if (npm.startsWith("@ai-sdk/google-vertex")) model.baseUrl = undefined;
         model.apiKey =
@@ -275,7 +312,7 @@ describe("providerTransport authentication integration", () => {
               ? JSON.stringify([credentials])
               : form === "bearer-json"
                 ? `Bearer ${JSON.stringify(credentials, null, 2)}`
-                : JSON.stringify(model.apiKey);
+                : JSON.stringify(secretEntries.get(model.credentialRef!));
         const result = await attempt(model);
         const observed = `${result.error?.message}\n${logFileManager.exportLogText()}`;
         expect(observed.includes(privateMarker)).toBe(false);
@@ -286,10 +323,11 @@ describe("providerTransport authentication integration", () => {
     );
 
     it.each([false, true])(
-      `rejects a malformed OAuth token without repeating its secret content with compatibility=%s (${issue})`,
-      async (enableCors) => {
+      `rejects a malformed OAuth token without repeating its secret content on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async (mobile) => {
+        Platform.isMobile = mobile;
         installNetwork();
-        const model = savedVertexModel("@ai-sdk/mistral", enableCors, true);
+        const model = savedVertexModel("@ai-sdk/mistral", mobile, true);
         const oauth = { access_token: model.apiKey, expires_in: 3600 };
         setRequestUrlImpl(async () => ({
           status: 200,
@@ -314,10 +352,11 @@ describe("providerTransport authentication integration", () => {
     );
 
     it.each([false, true])(
-      `retains an actionable OAuth failure without secrets when compatibility=%s (${issue})`,
-      async (enableCors) => {
+      `retains an actionable OAuth failure without secrets on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async (mobile) => {
+        Platform.isMobile = mobile;
         const requests = installNetwork(403);
-        const model = savedVertexModel("@ai-sdk/mistral", enableCors, true);
+        const model = savedVertexModel("@ai-sdk/mistral", mobile, true);
         const result = await attempt(model);
         expect(requests).toHaveLength(1);
         expect(result.reply).toBe("");
@@ -376,8 +415,9 @@ describe("providerTransport authentication integration", () => {
     );
 
     it.each([false, true])(
-      `keeps Watsonx IAM authentication behind the SDK when compatibility=%s (${issue})`,
-      async (enableCors) => {
+      `keeps Watsonx IAM authentication behind the SDK on mobile=%s (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
+      async (mobile) => {
+        Platform.isMobile = mobile;
         const requests = installNetwork();
         const model: CustomModel = {
           name: "ibm/synthetic-model",
@@ -387,7 +427,6 @@ describe("providerTransport authentication integration", () => {
           providerOptions: { WATSONX_AI_PROJECT_ID: "synthetic-project" },
           baseUrl: "https://synthetic.ml.cloud.ibm.com",
           apiKey: `synthetic-iam-${randomBytes(16).toString("hex")}`,
-          enableCors,
           enabled: true,
         };
         expect((await attempt(model)).reply).toBe("fixture success");

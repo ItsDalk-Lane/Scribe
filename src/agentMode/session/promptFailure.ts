@@ -1,8 +1,10 @@
-import type { BackendId, StopReason } from "@/agentMode/session/types";
+import { t } from "@/lib/i18n";
 import { err2String } from "@/utils";
 
-export function buildEmptyTurnMessage(backendId: BackendId, stopReason: StopReason): string {
-  return `${backendId} finished the turn without returning any assistant text or tool activity (stop reason: ${stopReason}). Try again, or switch models if this repeats.`;
+export function buildEmptyTurnMessage(): string {
+  return t(
+    "No response or action was returned. Try again, or switch models if this happens repeatedly."
+  );
 }
 
 export function formatPromptFailure(err: unknown): string {

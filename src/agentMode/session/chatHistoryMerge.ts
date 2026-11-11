@@ -1,4 +1,6 @@
-import { isCompactCommand } from "@/commands/compactCommand";
+import { isCompactCommand, COMPACT_COMMAND_NAME } from "@/commands/compactCommand";
+import { isBuiltinCommandEnabled } from "@/agentMode/agentCommands/builtinAgentCommands";
+import { getSettings } from "@/settings/model";
 import { USER_SENDER } from "@/constants";
 import type { ChatHistoryItem } from "@/components/chat-components/ChatHistoryPopover";
 import { buildNativeChatId } from "@/utils/nativeChatId";
@@ -15,9 +17,13 @@ export const UNTITLED_NATIVE_CHAT = "Untitled chat";
 
 const MAX_DERIVED_TITLE_CHARS = 60;
 
+// 内置命令被用户关闭后，/compact 是普通消息，仍可作为标题来源。https://github.com/ItsDalk-Lane/Scribe/issues/53
+const isCompactRecord = (message: string): boolean =>
+  isCompactCommand(message) && isBuiltinCommandEnabled(getSettings(), COMPACT_COMMAND_NAME);
+
 export function deriveChatTitleFromMessages(messages: AgentChatMessage[]): string | null {
   const firstUser = messages.find(
-    (m) => m.sender === USER_SENDER && m.message.trim() && !isCompactCommand(m.message)
+    (m) => m.sender === USER_SENDER && m.message.trim() && !isCompactRecord(m.message)
   );
   if (!firstUser) {
     return messages.some(

@@ -1,13 +1,17 @@
+import type { SubagentMessagePayload } from "@/agentMode/session/subagentTypes";
 import { AI_SENDER, USER_SENDER } from "@/constants";
 import { logInfo, logWarn } from "@/logger";
+import { t } from "@/lib/i18n";
 import { AgentMessageStore } from "@/agentMode/session/AgentMessageStore";
 import { GLOBAL_SCOPE, type ProjectScopeId } from "@/agentMode/session/scope";
 import {
   AgentChatMessage,
   AgentMcpServer,
   AgentMessagePart,
+  AgentDisplayFact,
   AgentToolKind,
   AgentQuestionAnswers,
+  AgentSessionPurpose,
   AgentTodoListEntry,
   AskUserQuestionPrompt,
   BackendDescriptor,
@@ -39,7 +43,7 @@ import {
 } from "@/agentMode/session/types";
 import { MessageContext } from "@/types/message";
 import { err2String, formatDateTime } from "@/utils";
-import type { App, DataAdapter } from "obsidian";
+import { Notice, TFile, type App, type DataAdapter } from "obsidian";
 import { MethodUnsupportedError } from "@/agentMode/session/errors";
 import {
   diffTargetPaths,
@@ -57,7 +61,8 @@ import {
 import { TurnTracker, type TurnOutcome, type TurnSend } from "@/agentMode/session/TurnTracker";
 import { getVaultBase } from "@/utils/vaultPath";
 import { deriveChatTitleFromMessages } from "@/agentMode/session/chatHistoryMerge";
-import { isCompactCommand } from "@/commands/compactCommand";
+import { isCompactCommand, COMPACT_COMMAND_NAME } from "@/commands/compactCommand";
+import { isBuiltinCommandEnabled } from "@/agentMode/agentCommands/builtinAgentCommands";
 import {
   buildConversationHistoryBlock,
   buildBranchHistoryContent,
@@ -91,14 +96,24 @@ import { SessionHistoryReplay } from "@/agentMode/session/SessionHistoryReplay";
 import { InteractiveRequests } from "@/agentMode/session/InteractiveRequests";
 import { UsageTracker } from "@/agentMode/session/UsageTracker";
 import { replayPersistedMode } from "@/agentMode/session/replayPersistedMode";
-import type { FeedbackDraft, FeedbackOfferResult } from "@/agentMode/session/scribeToolDefinitions";
-import type {
-  FeedbackEvidence,
-  FeedbackOffer,
-  FeedbackOfferTrigger,
-} from "@/agentMode/session/feedback/feedbackOffer";
 import type { SavedAgentTask } from "@/agentMode/session/AgentSessionSnapshots";
 import type { TaskOutputSnapshot } from "@/agentMode/session/taskOutputTail";
+import type {
+  SubagentDispatchResult,
+  SubagentMessage,
+  SubagentRunStatus,
+  SubagentSendMode,
+  SubagentSessionSnapshot,
+} from "@/agentMode/session/subagentTypes";
+import {
+  EMPTY_SUBAGENT_SESSIONS,
+  hasManagedSubagentWork,
+  isSubagentRunActive,
+} from "@/agentMode/session/subagentSessions";
+import {
+  projectDisplayFacts,
+  serializeDisplayMessage,
+} from "@/agentMode/session/AgentDisplayFacts";
 
 export const DEFAULT_TITLE_PREFIX = "New session";
 const EMPTY_TASKS: readonly AgentTask[] = Object.freeze([]);
@@ -126,6 +141,8 @@ export interface AgentBranchState {
 }
 
 export interface AgentTask extends TaskStart {
+  subagentStatus?: SubagentRunStatus;
+  stopReason?: StopReason;
   status: "running" | TaskEndStatus;
   model?: string;
   outputFile?: string;
@@ -185,17 +202,8 @@ export interface AgentSessionListener {
   onDisconnected?(): void;
 }
 
-export interface ProjectContextUpdates {
-  epoch: number;
-  block: string;
-}
-
-export interface ProjectContextUpdatesHooks {
-  getProjectContextUpdates?: () => ProjectContextUpdates | null;
-  markProjectContextUpdatesDelivered?: (epoch: number) => void;
-}
-
-export interface AgentSessionStartOptions extends ProjectContextUpdatesHooks {
+export interface AgentSessionStartOptions {
+  purpose?: AgentSessionPurpose;
   beforePrompt?: () => void;
   backend: BackendProcess;
   cwd: string;
@@ -208,11 +216,11 @@ export interface AgentSessionStartOptions extends ProjectContextUpdatesHooks {
   getDescriptor?: () => BackendDescriptor | undefined;
   getDisplayName?: (backendId: BackendId) => string;
   getApp?: () => App;
-  getProjectContextBlock?: () => string;
   mcpServers?: ReadonlyArray<AgentMcpServer>;
 }
 
-export interface AgentSessionStateOptions extends ProjectContextUpdatesHooks {
+export interface AgentSessionStateOptions {
+  purpose?: AgentSessionPurpose;
   beforePrompt?: () => void;
   backend: BackendProcess;
   backendSessionId: SessionId;
@@ -231,24 +239,26 @@ export interface AgentSessionStateOptions extends ProjectContextUpdatesHooks {
 export class AgentSession {
   readonly store = new AgentMessageStore();
   readonly internalId: string;
-  readonly chatInputId: string;
+  private inputIdentity: string;
   readonly backendId: BackendId;
   readonly planFeedbackDelivery: "permission" | "next_turn";
   readonly projectId: ProjectScopeId;
+  purpose?: AgentSessionPurpose;
   readonly ready: Promise<void>;
   private backendSessionId: SessionId | null = null;
   private backend: BackendProcess;
+  private displayFactWrite: Promise<void> = Promise.resolve();
+  private savedDisplayLabel: string | null | undefined;
+  private savedDisplayBranch: AgentBranchState | null | undefined;
+  private savedTaskOutputs = new Map<string, TaskOutputSnapshot>();
+  private historyReadOnly = false;
   private backendSuspended = false;
   private readonly beforePrompt: (() => void) | undefined;
   readonly cwd: string | null;
-  private readonly getProjectContextBlockFn: (() => string) | null;
-  private firstPromptSent = false;
   private lastSentWebTabBlock: string | null = null;
   private readonly getDescriptor: (() => BackendDescriptor | undefined) | null;
   private readonly getDisplayName: ((backendId: BackendId) => string) | null;
   private readonly getApp: (() => App) | null;
-  private readonly getProjectContextUpdatesFn: (() => ProjectContextUpdates | null) | null;
-  private readonly markProjectContextUpdatesDeliveredFn: ((epoch: number) => void) | null;
   private cachedStatus: AgentSessionStatus = "starting";
   private cachedReplyRunning = false;
   private startupFailed = false;
@@ -260,6 +270,8 @@ export class AgentSession {
   private readonly taskFiles = new Map<string, FileCaptures>();
   private readonly tasks = new Map<string, AgentTask>();
   private taskList: readonly AgentTask[] = EMPTY_TASKS;
+  private subagentSessions: readonly SubagentSessionSnapshot[] = EMPTY_SUBAGENT_SESSIONS;
+  private subagentRevision = 0;
   private readonly taskContent = new Map<string, AgentMessageStore>();
   private listeners = new Set<AgentSessionListener>();
   private unregisterSessionHandler: (() => void) | null = null;
@@ -277,7 +289,6 @@ export class AgentSession {
   });
   private readonly requests: InteractiveRequests;
   private readonly usageTracker: UsageTracker;
-  private feedbackOffer: FeedbackOffer | null = null;
 
   private needsAttention = false;
   private notifyScheduled = false;
@@ -287,7 +298,7 @@ export class AgentSession {
     this.beforePrompt = opts.beforePrompt;
     this.backend = opts.backend;
     this.internalId = opts.internalId;
-    this.chatInputId = opts.chatInputId ?? uuidv4();
+    this.inputIdentity = opts.chatInputId ?? uuidv4();
     this.backendId = opts.backendId;
     this.turns = new TurnTracker({
       store: this.store,
@@ -296,7 +307,19 @@ export class AgentSession {
         if (this.isOnModelNotEnabled()) {
           return Promise.reject(noEnabledModelError(this.displayNameFor(this.backendId)));
         }
-        return this.backend.prompt({ sessionId: this.backendSessionId!, ...input });
+        const queued = this.turns.getQueuedPrompts().find((item) => item.id === input.promptId);
+        const message =
+          this.store.getMessage(input.promptId) ??
+          (queued
+            ? buildUserMessage(queued.id, queued.text, queued.context, queued.promptContent)
+            : undefined);
+        return this.backend.prompt({
+          sessionId: this.backendSessionId!,
+          ...input,
+          ...(message && this.backend.appendDisplayFacts
+            ? { displayMessage: serializeDisplayMessage({ ...message, id: input.promptId }) }
+            : {}),
+        });
       },
       notifyMessages: () => this.notifyMessages(),
       notifyQueuedPrompts: () => this.notifyQueuedPromptsChanged(),
@@ -316,18 +339,14 @@ export class AgentSession {
       captureFileChanges: (files, messageId, turnDiff) =>
         this.finalizeFileChanges(files, this.store, messageId, turnDiff),
       onTurnCompleted: () => void this.pollSessionTitle(),
-      onTurnFailed: (errorText) => this.offerTurnErrorReport(errorText),
     });
     this.planFeedbackDelivery = opts.getDescriptor?.()?.planFeedbackDelivery ?? "permission";
     this.projectId = opts.projectId ?? GLOBAL_SCOPE;
+    this.purpose = opts.purpose;
     this.cwd = opts.cwd ?? null;
     this.getDescriptor = opts.getDescriptor ?? null;
     this.getDisplayName = opts.getDisplayName ?? null;
     this.getApp = opts.getApp ?? null;
-    this.getProjectContextUpdatesFn = opts.getProjectContextUpdates ?? null;
-    this.markProjectContextUpdatesDeliveredFn = opts.markProjectContextUpdatesDelivered ?? null;
-    this.getProjectContextBlockFn =
-      "getProjectContextBlock" in opts ? (opts.getProjectContextBlock ?? null) : null;
     this.requests = new InteractiveRequests({
       store: this.store,
       internalId: this.internalId,
@@ -360,13 +379,23 @@ export class AgentSession {
     }
   }
 
-  completeResume(state: BackendState | null): void {
+  completeResume(state: BackendState | null, purpose?: AgentSessionPurpose): void {
+    this.purpose = purpose;
     this.historyReplay.end();
+    this.usageTracker.completeReplay();
+    this.refreshMessageMetrics();
+    const lastMessage = this.store.getDisplayMessages().at(-1);
+    this.turns.restoreLastTurnFailure(
+      lastMessage?.sender !== USER_SENDER && lastMessage?.isErrorMessage === true
+    );
     this.currentState = state;
     const settle = () => {
       this.startupSettled = true;
       this.recomputeStatusIfChanged();
       this.settleReady();
+      void this.refreshSubagentSessions().catch((error) =>
+        logWarn("[AgentMode] child session list unavailable", error)
+      );
     };
     const selection = this.resumeSelection ?? state?.model?.current;
     if (!selection || !state) return settle();
@@ -386,6 +415,11 @@ export class AgentSession {
     return this.backend.getExtensionRuntime({ sessionId: this.backendSessionId });
   }
 
+  async getRequestContextPreview(): Promise<import("./types").RequestContextPreview | null> {
+    if (!this.backendSessionId || !this.backend.getRequestContextPreview) return null;
+    return this.backend.getRequestContextPreview({ sessionId: this.backendSessionId });
+  }
+
   getBackendSessionId(): SessionId | null {
     return this.backendSessionId;
   }
@@ -395,6 +429,7 @@ export class AgentSession {
     try {
       const resp = await backend.newSession({
         cwd,
+        ...(opts.purpose ? { purpose: opts.purpose } : {}),
         ...(defaultModelSelection ? { modelId: defaultModelSelection.baseModelId } : {}),
         projectId: this.projectId,
         mcpServers: opts.mcpServers,
@@ -421,6 +456,7 @@ export class AgentSession {
 
       const selection = defaultModelSelection ?? resp.state.model?.current;
       if (selection) await this.applyStartupSelection(selection, opts.defaultMode);
+      await this.refreshSubagentSessions();
       this.startupSettled = true;
       this.recomputeStatusIfChanged();
     } catch (err) {
@@ -639,7 +675,86 @@ export class AgentSession {
 
   loadDisplayMessages(messages: AgentChatMessage[]): void {
     this.store.loadMessages(messages);
+    const lastMessage = messages.at(-1);
+    this.turns.restoreLastTurnFailure(
+      lastMessage?.sender !== USER_SENDER && lastMessage?.isErrorMessage === true
+    );
+    this.recomputeStatusIfChanged();
     this.notifyMessages();
+  }
+
+  supportsDisplayFacts(): boolean {
+    return (
+      this.backend.appendDisplayFacts !== undefined && this.backend.readDisplayFacts !== undefined
+    );
+  }
+
+  get chatInputId(): string {
+    return this.inputIdentity;
+  }
+
+  setHistoryReadOnly(readOnly: boolean): void {
+    this.historyReadOnly = readOnly;
+  }
+
+  persistDisplayFacts(additional: AgentDisplayFact[] = []): Promise<void> {
+    if (!this.backend.appendDisplayFacts || !this.backendSessionId || this.historyReadOnly)
+      return Promise.resolve();
+    const sessionId = this.backendSessionId;
+    const save = this.displayFactWrite
+      .catch(() => {})
+      .then(async () => {
+        const facts = [...this.store.takeDisplayFacts(), ...additional];
+        const label = this.getLabel();
+        if (this.savedDisplayLabel !== label)
+          facts.push({ kind: "session_metadata", chatId: this.chatInputId, label });
+        if (this.savedDisplayBranch !== this.branchState)
+          facts.push({ kind: "branch", branch: this.branchState });
+        for (const task of this.getTasks()) {
+          if (task.savedOutput && this.savedTaskOutputs.get(task.toolCallId) !== task.savedOutput)
+            facts.push({ kind: "task", task, messages: [] });
+        }
+        if (!facts.length) return;
+        try {
+          await this.backend.appendDisplayFacts!({ sessionId, facts });
+        } catch (error) {
+          this.store.restoreDisplayFacts(facts);
+          throw error;
+        }
+        this.savedDisplayLabel = label;
+        this.savedDisplayBranch = this.branchState;
+        for (const task of this.getTasks())
+          if (task.savedOutput) this.savedTaskOutputs.set(task.toolCallId, task.savedOutput);
+      });
+    this.displayFactWrite = save;
+    return save;
+  }
+
+  async restorePersistedDisplayFacts(): Promise<void> {
+    if (!this.backend.readDisplayFacts || !this.backendSessionId) return;
+    const facts = await this.backend.readDisplayFacts({ sessionId: this.backendSessionId });
+    const projection = projectDisplayFacts(this.store.getDisplayMessages(), facts, (path) => {
+      const file = this.getApp?.()?.vault.getAbstractFileByPath(path);
+      return file instanceof TFile ? file : null;
+    });
+    this.loadDisplayMessages(projection.messages);
+    if (projection.chatId) this.inputIdentity = projection.chatId;
+    if (projection.warnings.length) {
+      logWarn(
+        "[AgentMode] Uninterpreted display records were preserved",
+        projection.warnings.length
+      );
+      new Notice(t(projection.warnings[0]));
+    }
+    if (projection.branch !== undefined) this.restoreBranchState(projection.branch);
+    if (projection.label !== undefined) this.setLabel(projection.label);
+    for (const entry of projection.tasks) {
+      if (entry.task.savedOutput)
+        this.rememberTaskOutput(entry.task.toolCallId, entry.task.savedOutput);
+    }
+    this.savedDisplayLabel = this.getLabel();
+    this.savedDisplayBranch = this.branchState;
+    this.store.takeDisplayFacts();
   }
 
   getBranchState(): AgentBranchState | null {
@@ -708,10 +823,18 @@ export class AgentSession {
     context?: MessageContext,
     promptContent?: PromptContent[]
   ): { userMessageId: string; turn: Promise<StopReason> } {
+    if (this.historyReadOnly)
+      throw new Error(
+        t(
+          "This chat is read-only because its history needs repair. Your saved records have been preserved."
+        )
+      );
     if (!isAgentBackendEnabled(getSettings(), this.backendId) || this.backendSuspended) {
-      throw new Error("This agent is disabled. Enable it in Agent settings to continue.");
+      throw new Error("This agent is unavailable. Check its model configuration in Models.");
     }
-    const sendsCompact = isCompactCommand(displayText);
+    // 关闭内置命令开关后，/compact 按普通文字发送，不再触发压缩或清空上下文。https://github.com/ItsDalk-Lane/Scribe/issues/53
+    const sendsCompact =
+      isCompactCommand(displayText) && isBuiltinCommandEnabled(getSettings(), COMPACT_COMMAND_NAME);
     if (sendsCompact) {
       displayText = displayText.trim();
       context = undefined;
@@ -788,6 +911,140 @@ export class AgentSession {
     await this.backend.stopTask?.({ sessionId: this.backendSessionId!, taskId });
   }
 
+  getSubagentSessions(): readonly SubagentSessionSnapshot[] {
+    return this.subagentSessions;
+  }
+
+  async startIndependentTask(): Promise<void> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.startIndependentTask)
+      throw new MethodUnsupportedError("startIndependentTask");
+    await this.backend.startIndependentTask({ sessionId: this.backendSessionId });
+  }
+
+  async continueTaskBudget(taskGenerationId?: string, requestId?: string): Promise<void> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.continueTaskBudget)
+      throw new MethodUnsupportedError("continueTaskBudget");
+    await this.backend.continueTaskBudget({
+      sessionId: this.backendSessionId,
+      taskGenerationId,
+      requestId,
+    });
+  }
+
+  async confirmSubagentRecovery(subagentId: string): Promise<void> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.confirmSubagentRecovery)
+      throw new MethodUnsupportedError("confirmSubagentRecovery");
+    await this.backend.confirmSubagentRecovery({ sessionId: this.backendSessionId, subagentId });
+    await this.refreshSubagentSessions();
+  }
+
+  hasManagedSubagentWork(): boolean {
+    return hasManagedSubagentWork(this.subagentSessions);
+  }
+
+  async refreshSubagentSessions(): Promise<void> {
+    if (!this.backendSessionId || !this.backend.listSubagentSessions) return;
+    const revision = this.subagentRevision;
+    const sessions = await this.backend.listSubagentSessions({ sessionId: this.backendSessionId });
+    // 查询期间的新事件优先，避免旧列表覆盖已经收到的新执行。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    if (!this.disposed && revision === this.subagentRevision) this.applySubagentSessions(sessions);
+  }
+
+  async sendSubagentMessage(
+    subagentId: string,
+    text: string,
+    mode: SubagentSendMode,
+    messageId = uuidv4(),
+    payload?: SubagentMessagePayload
+  ): Promise<SubagentDispatchResult> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.sendSubagentMessage)
+      throw new Error(t("This child session cannot be continued in this chat."));
+    const result = await this.backend.sendSubagentMessage({
+      sessionId: this.backendSessionId,
+      subagentId,
+      text,
+      mode,
+      messageId,
+      ...(payload ? { payload } : {}),
+    });
+    await this.refreshSubagentSessions().catch((error) =>
+      logWarn("[AgentMode] child session list unavailable", error)
+    );
+    return result;
+  }
+
+  async stopSubagent(subagentId: string): Promise<void> {
+    if (!this.backendSessionId || !this.backend.stopSubagent)
+      throw new MethodUnsupportedError("stopSubagent");
+    await this.backend.stopSubagent({ sessionId: this.backendSessionId, subagentId });
+    await this.refreshSubagentSessions();
+  }
+
+  async setSubagentArchived(subagentId: string, archived: boolean): Promise<void> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.setSubagentArchived)
+      throw new MethodUnsupportedError("setSubagentArchived");
+    await this.backend.setSubagentArchived({
+      sessionId: this.backendSessionId,
+      subagentId,
+      archived,
+    });
+    await this.refreshSubagentSessions();
+  }
+
+  async deleteSubagentSession(subagentId: string): Promise<void> {
+    if (this.historyReadOnly || !this.backendSessionId || !this.backend.deleteSubagentSession)
+      throw new MethodUnsupportedError("deleteSubagentSession");
+    await this.backend.deleteSubagentSession({ sessionId: this.backendSessionId, subagentId });
+    await this.refreshSubagentSessions();
+  }
+
+  private applySubagentSessions(sessions: readonly SubagentSessionSnapshot[]): void {
+    this.subagentRevision++;
+    this.subagentSessions = sessions.length
+      ? Object.freeze([...sessions])
+      : EMPTY_SUBAGENT_SESSIONS;
+    for (const session of sessions) {
+      for (const run of session.runs) this.usageTracker.applyChildRun(session.id, run);
+      const rounds = new Set(session.runs.flatMap((run) => (run.roundId ? [run.roundId] : [])));
+      for (const roundId of rounds) {
+        const runs = session.runs.filter((run) => run.roundId === roundId);
+        if (runs.every((run) => !isSubagentRunActive(run.status))) {
+          this.usageTracker.markChildRoundEnded(session.id, roundId);
+          if (runs.every((run) => !run.promptId)) this.usageTracker.markMetricsRoundEnded(roundId);
+        }
+      }
+    }
+    for (const session of sessions)
+      for (const message of session.messages) this.showSubagentMessage(message, session.name);
+    for (const session of sessions)
+      for (const run of session.runs) {
+        const task = this.tasks.get(run.toolCallId);
+        if (task)
+          this.tasks.set(run.toolCallId, {
+            ...task,
+            subagentId: session.id,
+            runId: run.id,
+            subagentStatus: run.status,
+          });
+      }
+    this.publishTasks();
+  }
+
+  private showSubagentMessage(message: SubagentMessage, name: string): void {
+    const id = `subagent-message:${message.id}`;
+    // 协作内容保留真实来源，重开和重复通知不能生成第二份展示。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    if (message.direction !== "to_parent" || this.store.getMessage(id)) return;
+    this.store.addMessage({
+      id,
+      sender: AI_SENDER,
+      synthetic: true,
+      isVisible: true,
+      timestamp: formatDateTime(new Date(message.acceptedAt)),
+      message: `${t("Subagent")} · ${name} · ${t(message.kind)}${message.runId ? ` · ${message.runId}` : ""}\n\n${message.text}`,
+    });
+    this.scheduleNotifyMessages();
+  }
+
   private queuePrompt(
     text: string,
     context: MessageContext | undefined,
@@ -803,8 +1060,6 @@ export class AgentSession {
           context,
           promptContent,
           webTabBlock === this.lastSentWebTabBlock ? "" : webTabBlock,
-          null,
-          null,
           null
         );
         if (webTabBlock) this.lastSentWebTabBlock = webTabBlock;
@@ -861,16 +1116,9 @@ export class AgentSession {
       if (signal.aborted || this.disposed) return { stopReason: "cancelled" };
       if (this.isOnModelNotEnabled()) {
         return this.turns.refuse(
-          `This chat's model isn't enabled for ${this.displayNameFor(this.backendId)}. Pick an enabled model to continue.`
+          `This chat's model is unavailable for ${this.displayNameFor(this.backendId)}. Pick a configured model to continue.`
         );
       }
-      const isFirstTurn = !this.firstPromptSent && !sendsCompact;
-      const projectContextBlock = isFirstTurn ? (this.getProjectContextBlockFn?.() ?? null) : null;
-      const projectContextUpdates = sendsCompact
-        ? null
-        : (this.getProjectContextUpdatesFn?.() ?? null);
-      const projectContextUpdatesBlock = projectContextUpdates?.block ?? null;
-
       const sendsBranchHistory = this.branchState?.historyPending === true && !sendsCompact;
       const branchHistory = sendsBranchHistory
         ? buildBranchHistoryContent(this.priorDisplayMessages(userMessageId))
@@ -889,9 +1137,7 @@ export class AgentSession {
         context,
         promptContent,
         webTabPromptBlock,
-        projectContextBlock,
         leadingContextBlock,
-        projectContextUpdatesBlock,
         branchHistory
       );
 
@@ -909,11 +1155,7 @@ export class AgentSession {
       if (sendsSavedHistory && outcome.stopReason !== "cancelled") {
         this.resendSavedHistory = false;
       }
-      if (isFirstTurn) this.firstPromptSent = true;
       if (webTabBlock) this.lastSentWebTabBlock = webTabBlock;
-      if (projectContextUpdates) {
-        this.markProjectContextUpdatesDeliveredFn?.(projectContextUpdates.epoch);
-      }
       if (outcome.stopReason === "max_tokens" && !signal.aborted) {
         return await this.turns.submit(
           {
@@ -947,7 +1189,14 @@ export class AgentSession {
 
   async cancel(options: { keepUnread?: boolean } = {}): Promise<void> {
     const status = this.getStatus();
-    if (status !== "running" && status !== "awaiting_permission") return;
+    // 主模型闲置时仍要停止所属后台执行，不能只看主回复的状态。https://github.com/ItsDalk-Lane/Scribe/issues/50
+    if (
+      status !== "running" &&
+      status !== "awaiting_permission" &&
+      !this.hasManagedSubagentWork() &&
+      ![...this.tasks.values()].some((task) => task.kind === "command" && task.status === "running")
+    )
+      return;
     if (!this.backendSessionId) return;
     const keepUnread = options.keepUnread === true;
     this.turns.stop(!keepUnread && this.canWithdrawPrompts());
@@ -957,6 +1206,8 @@ export class AgentSession {
       .cancel({ sessionId: this.backendSessionId, ...(keepUnread ? { keepUnread } : {}) })
       .catch((e: unknown) => {
         logWarn(`[AgentMode] cancel notification failed`, e);
+        // 停止保存失败必须让界面显示，不能让仍在运行的后台工作看似已停止。https://github.com/ItsDalk-Lane/Scribe/issues/50
+        throw e;
       });
   }
 
@@ -1014,6 +1265,7 @@ export class AgentSession {
     if (selection) await this.getDescriptor?.()?.applySelection(this, selection);
     await replayPersistedMode(this, mode);
     this.backendSuspended = false;
+    await this.refreshSubagentSessions();
     this.notifyModelChanged();
     this.recomputeStatusIfChanged();
   }
@@ -1094,59 +1346,8 @@ export class AgentSession {
     return this.taskContent.get(toolCallId)?.getDisplayMessages() ?? EMPTY_MESSAGES;
   }
 
-  getReportEvidence(): FeedbackEvidence {
-    return {
-      backendId: this.backendId,
-      model: this.currentState?.model?.current.baseModelId ?? null,
-      sessionId: this.backendSessionId,
-      raisedAt: new Date().toISOString(),
-    };
-  }
-
-  getFeedbackOffer(): FeedbackOffer | null {
-    return this.feedbackOffer;
-  }
-
-  offerFeedback(draft: FeedbackDraft): FeedbackOfferResult {
-    if (this.feedbackOffer) return "already_offered";
-    this.feedbackOffer = this.openFeedbackOffer("agent", draft);
-    this.notifyMessages();
-    return "shown";
-  }
-
-  private offerTurnErrorReport(errorText: string): void {
-    if (this.feedbackOffer || !getSettings().agentMode.offerFeedbackCards) return;
-    this.feedbackOffer = this.openFeedbackOffer("turn_error", {
-      title: `Agent Chat reply failed on ${this.backendId}`,
-      whatHappened: errorText,
-      userSaid: "",
-      repro: "",
-    });
-  }
-
-  private openFeedbackOffer(trigger: FeedbackOfferTrigger, draft: FeedbackDraft): FeedbackOffer {
-    const userMessages = this.store
-      .getDisplayMessages()
-      .filter((message) => message.sender === USER_SENDER);
-    return {
-      trigger,
-      draft,
-      evidence: this.getReportEvidence(),
-      afterUserMessageId: userMessages[userMessages.length - 1]?.id ?? null,
-      status: "open",
-    };
-  }
-
-  dismissFeedbackOffer(): void {
-    if (this.feedbackOffer?.status !== "open") return;
-    this.feedbackOffer = { ...this.feedbackOffer, status: "dismissed" };
-    this.notifyMessages();
-  }
-
-  markFeedbackReported(report: { reportId: string; issueUrl: string }): void {
-    if (this.feedbackOffer?.status !== "open") return;
-    this.feedbackOffer = { ...this.feedbackOffer, status: "reported", report };
-    this.notifyMessages();
+  getSubagentUsage(subagentId: string): SessionUsage | null {
+    return this.usageTracker.getSubagentUsage(subagentId);
   }
 
   getSessionUsage(): SessionUsage | null {
@@ -1204,18 +1405,87 @@ export class AgentSession {
   }
 
   private handleSessionEvent(event: SessionEvent): void {
+    this.store.withRecordedTime(event.occurredAt, () => this.applySessionEvent(event));
+    this.refreshMessageMetrics();
+  }
+
+  private applySessionEvent(event: SessionEvent): void {
     const update = event.update;
+    if (update.sessionUpdate === "turn_started") {
+      const task = event.taskToolCallId ? this.tasks.get(event.taskToolCallId) : undefined;
+      this.usageTracker.markMetricsRoundStarted(
+        update.roundId,
+        update.turnId,
+        task?.subagentId
+          ? {
+              subagentId: task.subagentId,
+              runId: task.runId,
+              startedAt: update.startedAt ?? event.occurredAt,
+            }
+          : undefined
+      );
+    }
+    if (update.sessionUpdate === "tool_execution_started") {
+      this.usageTracker.recordToolExecution(update.roundId, update.sourceId, update.toolCallId);
+      this.refreshMessageMetrics();
+      return;
+    }
+    if (update.sessionUpdate === "model_call_metrics") {
+      this.usageTracker.applyModelCall(update.observation);
+      this.refreshMessageMetrics();
+      return;
+    }
+    if (update.sessionUpdate === "usage_update") {
+      this.usageTracker.applyUsageUpdate(update.usage, update.subagentId);
+      return;
+    }
+    if (update.sessionUpdate === "turn_ended") {
+      this.usageTracker.markMetricsRoundEnded(update.roundId);
+      if (update.subagentId && update.roundId)
+        this.usageTracker.markChildRoundEnded(
+          update.subagentId,
+          update.roundId,
+          event.occurredAt,
+          update.stopReason
+        );
+      this.refreshMessageMetrics();
+    }
+    if (
+      update.sessionUpdate === "agent_segment_finalized" &&
+      update.finalResponse &&
+      event.origin !== "synthetic"
+    ) {
+      this.usageTracker.markFinalSegment(update.segmentSeq);
+      this.refreshMessageMetrics();
+    }
+    if (update.sessionUpdate === "subagents_updated") {
+      this.applySubagentSessions(update.subagents);
+      return;
+    }
+    if (update.sessionUpdate === "subagent_message") {
+      this.showSubagentMessage(update.message, update.name);
+      return;
+    }
     if (event.taskToolCallId !== undefined && !isTaskLifecycleUpdate(update)) {
-      this.applyTaskContent(event.taskToolCallId, update);
+      this.applyTaskContent(event.taskToolCallId, event);
       return;
     }
     if (update.sessionUpdate === "user_message_chunk" && !this.historyReplay.isOpen()) return;
-    if (this.historyReplay.append(update, event.occurredAt)) {
+    if (this.historyReplay.append(update, event.occurredAt, event.seq, event.origin)) {
       return;
     }
     switch (update.sessionUpdate) {
       case "message_delivered":
-        this.turns.deliverPrompt(update.promptId);
+        this.turns.deliverPrompt(update.promptId, event.occurredAt);
+        if (event.seq !== undefined) {
+          const replyId = `assistant:${update.promptId}`;
+          this.store.identifyMessage(replyId, replyId, event.seq, event.occurredAt);
+          this.scheduleNotifyMessages();
+        }
+        if (update.messageSeq !== undefined) {
+          this.store.identifyMessage(update.promptId, update.promptId, update.messageSeq);
+          this.scheduleNotifyMessages();
+        }
         return;
       case "messages_withdrawn":
         this.turns.withdrawPrompts(update.promptIds);
@@ -1238,10 +1508,10 @@ export class AgentSession {
         this.applyTaskUpdate(update);
         return;
       case "turn_started":
-        this.turns.startTurn(update.turnId, update.startedAt);
+        this.turns.startTurn(update.turnId, update.startedAt, event.seq);
         return;
       case "turn_ended":
-        this.turns.endTurn(update);
+        this.turns.endTurn(update, event.occurredAt);
         return;
       case "busy_changed":
         this.agentBusy = update.busy;
@@ -1259,9 +1529,25 @@ export class AgentSession {
       toolOwnerMessageId !== undefined &&
       toolOwnerStopReason !== undefined &&
       toolOwnerStopReason !== "cancelled";
+    const segmentOwnerMessageId =
+      update.sessionUpdate === "agent_segment_finalized"
+        ? this.store.findMessageIdWithSegment(update.segmentSeq)
+        : undefined;
+    // 停止不能撤销已保存的摘要，迟到完成事实仍应回到原来的压缩卡片。https://github.com/ItsDalk-Lane/Scribe/issues/66
+    const compactionOwnerMessageId =
+      update.sessionUpdate === "compaction" &&
+      update.status === "completed" &&
+      update.commitSeq !== undefined
+        ? this.store.findMessageIdWithCompaction(update.id)
+        : undefined;
 
     if (this.turns.isStopping()) {
       switch (update.sessionUpdate) {
+        case "agent_segment_started":
+          return;
+        case "agent_segment_finalized":
+          if (!segmentOwnerMessageId) return;
+          break;
         case "agent_message_chunk":
         case "agent_thought_chunk":
           this.turns.dropStoppedContent(update.messageId);
@@ -1271,7 +1557,12 @@ export class AgentSession {
           return;
         case "tool_call":
         case "plan":
+          logWarn(
+            `[AgentMode] dropping ${update.sessionUpdate} from cancelled turn ${this.internalId}`
+          );
+          return;
         case "compaction":
+          if (compactionOwnerMessageId) break;
           logWarn(
             `[AgentMode] dropping ${update.sessionUpdate} from cancelled turn ${this.internalId}`
           );
@@ -1306,12 +1597,15 @@ export class AgentSession {
     if (update.sessionUpdate === "config_option_update") {
       return;
     }
-    if (update.sessionUpdate === "usage_update") {
-      this.usageTracker.applyUsageUpdate(update.usage);
-      return;
-    }
     if (update.sessionUpdate === "plan_usage_update") {
       this.usageTracker.applyPlanUsage(update.planUsage);
+      return;
+    }
+
+    if (update.sessionUpdate === "agent_thought_ended") {
+      const target = this.store.findMessageIdWithSegment(update.segmentSeq);
+      if (target && this.store.finishAgentThought(target, update.segmentSeq, update.contentIndex))
+        this.scheduleNotifyMessages();
       return;
     }
 
@@ -1328,24 +1622,59 @@ export class AgentSession {
       }
       const appended =
         update.sessionUpdate === "agent_message_chunk"
-          ? this.store.appendAgentText(target, text)
-          : this.store.appendAgentThought(target, text);
+          ? this.store.appendAgentText(
+              target,
+              text,
+              event.seq,
+              event.origin === "synthetic",
+              update.segmentSeq,
+              update.contentIndex
+            )
+          : this.store.appendAgentThought(
+              target,
+              text,
+              event.seq,
+              event.origin === "synthetic",
+              update.segmentSeq,
+              update.contentIndex
+            );
       if (appended) {
-        this.turns.extendSettledTurn(target);
+        this.turns.extendSettledTurn(target, event.occurredAt);
         this.scheduleNotifyMessages();
       }
       return;
     }
 
-    const targetMessageId = this.turns.resolveToolTarget(
-      isPriorToolUpdate ? toolOwnerMessageId : undefined
-    );
+    const targetMessageId =
+      segmentOwnerMessageId ??
+      compactionOwnerMessageId ??
+      this.turns.resolveToolTarget(isPriorToolUpdate ? toolOwnerMessageId : undefined);
     if (!targetMessageId) {
       logWarn(`[AgentMode] dropping session/update — no placeholder for ${this.internalId}`);
       return;
     }
+    const eventPart = (part: AgentMessagePart): AgentMessagePart => ({
+      ...part,
+      ...(part.seq === undefined && event.seq !== undefined ? { seq: event.seq } : {}),
+      ...(event.origin === "synthetic" ? { synthetic: true } : {}),
+    });
 
     switch (update.sessionUpdate) {
+      case "agent_segment_started":
+        if (event.seq !== undefined) this.store.startAgentSegment(targetMessageId, event.seq);
+        return;
+      case "agent_segment_finalized":
+        if (
+          this.store.finalizeAgentSegment(
+            targetMessageId,
+            update.segmentSeq,
+            update.blocks,
+            event.seq,
+            event.origin === "synthetic"
+          )
+        )
+          this.scheduleNotifyMessages();
+        return;
       case "tool_call": {
         this.observeToolCall(this.turns.getTurnFiles(), update.kind, toolCallTarget(update));
         const exitPlan = tryReadExitPlanModeCall({
@@ -1355,12 +1684,12 @@ export class AgentSession {
         });
         if (exitPlan) {
           this.requests.publishGatedPlan(update.toolCallId, exitPlan);
-          if (this.store.upsertAgentPart(targetMessageId, toolCallToPart(update))) {
+          if (this.store.upsertAgentPart(targetMessageId, eventPart(toolCallToPart(update)))) {
             this.scheduleNotifyMessages();
           }
           return;
         }
-        if (this.store.upsertAgentPart(targetMessageId, toolCallToPart(update))) {
+        if (this.store.upsertAgentPart(targetMessageId, eventPart(toolCallToPart(update)))) {
           this.scheduleNotifyMessages();
         }
         return;
@@ -1379,7 +1708,7 @@ export class AgentSession {
             this.requests.publishGatedPlan(merged.id, exitPlan);
           }
         }
-        if (this.store.upsertAgentPart(targetMessageId, merged)) {
+        if (this.store.upsertAgentPart(targetMessageId, eventPart(merged))) {
           this.scheduleNotifyMessages();
         }
         this.endUnstartedTasks();
@@ -1439,7 +1768,7 @@ export class AgentSession {
       this.tasks.set(task.toolCallId, { ...task, model, outputFile });
       return this.publishTasks();
     }
-    this.endTask(task, update.status, update.summary, update.outputFile);
+    this.endTask(task, update.status, update.summary, update.outputFile, update.stopReason);
   }
 
   private startTask(start: TaskStart): void {
@@ -1451,6 +1780,10 @@ export class AgentSession {
       toolCallId: start.toolCallId,
       kind: start.kind,
       taskId: start.taskId ?? existing?.taskId,
+      // 开始事实已携带稳定归属；重开不能依赖尚未加载的子会话目录补齐身份。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      subagentId: start.subagentId ?? existing?.subagentId,
+      runId: start.runId ?? existing?.runId,
+      roundId: start.roundId ?? existing?.roundId,
       description: start.description || existing?.description || "",
       prompt: start.prompt ?? existing?.prompt,
       subagentType: start.subagentType ?? existing?.subagentType,
@@ -1512,12 +1845,14 @@ export class AgentSession {
     task: AgentTask,
     status: TaskEndStatus,
     summary?: string,
-    outputFile?: string
+    outputFile?: string,
+    stopReason?: StopReason
   ): void {
     this.tasks.set(task.toolCallId, {
       ...task,
       status,
       summary,
+      stopReason,
       outputFile: outputFile ?? task.outputFile,
     });
     this.updateLaunchCard({ toolCallId: task.toolCallId, status: LAUNCH_CARD_STATUS[status] });
@@ -1562,59 +1897,145 @@ export class AgentSession {
     }
   }
 
-  private applyTaskContent(toolCallId: string, update: SessionEvent["update"]): void {
+  private applyTaskContent(toolCallId: string, event: SessionEvent): void {
+    const update = event.update;
     let store = this.taskContent.get(toolCallId);
     if (!store) {
       store = new AgentMessageStore();
       this.taskContent.set(toolCallId, store);
     }
-    const messageId =
-      store.getDisplayMessages()[0]?.id ??
-      store.addMessage({
-        message: "",
-        sender: AI_SENDER,
-        timestamp: formatDateTime(new Date()),
-        isVisible: true,
-        parts: [],
-      });
-    let changed: boolean;
-    switch (update.sessionUpdate) {
-      case "agent_message_chunk":
-        changed = store.appendAgentText(messageId, extractText(update.content));
-        break;
-      case "agent_thought_chunk":
-        changed = store.appendAgentThought(messageId, extractText(update.content));
-        break;
-      case "tool_call":
-        this.observeToolCall(this.filesOfTask(toolCallId), update.kind, toolCallTarget(update));
-        changed = store.upsertAgentPart(messageId, toolCallToPart(update));
-        break;
-      case "tool_call_update": {
-        const existing = store
-          .getMessage(messageId)
-          ?.parts?.find((part) => part.kind === "tool_call" && part.id === update.toolCallId);
-        const cutShort =
-          existing?.kind === "tool_call" &&
-          existing.status === "cancelled" &&
-          update.status === "failed";
-        const merged = mergeToolCallUpdate(
-          existing,
-          cutShort ? { ...update, status: "cancelled" } : this.withEndedTaskStatus(update)
-        );
-        this.observeToolResult(this.filesOfTask(toolCallId), merged, update);
-        changed = store.upsertAgentPart(messageId, merged);
-        this.endUnstartedTasks();
-        break;
+    const content = store;
+    content.withRecordedTime(event.occurredAt, () => {
+      const messageId =
+        store.getDisplayMessages()[0]?.id ??
+        store.addMessage({
+          message: "",
+          sender: AI_SENDER,
+          timestamp: formatDateTime(new Date(event.occurredAt ?? Date.now())),
+          isVisible: true,
+          parts: [],
+        });
+      let changed: boolean;
+      switch (update.sessionUpdate) {
+        case "agent_segment_started":
+          if (event.seq !== undefined) content.startAgentSegment(messageId, event.seq);
+          return;
+        case "agent_thought_ended":
+          changed = content.finishAgentThought(messageId, update.segmentSeq, update.contentIndex);
+          break;
+        case "agent_segment_finalized":
+          changed = content.finalizeAgentSegment(
+            messageId,
+            update.segmentSeq,
+            update.blocks,
+            event.seq,
+            event.origin === "synthetic"
+          );
+          break;
+        case "agent_message_chunk":
+          changed = content.appendAgentText(
+            messageId,
+            extractText(update.content),
+            event.seq,
+            event.origin === "synthetic",
+            update.segmentSeq,
+            update.contentIndex
+          );
+          break;
+        case "agent_thought_chunk":
+          changed = content.appendAgentThought(
+            messageId,
+            extractText(update.content),
+            event.seq,
+            event.origin === "synthetic",
+            update.segmentSeq,
+            update.contentIndex
+          );
+          break;
+        case "tool_call":
+          this.observeToolCall(this.filesOfTask(toolCallId), update.kind, toolCallTarget(update));
+          changed = store.upsertAgentPart(messageId, {
+            ...toolCallToPart(update),
+            ...(event.seq === undefined ? {} : { seq: event.seq }),
+          });
+          break;
+        case "tool_call_update": {
+          const existing = store
+            .getMessage(messageId)
+            ?.parts?.find((part) => part.kind === "tool_call" && part.id === update.toolCallId);
+          const cutShort =
+            existing?.kind === "tool_call" &&
+            existing.status === "cancelled" &&
+            update.status === "failed";
+          const merged = mergeToolCallUpdate(
+            existing,
+            cutShort ? { ...update, status: "cancelled" } : this.withEndedTaskStatus(update)
+          );
+          this.observeToolResult(this.filesOfTask(toolCallId), merged, update);
+          changed = store.upsertAgentPart(messageId, merged);
+          this.endUnstartedTasks();
+          break;
+        }
+        case "compaction":
+          changed = upsertCompactionPart(store, messageId, update);
+          // 压缩与普通子回复共用所属执行的展示流，不改写主聊天占用。https://github.com/ItsDalk-Lane/Scribe/issues/66
+          if (update.subagentId) changed = this.usageTracker.applyCompactedUsage(update) || changed;
+          break;
+        default:
+          return;
       }
-      default:
-        return;
-    }
-    if (changed) this.notifyTasks();
+      if (changed) this.notifyTasks();
+    });
   }
 
   private publishTasks(): void {
     this.taskList = this.tasks.size === 0 ? EMPTY_TASKS : Object.freeze([...this.tasks.values()]);
+    this.refreshMessageMetrics();
     this.notifyTasks();
+  }
+
+  getMessageUsageMetrics(
+    message: AgentChatMessage,
+    child = false
+  ): AgentChatMessage["turnMetrics"] {
+    const recorded = this.usageTracker.getMetricsForMessage(message, child);
+    if (!recorded) return undefined;
+    const metrics = { ...recorded };
+    // 子聊天完成与否只由自身任务决定；同轮兄弟仍运行时，主聊天继续保持活动。https://github.com/ItsDalk-Lane/Scribe/issues/52
+    const runs = this.subagentSessions
+      .filter((session) => !child || session.id === metrics.subagentId)
+      .flatMap((session) => session.runs.filter((run) => run.roundId === metrics.roundId));
+    metrics.hasActiveWork =
+      metrics.hasActiveWork ||
+      metrics.activeRounds! > 0 ||
+      runs.some((run) =>
+        ["queued", "running", "awaiting_approval", "awaiting_input", "stopping"].includes(
+          run.status
+        )
+      ) ||
+      [...this.tasks.values()].some(
+        (task) =>
+          task.status === "running" &&
+          ((task.roundId === metrics.roundId &&
+            (!child || task.subagentId === metrics.subagentId)) ||
+            runs.some((run) => task.toolCallId === run.toolCallId))
+      );
+    return metrics;
+  }
+
+  private refreshMessageMetrics(): void {
+    for (const [store, child] of [
+      [this.store, false] as const,
+      ...[...this.taskContent.values()].map((store) => [store, true] as const),
+    ]) {
+      for (const message of store.getDisplayMessages()) {
+        if (message.sender !== AI_SENDER) continue;
+        const metrics = this.getMessageUsageMetrics(message, child);
+        if (!metrics) continue;
+        store.setTurnMetrics(message.id, metrics);
+      }
+    }
+    this.scheduleNotifyMessages();
   }
 
   private notifyTasks(): void {

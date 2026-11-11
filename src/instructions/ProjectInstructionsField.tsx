@@ -17,7 +17,7 @@ export const ProjectInstructionsField: React.FC<ProjectInstructionsFieldProps> =
   <FormField
     label={t(LABEL)}
     description={t(
-      "Your custom instructions for the agent to follow for every interaction in this project. They take precedence over your vault instructions wherever the two conflict. Saved to AGENTS.md in the project folder, which you can also edit as a note."
+      "When instructions conflict, your current request comes first, followed by project instructions, vault instructions, then Scribe's defaults. Saved to AGENTS.md in the project folder, which you can also edit as a note."
     )}
   >
     <InstructionsTextarea label={t(LABEL)} value={value} onChange={onChange} />

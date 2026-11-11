@@ -1,15 +1,6 @@
 import { t } from "@/lib/i18n";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import {
-  ArrowUpRight,
-  Check,
-  Edit2,
-  LoaderCircle,
-  MessageCircle,
-  Power,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Check, Edit2, LoaderCircle, MessageCircle, Power, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchBar } from "@/components/ui/SearchBar";
@@ -51,7 +42,6 @@ interface ChatHistoryPopoverProps {
   onUpdateTitle: (id: string, newTitle: string) => Promise<void>;
   onDeleteChat: (id: string) => Promise<void>;
   onLoadChat?: (id: string) => Promise<void>;
-  onOpenSourceFile?: (id: string) => Promise<void>;
   getIcon?: ChatHistoryIconResolver;
   getBadge?: ChatHistoryBadgeResolver;
   getDeleteSummary?: (item: ChatHistoryItem) => string | undefined;
@@ -68,7 +58,6 @@ export function ChatHistoryPopover({
   onUpdateTitle,
   onDeleteChat,
   onLoadChat,
-  onOpenSourceFile,
   getIcon,
   getBadge,
   getDeleteSummary,
@@ -315,9 +304,6 @@ export function ChatHistoryPopover({
                             onDelete={safeAsyncHandler(handleDelete)}
                             onCancelDelete={handleCancelDelete}
                             onLoadChat={safeAsyncHandler(handleLoadChat)}
-                            onOpenSourceFile={
-                              onOpenSourceFile ? safeAsyncHandler(onOpenSourceFile) : undefined
-                            }
                             isMobile={isMobile}
                             confirmDeleteId={confirmDeleteId}
                             getIcon={getIcon}
@@ -363,7 +349,6 @@ interface ChatHistoryItemProps {
   onDelete: (id: string) => void;
   onCancelDelete: () => void;
   onLoadChat: (id: string) => void;
-  onOpenSourceFile?: (id: string) => void;
   isMobile: boolean;
   confirmDeleteId: string | null;
   getIcon?: ChatHistoryIconResolver;
@@ -385,7 +370,6 @@ function ChatHistoryItem({
   onDelete,
   onCancelDelete,
   onLoadChat,
-  onOpenSourceFile,
   isMobile,
   confirmDeleteId,
   getIcon,
@@ -517,20 +501,6 @@ function ChatHistoryItem({
                   <Power className="tw-size-3" />
                 </Button>
               )}
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (onOpenSourceFile) {
-                    onOpenSourceFile(chat.id);
-                  }
-                }}
-                className="tw-size-5 tw-p-0"
-                title={t("Open the source file")}
-              >
-                <ArrowUpRight className="tw-size-4" />
-              </Button>
 
               <Button
                 size="sm"

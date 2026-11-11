@@ -17,6 +17,22 @@ const mockEntries = [
       info: { id: "gpt-4o", displayName: "GPT-4o" },
     },
   },
+  {
+    state: "ok",
+    configuredModelId: "model-z",
+    provider: {
+      providerId: "z",
+      providerType: "openai-compatible",
+      displayName: "Zeta",
+      origin: { kind: "byok" },
+      requiresApiKey: false,
+    },
+    configuredModel: {
+      configuredModelId: "model-z",
+      providerId: "z",
+      info: { id: "claude", displayName: "Claude" },
+    },
+  },
 ];
 /* eslint-disable @eslint-react/hooks-extra/no-unnecessary-use-prefix -- mocks the real hooks; names must match the exports */
 jest.mock("jotai", () => ({ useAtomValue: () => mockEntries }));
@@ -61,6 +77,15 @@ describe("useChatModelPicker", () => {
         useChatModelPicker({ value: "removed", onChange: jest.fn() })
       );
       expect(result.current.value).toBe("model-a|openai");
+    });
+    it("groups entries by provider display name and sorts groups alphabetically https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      const { result } = renderHook(() =>
+        useChatModelPicker({ value: "x|openai", onChange: jest.fn(), fallbackToFirst: false })
+      );
+      expect(result.current.models.map((model) => [model.displayName, model._group])).toEqual([
+        ["GPT-4o", "OpenAI"],
+        ["Claude", "Zeta"],
+      ]);
     });
   });
 });

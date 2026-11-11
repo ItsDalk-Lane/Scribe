@@ -1,5 +1,8 @@
+import { loadDesktopStreamingFetch } from "@/utils/desktopStreamingFetch";
+import { isDesktopRuntime } from "@/utils/desktopRuntime";
 import type { CustomModel } from "@/aiParams";
-import { createProviderFetch } from "@/LLMProviders/providerTransport";
+import { clearProviderTokenCaches, createProviderFetch } from "@/LLMProviders/providerTransport";
+import { getInterfaceLocale, setInterfaceLocale } from "@/lib/i18n";
 import { safeFetchNoThrow } from "@/utils";
 import { runInThisContext } from "node:vm";
 const {
@@ -12,6 +15,8 @@ const {
   Response: typeof Response;
 };
 
+jest.mock("@/utils/desktopStreamingFetch", () => ({ loadDesktopStreamingFetch: jest.fn() }));
+jest.mock("@/utils/desktopRuntime", () => ({ isDesktopRuntime: jest.fn(() => false) }));
 jest.mock("@/utils", () => ({ safeFetchNoThrow: jest.fn() }));
 jest.mock("./nativeSdk/createVertexAccessToken", () => ({
   ...jest.requireActual<typeof import("./nativeSdk/createVertexAccessToken")>(
@@ -62,51 +67,125 @@ const serviceAccount = JSON.stringify({
 });
 
 describe("providerTransport", () => {
-  describe("createProviderFetch", () => {
+  describe("createProviderFetch()", () => {
     beforeEach(() => {
+      clearProviderTokenCaches();
       safeFetch.mockReset().mockResolvedValue(jsonResponse({ choices: [] }));
       nativeFetch.mockReset().mockResolvedValue(jsonResponse({ choices: [] }));
-      window.fetch = nativeFetch;
+      window.fetch = jest.fn(() => {
+        throw new Error("Browser network must not be used");
+      });
+      jest.mocked(isDesktopRuntime).mockReturnValue(false);
+      jest.mocked(loadDesktopStreamingFetch).mockReset().mockReturnValue(nativeFetch);
       googleAuth.mockReset();
     });
 
     afterEach(() => jest.restoreAllMocks());
 
-    it.each([undefined, true])(
-      "uses Obsidian transport by default or when compatibility is %s without changing normal provider identity",
-      async (enableCors) => {
-        const fetcher = createProviderFetch(model({ enableCors }));
-        const signal = new AbortController().signal;
-        const response = await fetcher(new URL("https://proxy.example/v1/chat/completions"), {
+    it("reports only the inference dispatch after authentication and not a rejected request configuration https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+      const dispatched = jest.fn();
+      const fetcher = createProviderFetch(
+        model({ providerCatalogId: "github-copilot", apiKey: "gho_fixture" }),
+        undefined,
+        dispatched
+      );
+      safeFetch.mockResolvedValueOnce(
+        jsonResponse({ token: "service-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
+      );
+      await fetcher("https://proxy.example/chat/completions", { method: "POST", body: "{}" });
+      expect(safeFetch).toHaveBeenCalledTimes(2);
+      expect(dispatched).toHaveBeenCalledTimes(1);
+      await expect(fetcher("invalid-url")).rejects.toThrow();
+      expect(dispatched).toHaveBeenCalledTimes(1);
+    });
+    it.each([false, true])(
+      "classifies a plain connection failure as transient on desktop=%s without changing caller cancellation (https://github.com/ItsDalk-Lane/Scribe/issues/58)",
+      async (desktop) => {
+        jest.mocked(isDesktopRuntime).mockReturnValue(desktop);
+        const transport = desktop ? nativeFetch : safeFetch;
+        transport.mockRejectedValueOnce(new Error("Connection reset"));
+        await expect(
+          createProviderFetch(model())("https://proxy.example/chat")
+        ).rejects.toMatchObject({ failure: { kind: "transient" } });
+        const controller = new AbortController();
+        controller.abort();
+        await expect(
+          createProviderFetch(model())("https://proxy.example/chat", { signal: controller.signal })
+        ).rejects.toMatchObject({ name: "AbortError" });
+        expect(transport).toHaveBeenCalledTimes(1);
+      }
+    );
+
+    it("classifies a plain token-exchange connection failure as transient (https://github.com/ItsDalk-Lane/Scribe/issues/58)", async () => {
+      safeFetch.mockRejectedValueOnce(new Error("Connection reset"));
+      await expect(
+        createProviderFetch(model({ providerCatalogId: "github-copilot", apiKey: "ghu_fixture" }))(
+          "https://api.githubcopilot.com/responses"
+        )
+      ).rejects.toMatchObject({ failure: { kind: "transient" } });
+      expect(safeFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it("marks network-layer failures as transient while keeping invalid request configuration deterministic (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
+      jest.mocked(isDesktopRuntime).mockReturnValue(true);
+      nativeFetch.mockRejectedValueOnce(new TypeError("Network unavailable"));
+      await expect(
+        createProviderFetch(model())("https://proxy.example/chat")
+      ).rejects.toMatchObject({ failure: { kind: "transient" } });
+      await expect(createProviderFetch(model())("invalid-url")).rejects.toMatchObject({
+        name: "TypeError",
+      });
+      expect(safeFetch).not.toHaveBeenCalled();
+    });
+
+    it("uses Obsidian transport on mobile while preserving provider identity (https://github.com/ItsDalk-Lane/Scribe/issues/51)", async () => {
+      const signal = new AbortController().signal;
+      const response = await createProviderFetch(model())(
+        "https://proxy.example/v1/chat/completions",
+        {
           method: "POST",
           body: '{"messages":[]}',
           signal,
           headers: { Authorization: "Bearer custom-token", "X-Custom": "preserved" },
-        });
-        expect(response).toBe(await safeFetch.mock.results[0].value);
-        expect(safeFetch.mock.calls[0][0]).toBe("https://proxy.example/v1/chat/completions");
-        expect(safeFetch.mock.calls[0][1]).toMatchObject({
-          method: "POST",
-          body: '{"messages":[]}',
-        });
-        expect(safeFetch.mock.calls[0][1]?.signal).toBe(signal);
-        expect(requestHeaders(0).get("Authorization")).toBe("Bearer custom-token");
-        expect(requestHeaders(0).get("X-Custom")).toBe("preserved");
-        expect(nativeFetch).not.toHaveBeenCalled();
-      }
-    );
-
-    it("uses native fetch only for explicitly disabled compatibility and preserves cancellation", async () => {
-      const signal = new AbortController().signal;
-      await createProviderFetch(model({ enableCors: false }))(
-        "https://proxy.example/chat/completions",
-        { method: "POST", body: "{}", signal }
+        }
       );
+      expect(response).toBe(await safeFetch.mock.results[0].value);
+      expect(safeFetch.mock.calls[0][1]?.signal).toBe(signal);
+      expect(requestHeaders(0).get("Authorization")).toBe("Bearer custom-token");
+      expect(requestHeaders(0).get("X-Custom")).toBe("preserved");
+      expect(loadDesktopStreamingFetch).not.toHaveBeenCalled();
+    });
+
+    it("uses the desktop streaming bridge without browser CORS or a saved switch (https://github.com/ItsDalk-Lane/Scribe/issues/51)", async () => {
+      jest.mocked(isDesktopRuntime).mockReturnValue(true);
+      const signal = new AbortController().signal;
+      const response = await createProviderFetch(model())(
+        "https://proxy.example/chat/completions",
+        {
+          method: "POST",
+          body: "{}",
+          signal,
+        }
+      );
+      expect(response).toBe(await nativeFetch.mock.results[0].value);
       expect(nativeFetch).toHaveBeenCalledWith(
         "https://proxy.example/chat/completions",
         expect.objectContaining({ method: "POST", body: "{}", signal })
       );
       expect(safeFetch).not.toHaveBeenCalled();
+      expect(window.fetch).not.toHaveBeenCalled();
+    });
+
+    it("reports a missing desktop bridge without falling back to a buffered or browser request (https://github.com/ItsDalk-Lane/Scribe/issues/51)", async () => {
+      jest.mocked(isDesktopRuntime).mockReturnValue(true);
+      jest.mocked(loadDesktopStreamingFetch).mockImplementation(() => {
+        throw new Error("Desktop bridge unavailable");
+      });
+      await expect(createProviderFetch(model())("https://proxy.example/chat")).rejects.toThrow(
+        "Desktop bridge unavailable"
+      );
+      expect(safeFetch).not.toHaveBeenCalled();
+      expect(window.fetch).not.toHaveBeenCalled();
     });
 
     it("reads a Request's URL, method, body, signal and headers while honoring explicit header overrides", async () => {
@@ -189,11 +268,11 @@ describe("providerTransport", () => {
     });
 
     it.each(["/chat/completions", "/responses", "/v1/messages"])(
-      "exchanges a GitHub user token and preserves the Scribe protocol path %s",
+      "exchanges a GitHub user token and preserves the requested API path %s",
       async (path) => {
         safeFetch.mockResolvedValueOnce(
           jsonResponse({
-            token: "scribe-service-token",
+            token: "provider-service-token",
             expires_at: Math.floor(Date.now() / 1000) + 3600,
             endpoints: { api: "https://api.business.githubcopilot.com" },
           })
@@ -209,7 +288,7 @@ describe("providerTransport", () => {
         expect(safeFetch.mock.calls[0][0]).toBe("https://api.github.com/copilot_internal/v2/token");
         expect(requestHeaders(0).get("Authorization")).toBe("Bearer ghu_fixture");
         expect(safeFetch.mock.calls[1][0]).toBe(`https://api.business.githubcopilot.com${path}`);
-        expect(requestHeaders(1).get("Authorization")).toBe("Bearer scribe-service-token");
+        expect(requestHeaders(1).get("Authorization")).toBe("Bearer provider-service-token");
         expect(requestHeaders(1).has("x-api-key")).toBe(false);
         expect(requestHeaders(1).get("User-Agent")).toBe("obsidian-scribe/4");
         expect(requestHeaders(1).get("Editor-Version")).toBe("obsidian-scribe/4");
@@ -218,7 +297,7 @@ describe("providerTransport", () => {
       }
     );
 
-    it("caches a Scribe token until expiry then exchanges the original GitHub key again", async () => {
+    it("caches a provider token until expiry then exchanges the original GitHub key again", async () => {
       const now = jest.spyOn(Date, "now").mockReturnValue(1_000_000);
       safeFetch.mockResolvedValueOnce(jsonResponse({ token: "service-first", expires_at: 2000 }));
       const fetcher = createProviderFetch(
@@ -239,6 +318,69 @@ describe("providerTransport", () => {
         "https://api.githubcopilot.com/responses",
       ]);
       expect(requestHeaders(4).get("Authorization")).toBe("Bearer service-refreshed");
+    });
+
+    it("lets a cancelled caller leave a shared token refresh without stopping another request (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
+      let release!: (value: Response) => void;
+      safeFetch.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+      );
+      const fetcher = createProviderFetch(
+        model({ providerCatalogId: "github-copilot", apiKey: "ghu_fixture" })
+      );
+      const controller = new AbortController();
+      const first = fetcher("https://api.githubcopilot.com/responses", {
+        signal: controller.signal,
+      }).catch((error: unknown) => error);
+      const second = fetcher("https://api.githubcopilot.com/responses");
+      controller.abort();
+      await expect(first).resolves.toMatchObject({ name: "AbortError" });
+      expect(safeFetch.mock.calls[0][1]?.signal?.aborted).toBe(false);
+      release(
+        jsonResponse({ token: "shared-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
+      );
+      expect((await second).ok).toBe(true);
+      expect(requestHeaders(1).get("Authorization")).toBe("Bearer shared-token");
+      expect(safeFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps a refreshed credential's cache when an earlier credential exchange completes late (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
+      let release!: (value: Response) => void;
+      safeFetch.mockImplementationOnce(
+        () =>
+          new Promise<Response>((resolve) => {
+            release = resolve;
+          })
+      );
+      const before = createProviderFetch(
+        model({
+          providerCatalogId: "github-copilot",
+          configuredModelId: "shared-model",
+          apiKey: "ghu_before",
+        })
+      );
+      const after = createProviderFetch(
+        model({
+          providerCatalogId: "github-copilot",
+          configuredModelId: "shared-model",
+          apiKey: "ghu_after",
+        })
+      );
+      const first = before("https://api.githubcopilot.com/responses");
+      safeFetch.mockResolvedValueOnce(
+        jsonResponse({ token: "after-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
+      );
+      await after("https://api.githubcopilot.com/responses");
+      release(
+        jsonResponse({ token: "before-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
+      );
+      await first;
+      await after("https://api.githubcopilot.com/responses");
+      expect(requestHeaders(4).get("Authorization")).toBe("Bearer after-token");
+      expect(safeFetch).toHaveBeenCalledTimes(5);
     });
 
     it("times out a stalled token exchange so a later request can retry", async () => {
@@ -266,7 +408,7 @@ describe("providerTransport", () => {
       }
     });
 
-    it("accepts an already-issued Scribe service token without exchanging it as a GitHub user token", async () => {
+    it("accepts an already-issued provider service token without exchanging it as a GitHub user token", async () => {
       await createProviderFetch(
         model({
           providerCatalogId: "github-copilot",
@@ -285,7 +427,7 @@ describe("providerTransport", () => {
       "https://user:pass@api.githubcopilot.com",
       "https://api.githubcopilot.com:444",
     ])(
-      "rejects the untrusted Scribe service endpoint %s before sending a service token",
+      "rejects the untrusted provider service endpoint %s before sending a service token",
       async (api) => {
         safeFetch.mockResolvedValueOnce(
           jsonResponse({
@@ -298,12 +440,34 @@ describe("providerTransport", () => {
           createProviderFetch(
             model({ providerCatalogId: "github-copilot", apiKey: "ghu_fixture" })
           )("https://api.githubcopilot.com/responses")
-        ).rejects.toThrow();
+        ).rejects.toThrow("Invalid Copilot API endpoint.");
         expect(safeFetch).toHaveBeenCalledTimes(1);
       }
     );
 
-    it("keeps an explicitly configured Scribe inference proxy instead of redirecting it to a vendor metadata host", async () => {
+    it("identifies GitHub as the source of an invalid API address in Chinese", async () => {
+      const previousLocale = getInterfaceLocale();
+      setInterfaceLocale("zh-CN");
+      try {
+        safeFetch.mockResolvedValueOnce(
+          jsonResponse({
+            token: "service-token",
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+            endpoints: { api: "https://untrusted.example" },
+          })
+        );
+        await expect(
+          createProviderFetch(
+            model({ providerCatalogId: "github-copilot", apiKey: "ghu_fixture" })
+          )("https://api.githubcopilot.com/responses")
+        ).rejects.toThrow("GitHub 返回的 API 地址无效。");
+        expect(safeFetch).toHaveBeenCalledTimes(1);
+      } finally {
+        setInterfaceLocale(previousLocale);
+      }
+    });
+
+    it("keeps an explicitly configured inference proxy instead of redirecting it to a vendor metadata host", async () => {
       safeFetch.mockResolvedValueOnce(
         jsonResponse({
           token: "service-token",
@@ -344,7 +508,7 @@ describe("providerTransport", () => {
     });
 
     it.each([{}, { token: "fixture", expires_at: 0 }, { token: 123, expires_at: 9999999999 }])(
-      "rejects unusable successful Scribe token replies %p before inference",
+      "rejects unusable successful provider token replies %p before inference",
       async (body) => {
         safeFetch.mockResolvedValueOnce(jsonResponse(body));
         await expect(
@@ -509,7 +673,7 @@ describe("providerTransport", () => {
       }
     );
 
-    it("coalesces concurrent Scribe credential exchanges without serializing inference requests", async () => {
+    it("coalesces concurrent provider credential exchanges without serializing inference requests", async () => {
       safeFetch.mockResolvedValueOnce(
         jsonResponse({ token: "service-token", expires_at: Math.floor(Date.now() / 1000) + 3600 })
       );

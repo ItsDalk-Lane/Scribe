@@ -3,13 +3,21 @@ import { getSettings } from "@/settings/model";
 import { Notice, type App } from "obsidian";
 
 jest.mock("@/settings/scribeFolder", () => ({
-  getEffectiveScribeFolder: () => "scribe",
+  getEffectiveScribeFolder: () => ".scribe",
 }));
 jest.mock("@/settings/model", () => ({
   getSettings: jest.fn(() => ({ debug: true, openAIApiKey: "sk-should-never-be-exported" })),
 }));
 jest.mock("@/utils", () => ({
   ensureFolderExists: jest.fn().mockResolvedValue(undefined),
+}));
+
+jest.mock("@/utils/vaultFileStore", () => ({
+  writeVaultFile: (
+    vault: { adapter: { write: (path: string, value: string) => Promise<void> } },
+    path: string,
+    value: string
+  ) => vault.adapter.write(path, value),
 }));
 
 interface FakeVault {
@@ -92,7 +100,7 @@ describe("logFileManager", () => {
 
         await logFileManager.flush();
         expect(vault.write).toHaveBeenCalledWith(
-          "scribe/scribe-log.md",
+          ".scribe/scribe-log.md",
           expect.stringContaining("hello")
         );
       });
@@ -117,18 +125,55 @@ describe("logFileManager", () => {
       });
     });
 
-    describe("openLogFile", () => {
+    describe("openLogFile()", () => {
       it("creates the note with the buffer plus a sanitized settings block", async () => {
         const { app, vault } = fakeApp(false);
         logFileManager.setApp(app);
         await logFileManager.append("INFO", "hello");
 
         await logFileManager.openLogFile();
-        expect(vault.create).toHaveBeenCalledTimes(1);
-        const content = vault.create.mock.calls[0][1];
+        expect(vault.write).toHaveBeenCalledTimes(1);
+        const content = vault.write.mock.calls[0][1];
         expect(content).toContain("hello");
         expect(content).toContain("## Settings");
         expect(content).not.toContain("sk-should-never-be-exported");
+      });
+
+      it("omits nested authorization fields from the settings note https://github.com/ItsDalk-Lane/Scribe/issues/17", async () => {
+        const { app, vault } = fakeApp(false);
+        jest.mocked(getSettings).mockReturnValueOnce({
+          custom: { Authorization: "Bearer private-one", Proxy_Authorization: "private-two" },
+          safeName: "visible-setting",
+        } as never);
+        logFileManager.setApp(app);
+
+        await logFileManager.openLogFile();
+
+        const content = vault.write.mock.calls[0][1];
+        expect(content).toContain("visible-setting");
+        expect(content).not.toContain("private-one");
+        expect(content).not.toContain("private-two");
+      });
+
+      it("omits credential values in named header entries while retaining ordinary headers https://github.com/ItsDalk-Lane/Scribe/issues/17", async () => {
+        const { app, vault } = fakeApp(false);
+        jest.mocked(getSettings).mockReturnValueOnce({
+          custom: {
+            headers: [
+              { name: "Authorization", value: "private-three" },
+              { name: "X-Api-Key", value: "private-four" },
+              { name: "Accept", value: "application/json" },
+            ],
+          },
+        } as never);
+        logFileManager.setApp(app);
+
+        await logFileManager.openLogFile();
+
+        const content = vault.write.mock.calls[0][1];
+        expect(content).toContain("application/json");
+        expect(content).not.toContain("private-three");
+        expect(content).not.toContain("private-four");
       });
 
       it("keeps the settings block out of the in-memory buffer", async () => {
@@ -147,14 +192,14 @@ describe("logFileManager", () => {
         await logFileManager.append("INFO", "hello");
 
         await logFileManager.openLogFile();
-        const content = vault.create.mock.calls[0][1];
+        const content = vault.write.mock.calls[0][1];
         expect(content).toContain("hello");
         expect(content).toContain("Settings could not be serialized: TypeError");
       });
 
       it("shows a notice when the note cannot be written, since the logger cannot log its own failure", async () => {
         const { app, vault } = fakeApp(false);
-        vault.create.mockRejectedValueOnce(new Error("read-only vault"));
+        vault.write.mockRejectedValueOnce(new Error("read-only vault"));
         logFileManager.setApp(app);
 
         await logFileManager.openLogFile();
@@ -166,7 +211,7 @@ describe("logFileManager", () => {
 
     describe("getLogPath", () => {
       it("resolves the note under the effective Scribe root folder", () => {
-        expect(logFileManager.getLogPath()).toBe("scribe/scribe-log.md");
+        expect(logFileManager.getLogPath()).toBe(".scribe/scribe-log.md");
       });
     });
   });

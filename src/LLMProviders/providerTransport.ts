@@ -1,7 +1,16 @@
+import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
 import { t } from "@/lib/i18n";
 import type { CustomModel } from "@/aiParams";
+import { observeProviderResponse } from "@/LLMProviders/providerResponse";
+import {
+  classifyProviderFailure,
+  ProviderRequestError,
+  type ProviderRequestFailure,
+} from "@/LLMProviders/providerRequestFailure";
 import { TimeoutError } from "@/error";
 import { safeFetchNoThrow } from "@/utils";
+import { isDesktopRuntime } from "@/utils/desktopRuntime";
+import { loadDesktopStreamingFetch } from "@/utils/desktopStreamingFetch";
 import { isRecord } from "@/utils/obsidianInternals";
 import { v4 as uuidv4 } from "uuid";
 
@@ -14,7 +23,7 @@ interface ProviderToken {
 const CLIENT_ID = "obsidian-scribe/4";
 const PROVIDER_TOKEN_TIMEOUT_MS = 15_000;
 
-function copilotHost(url: URL): boolean {
+function isGitHubInferenceHost(url: URL): boolean {
   return (
     url.protocol === "https:" &&
     (url.hostname === "githubcopilot.com" || url.hostname.endsWith(".githubcopilot.com")) &&
@@ -24,17 +33,26 @@ function copilotHost(url: URL): boolean {
   );
 }
 
+// 宿主断网可能只抛普通异常，认证与推理必须在真实网络边界使用相同的可重试分类。https://github.com/ItsDalk-Lane/Scribe/issues/58
+function throwProviderTransportError(error: unknown, signal?: AbortSignal | null): never {
+  signal?.throwIfAborted();
+  if (error instanceof ProviderRequestError || error instanceof TimeoutError) throw error;
+  throw new ProviderRequestError(error instanceof Error ? error.message : String(error), {
+    kind: "transient",
+  });
+}
+
 async function requestProviderToken(
   model: CustomModel,
   apiKey: string,
   signal?: AbortSignal
 ): Promise<ProviderToken> {
-  const copilot = model.providerCatalogId === "github-copilot";
+  const isGitHubProvider = model.providerCatalogId === "github-copilot";
   const response = await safeFetchNoThrow(
-    copilot
+    isGitHubProvider
       ? "https://api.github.com/copilot_internal/v2/token"
       : "https://iam.cloud.ibm.com/identity/token",
-    copilot
+    isGitHubProvider
       ? {
           method: "GET",
           signal,
@@ -59,28 +77,39 @@ async function requestProviderToken(
             apikey: apiKey,
           }).toString(),
         }
-  );
+  ).catch((error: unknown) => throwProviderTransportError(error, signal));
   if (!response.ok) {
-    throw Object.assign(
-      new Error(t("Provider authentication failed (HTTP {status}).", { status: response.status })),
-      {
-        status: response.status,
-      }
+    let failure: ProviderRequestFailure | undefined;
+    await observeProviderResponse(
+      response,
+      (value) => {
+        failure = value;
+      },
+      signal
+    );
+    throw new ProviderRequestError(
+      t("Provider authentication failed (HTTP {status}).", { status: response.status }),
+      failure ?? classifyProviderFailure({ status: response.status })
     );
   }
   let data: unknown;
   try {
     data = await response.json();
   } catch {
-    throw new Error(t("Invalid provider authentication response."));
+    throw new ProviderRequestError(t("Invalid provider authentication response."), {
+      kind: "auth",
+    });
   }
-  if (!isRecord(data)) throw new Error(t("Invalid provider authentication response."));
-  const value = copilot ? data.token : data.access_token;
-  const epoch = copilot ? data.expires_at : data.expiration;
+  if (!isRecord(data))
+    throw new ProviderRequestError(t("Invalid provider authentication response."), {
+      kind: "auth",
+    });
+  const value = isGitHubProvider ? data.token : data.access_token;
+  const epoch = isGitHubProvider ? data.expires_at : data.expiration;
   const expiresAt =
     typeof epoch === "number"
       ? epoch * 1000
-      : !copilot && typeof data.expires_in === "number"
+      : !isGitHubProvider && typeof data.expires_in === "number"
         ? Date.now() + data.expires_in * 1000
         : 0;
   if (
@@ -89,10 +118,12 @@ async function requestProviderToken(
     !Number.isFinite(expiresAt) ||
     expiresAt <= Date.now()
   ) {
-    throw new Error(t("Invalid provider authentication response."));
+    throw new ProviderRequestError(t("Invalid provider authentication response."), {
+      kind: "auth",
+    });
   }
   let apiEndpoint: URL | undefined;
-  const endpoint = copilot && isRecord(data.endpoints) ? data.endpoints.api : undefined;
+  const endpoint = isGitHubProvider && isRecord(data.endpoints) ? data.endpoints.api : undefined;
   if (endpoint !== undefined) {
     if (typeof endpoint !== "string") throw new Error(t("Invalid Copilot API endpoint."));
     try {
@@ -101,7 +132,7 @@ async function requestProviderToken(
       throw new Error(t("Invalid Copilot API endpoint."));
     }
     if (
-      !copilotHost(apiEndpoint) ||
+      !isGitHubInferenceHost(apiEndpoint) ||
       apiEndpoint.pathname !== "/" ||
       apiEndpoint.search ||
       apiEndpoint.hash
@@ -154,7 +185,33 @@ function watsonxRequest(url: URL, body: BodyInit | null | undefined, model: Cust
   return JSON.stringify(payload);
 }
 
-export function createProviderFetch(model: CustomModel): typeof fetch {
+// 短期令牌与 Vertex 解析器按连接身份在调用之间共享；凭据值变更或整体失效后重新换取。
+// 仅保存在内存，不落盘。https://github.com/ItsDalk-Lane/Scribe/issues/61
+interface SharedTokenEntry {
+  apiKey: string;
+  token?: ProviderToken;
+  pending?: Promise<ProviderToken>;
+}
+const sharedTokens = new Map<string, SharedTokenEntry>();
+const vertexResolvers = new Map<
+  string,
+  { apiKey: string; resolver?: (signal?: AbortSignal) => Promise<string> }
+>();
+
+function sharedTokenKey(model: CustomModel): string {
+  return `${model.providerCatalogId ?? "legacy"}|${model.configuredModelId ?? model.name}`;
+}
+
+export function clearProviderTokenCaches(): void {
+  sharedTokens.clear();
+  vertexResolvers.clear();
+}
+
+export function createProviderFetch(
+  model: CustomModel,
+  redactionValues?: string[],
+  onDispatch?: () => void
+): typeof fetch {
   const apiKey = model.apiKey?.trim() ?? "";
   const catalogId = model.providerCatalogId;
   const vertex =
@@ -163,17 +220,20 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
     model.providerNpm === "@ai-sdk/google-vertex" ||
     model.providerNpm === "@ai-sdk/google-vertex/anthropic";
   let fallbackSession: string | undefined;
-  let token: ProviderToken | undefined;
-  let pendingToken: Promise<ProviderToken> | undefined;
-  let vertexAuth: Promise<(signal?: AbortSignal) => Promise<string>> | undefined;
 
-  async function managedToken(): Promise<ProviderToken> {
-    if (!apiKey) throw new Error(t("Provider credentials are missing."));
+  async function managedToken(signal?: AbortSignal): Promise<ProviderToken> {
+    signal?.throwIfAborted();
+    if (!apiKey)
+      throw new ProviderRequestError(t("Provider credentials are missing."), { kind: "auth" });
     if (catalogId === "github-copilot" && !/^(?:gh[opusr]_|github_pat_)/.test(apiKey)) {
       return { value: apiKey, expiresAt: Infinity };
     }
-    if (token && token.expiresAt > Date.now() + 60_000) return token;
-    pendingToken ??= (() => {
+    const key = sharedTokenKey(model);
+    const current = sharedTokens.get(key);
+    const entry: SharedTokenEntry = current?.apiKey === apiKey ? current : { apiKey };
+    sharedTokens.set(key, entry);
+    if (entry.token && entry.token.expiresAt > Date.now() + 60_000) return entry.token;
+    entry.pending ??= (() => {
       const controller = new AbortController();
       let timer: number | undefined;
       const timeout = new Promise<never>((_, reject) => {
@@ -182,42 +242,49 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
           reject(new TimeoutError("Provider token request", PROVIDER_TOKEN_TIMEOUT_MS));
         }, PROVIDER_TOKEN_TIMEOUT_MS);
       });
-      return Promise.race([
-        requestProviderToken(model, apiKey, controller.signal),
-        timeout,
-      ]).finally(() => {
-        window.clearTimeout(timer);
-        pendingToken = undefined;
-      });
+      return Promise.race([requestProviderToken(model, apiKey, controller.signal), timeout])
+        .then((value) => {
+          entry.token = value;
+          return value;
+        })
+        .finally(() => {
+          window.clearTimeout(timer);
+          entry.pending = undefined;
+        });
     })();
-    token = await pendingToken;
-    return token;
+    return signal ? raceWithAbortSignal(entry.pending, signal) : entry.pending;
   }
 
   async function vertexToken(signal?: AbortSignal): Promise<string> {
-    if (!apiKey) throw new Error(t("Provider credentials are missing."));
-    vertexAuth ??= (async () => {
-      const { createVertexAccessToken, parseVertexCredentials } =
-        await import("./nativeSdk/createVertexAccessToken");
-      const credentials = parseVertexCredentials(apiKey);
-      if (typeof credentials === "string") return async () => credentials;
-      if (
-        !isRecord(credentials) ||
-        credentials.type !== "service_account" ||
-        typeof credentials.client_email !== "string" ||
-        typeof credentials.private_key !== "string"
-      ) {
-        throw new Error(t("A Google service account JSON or access token is required."));
-      }
-      return createVertexAccessToken(
-        credentials.client_email,
-        credentials.private_key,
-        createProviderFetch(model),
-        typeof credentials.private_key_id === "string" ? credentials.private_key_id : undefined
-      );
-    })();
-    const accessToken = await (await vertexAuth)(signal);
-    if (!accessToken) throw new Error(t("Google did not return an access token."));
+    if (!apiKey)
+      throw new ProviderRequestError(t("Provider credentials are missing."), { kind: "auth" });
+    const { createVertexAccessToken, parseVertexCredentials } =
+      await import("./nativeSdk/createVertexAccessToken");
+    const credentials = parseVertexCredentials(apiKey);
+    if (typeof credentials === "string") return credentials;
+    if (
+      !isRecord(credentials) ||
+      credentials.type !== "service_account" ||
+      typeof credentials.client_email !== "string" ||
+      typeof credentials.private_key !== "string"
+    ) {
+      throw new Error(t("A Google service account JSON or access token is required."));
+    }
+    const identity = `${credentials.client_email}|${
+      typeof credentials.private_key_id === "string" ? credentials.private_key_id : ""
+    }`;
+    const entry = vertexResolvers.get(identity);
+    const shared = entry && entry.apiKey === apiKey ? entry : { apiKey };
+    shared.resolver ??= createVertexAccessToken(
+      credentials.client_email,
+      credentials.private_key,
+      createProviderFetch(model, redactionValues),
+      typeof credentials.private_key_id === "string" ? credentials.private_key_id : undefined
+    );
+    vertexResolvers.set(identity, shared);
+    const accessToken = await shared.resolver(signal);
+    if (!accessToken)
+      throw new ProviderRequestError(t("Google did not return an access token."), { kind: "auth" });
     return accessToken;
   }
 
@@ -267,7 +334,8 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       }
     }
     if (url.origin === "https://opencode.ai" && url.pathname.startsWith("/inference/")) {
-      if (!apiKey) throw new Error(t("OpenCode credentials are missing."));
+      if (!apiKey)
+        throw new ProviderRequestError(t("OpenCode credentials are missing."), { kind: "auth" });
       headers.set("Authorization", `Bearer ${apiKey}`);
       headers.delete("x-api-key");
       headers.delete("x-goog-api-key");
@@ -305,8 +373,8 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       headers.set("cf-aig-authorization", `Bearer ${apiKey}`);
     }
     if (catalogId === "github-copilot") {
-      const credential = await managedToken();
-      if (credential.apiEndpoint && copilotHost(url)) {
+      const credential = await managedToken(signal ?? undefined);
+      if (credential.apiEndpoint && isGitHubInferenceHost(url)) {
         url.host = credential.apiEndpoint.host;
       }
       headers.delete("x-api-key");
@@ -320,7 +388,7 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
     }
     if (catalogId === "watsonx" || model.providerNpm === "watsonx-ai-provider") {
       body = watsonxRequest(url, body, model);
-      headers.set("Authorization", `Bearer ${(await managedToken()).value}`);
+      headers.set("Authorization", `Bearer ${(await managedToken(signal ?? undefined)).value}`);
       headers.set("Content-Type", "application/json");
     }
     const bearer = headers.get("Authorization")?.match(/^Bearer\s+(.+)$/i)?.[1];
@@ -331,6 +399,10 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
     ) {
       headers.set("Authorization", `Bearer ${await vertexToken(signal ?? undefined)}`);
     }
+    if (redactionValues)
+      headers.forEach((value, name) => {
+        if (/(?:authorization|api[-_]?key|token|secret)$/i.test(name)) redactionValues.push(value);
+      });
     const options: RequestInit = {
       ...init,
       method,
@@ -339,8 +411,16 @@ export function createProviderFetch(model: CustomModel): typeof fetch {
       signal,
     };
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    return model.enableCors === false
-      ? fetch(url.toString(), options)
-      : safeFetchNoThrow(url.toString(), options);
+    const desktop = isDesktopRuntime();
+    const transport = desktop ? loadDesktopStreamingFetch(onDispatch) : safeFetchNoThrow;
+    try {
+      // 桌面浏览器请求会被部分模型服务的跨域限制拦截，缓冲连接又会丢失流式显示。https://github.com/ItsDalk-Lane/Scribe/issues/51
+      const response = transport(url.toString(), options);
+      // 凭据解析和保存准备不是模型调用；只在实际传输启动后登记请求步数。https://github.com/ItsDalk-Lane/Scribe/issues/52
+      if (!desktop) onDispatch?.();
+      return await response;
+    } catch (error) {
+      throwProviderTransportError(error, signal);
+    }
   };
 }

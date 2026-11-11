@@ -1,9 +1,8 @@
 import { t } from "@/lib/i18n";
 import AgentChatMessages from "@/agentMode/ui/AgentChatMessages";
+import { RequestContextPreviewModal } from "@/agentMode/ui/RequestContextPreview";
 import { AgentChatControls } from "@/agentMode/ui/AgentChatControls";
 import { AgentChatInput } from "@/agentMode/ui/AgentChatInput";
-import { openReportIssueModal } from "@/agentMode/ui/ReportIssueModal";
-import { formatChatReportNote } from "@/agentMode/session/feedback/feedbackOffer";
 import AgentContextMeter from "@/agentMode/ui/AgentContextMeter";
 import AgentContextSection, { buildContextSummary } from "@/agentMode/ui/AgentContextSection";
 import { AgentLandingStack } from "@/agentMode/ui/AgentLandingStack";
@@ -15,6 +14,10 @@ import { AgentTabStrip } from "@/agentMode/ui/AgentTabStrip";
 import { AgentTasksProvider } from "@/agentMode/ui/AgentTasksContext";
 import { QueuedMessageList } from "@/agentMode/ui/QueuedMessageList";
 import { RunningTasksIndicator } from "@/agentMode/ui/RunningTasksIndicator";
+import {
+  SubagentSessionsButton,
+  TaskBudgetContinuation,
+} from "@/agentMode/ui/SubagentSessionsPanel";
 import { openTaskModal } from "@/agentMode/ui/TaskDetailModal";
 import { AgentWelcomeCard } from "@/agentMode/ui/AgentWelcomeCard";
 import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
@@ -39,6 +42,7 @@ import { useAgentModePicker } from "@/agentMode/ui/useAgentModePicker";
 import { useSessionBackendDescriptor } from "@/agentMode/ui/useBackendDescriptor";
 import { pickRandomGreeting } from "@/agentMode/ui/landingGreetings";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
+import { EMPTY_SUBAGENT_SESSIONS } from "@/agentMode/session/subagentSessions";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { GLOBAL_SCOPE } from "@/agentMode/session/scope";
 import { type ProjectConfig } from "@/aiParams";
@@ -53,7 +57,12 @@ import type ScribePlugin from "@/main";
 import { ProjectFileManager } from "@/projects/ProjectFileManager";
 import { getProjectLandingCaptureSignature } from "@/projects/projectContextSignature";
 import { getCachedProjectRecordById, useProjects } from "@/projects/state";
-import { getSettings, updateSetting, useSettingsValue } from "@/settings/model";
+import {
+  getModelKeyFromModel,
+  getSettings,
+  updateSetting,
+  useSettingsValue,
+} from "@/settings/model";
 import { Files, Folder, MessageSquare } from "lucide-react";
 import { Notice } from "obsidian";
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
@@ -65,9 +74,56 @@ interface AgentHomeProps {
   chatInputId: string;
   manager: AgentSessionManager;
   plugin: ScribePlugin;
-  onSaveChat: (saveAsNote: () => Promise<void>) => void;
   updateUserMessageHistory: (newMessage: string) => void;
 }
+
+interface AgentHomeTranscriptProps {
+  backend: AgentChatBackend;
+  plugin: ScribePlugin;
+  isLoading: boolean;
+  onForkMessage: (messageId: string) => Promise<void>;
+}
+
+const AgentHomeTranscript: React.FC<AgentHomeTranscriptProps> = ({
+  backend,
+  plugin,
+  isLoading,
+  onForkMessage,
+}) => {
+  const { messages, currentPlan, pendingToolPermissions, pendingAskUserQuestions } =
+    useAgentChatRuntimeState(backend, (current) => ({
+      messages: current.getMessages(),
+      currentPlan: current.getCurrentPlan(),
+      pendingToolPermissions: current.getPendingToolPermissions(),
+      pendingAskUserQuestions: current.getPendingAskUserQuestions(),
+    }));
+  const stoppedTask = messages.findLast((message) => message.turnStopReason);
+  return (
+    <>
+      <AgentChatMessages
+        sourcePath=""
+        messages={messages}
+        plugin={plugin}
+        currentPlan={currentPlan}
+        pendingToolPermissions={pendingToolPermissions}
+        pendingAskUserQuestions={pendingAskUserQuestions}
+        chatBackend={backend}
+        onForkMessage={onForkMessage}
+        isLoading={isLoading}
+      />
+      {stoppedTask?.turnStopReason === "max_task_requests" &&
+      stoppedTask.taskGenerationId &&
+      backend.continueTaskBudget ? (
+        <TaskBudgetContinuation
+          key={stoppedTask.id}
+          onContinue={(requestId) =>
+            backend.continueTaskBudget!(stoppedTask.taskGenerationId, requestId)
+          }
+        />
+      ) : null}
+    </>
+  );
+};
 
 const EMPTY_PROJECT_NAMES_BY_ID: Readonly<Record<string, string>> = Object.freeze({});
 
@@ -77,7 +133,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   chatInputId,
   manager,
   plugin,
-  onSaveChat,
   updateUserMessageHistory,
 }) => {
   const appContext = useContext(AppContext);
@@ -88,19 +143,27 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   useChatInputAutoFocus();
 
   const {
-    messages,
     isStarting,
     isTurnInFlight,
     hasPendingPlanPermission,
-    currentPlan,
     currentTodoList,
     pendingToolPermissions,
-    pendingAskUserQuestions,
-    feedbackOffer,
     queuedPrompts,
     tasks,
+    subagents,
     isReplyRunning,
-  } = useAgentChatRuntimeState(backend);
+  } = useAgentChatRuntimeState(backend, (current) => ({
+    hasMessages: current.getMessages().length > 0,
+    isStarting: current.isStarting(),
+    isTurnInFlight: current.isTurnInFlight(),
+    isReplyRunning: current.isReplyRunning(),
+    hasPendingPlanPermission: current.hasPendingPlanPermission(),
+    currentTodoList: current.getCurrentTodoList(),
+    pendingToolPermissions: current.getPendingToolPermissions(),
+    queuedPrompts: current.getQueuedPrompts(),
+    tasks: current.getTasks(),
+    subagents: current.getSubagentSessions?.() ?? EMPTY_SUBAGENT_SESSIONS,
+  }));
   const isLoading = draft.loading || isTurnInFlight;
   const replyRunning = draft.loading || isReplyRunning;
 
@@ -126,26 +189,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   );
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    onSaveChat(async () => {
-      await manager.saveActiveSession();
-    });
-  }, [onSaveChat, manager]);
-
-  const handleSaveAsNote = useCallback(async () => {
-    try {
-      const result = await manager.saveActiveSession();
-      if (result) {
-        new Notice(t("Chat saved as note."));
-      } else {
-        new Notice(t("Nothing to save yet."));
-      }
-    } catch (error) {
-      logError("[AgentMode] manual save failed", error);
-      new Notice(t("Failed to save chat as note. Check the Scribe log for details."));
-    }
-  }, [manager]);
-
   const handleNewChat = useCallback(() => {
     if (manager.getIsStarting()) return;
     const active = manager.getActiveSession();
@@ -153,7 +196,8 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
     const oldId = active.internalId;
     void (async () => {
       try {
-        await manager.replaceSessionInPlace(oldId, active.backendId);
+        await manager.createSession(active.backendId, active.projectId);
+        manager.detachSessionFromTab(oldId);
       } catch (e) {
         logError("[AgentMode] new chat failed", e);
         new Notice(t("Failed to start a new chat. Please try again."));
@@ -203,7 +247,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
     updateChatTitle: handleUpdateChatTitle,
     deleteChat: handleDeleteChat,
     setChatPinned: handleSetChatPinned,
-    openSourceFile: handleOpenSourceFile,
     copyChatLink: handleCopyHistoryChatLink,
     getChatBookmarkState,
     setChatBookmarked: handleSetChatBookmarked,
@@ -266,10 +309,15 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   }, []);
 
   const persistCreateProject = useCallback(
-    async ({ name }: { name: string }) => {
-      const project = makeNewProjectConfig(name);
+    async ({ name, workspacePath }: { name: string; workspacePath?: string }) => {
+      const project = makeNewProjectConfig(name, workspacePath);
       try {
-        await ProjectFileManager.getInstance(app).createProject(project);
+        const record = await ProjectFileManager.getInstance(app).createProject(project);
+        new Notice(
+          t("Project created. Workspace: {path}", {
+            path: record.project.workspacePath || t("Vault root"),
+          })
+        );
         await manager.enterProject(project.id);
       } catch (e) {
         logError("[AgentMode] create project failed", e);
@@ -289,7 +337,10 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   }, [isOrphanedProject]);
 
   const modelPickerOverride = useAgentModelPicker(manager, plugin);
-  const modePickerOverride = useAgentModePicker(manager);
+  const selectedModel = modelPickerOverride?.models.find(
+    (model) => getModelKeyFromModel(model) === modelPickerOverride.value
+  );
+  const modePickerOverride = useAgentModePicker(manager, app);
 
   const handleCycleMode = useCallback(() => {
     if (!modePickerOverride || modePickerOverride.disabled) return;
@@ -380,12 +431,24 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   const [globalShelfTab, setGlobalShelfTabState] = useState<string | null>(() =>
     getHomeShelfTab(app, HOME_SHELF_TAB_STORAGE_KEY)
   );
+  const refreshProjects = useCallback(() => {
+    void ProjectFileManager.getInstance(app)
+      .fetchProjects()
+      .catch((error) => {
+        logError("无法刷新项目列表。", error);
+        new Notice(String(error));
+      });
+  }, [app]);
+  useEffect(() => {
+    if (!isProjectScope && isLanding && globalShelfTab === "projects") refreshProjects();
+  }, [isProjectScope, isLanding, globalShelfTab, refreshProjects]);
   const setGlobalShelfTab = useCallback(
     (id: string) => {
+      if (id === "projects" && id === globalShelfTab) refreshProjects();
       setGlobalShelfTabState(id);
       setHomeShelfTab(app, HOME_SHELF_TAB_STORAGE_KEY, id);
     },
-    [app]
+    [app, globalShelfTab, refreshProjects]
   );
 
   const landingSections = useMemo<AgentHomeShelfSection[]>(
@@ -402,7 +465,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
             onDeleteChat={handleDeleteChat}
             onCloseSession={handleCloseSession}
             openChatIds={openChatIds}
-            onOpenSourceFile={handleOpenSourceFile}
             onCopyChatLink={handleCopyHistoryChatLink}
             onSetChatPinned={handleSetChatPinned}
             getChatBookmarkState={getChatBookmarkState}
@@ -445,7 +507,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
       handleUpdateChatTitle,
       handleDeleteChat,
       handleSetChatPinned,
-      handleOpenSourceFile,
       handleCopyHistoryChatLink,
       getChatBookmarkState,
       handleSetChatBookmarked,
@@ -475,7 +536,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
             onDeleteChat={handleDeleteChat}
             onCloseSession={handleCloseSession}
             openChatIds={openChatIds}
-            onOpenSourceFile={handleOpenSourceFile}
             onCopyChatLink={handleCopyHistoryChatLink}
             onSetChatPinned={handleSetChatPinned}
             getChatBookmarkState={getChatBookmarkState}
@@ -507,7 +567,6 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
       handleUpdateChatTitle,
       handleDeleteChat,
       handleSetChatPinned,
-      handleOpenSourceFile,
       handleCopyHistoryChatLink,
       getChatBookmarkState,
       handleSetChatBookmarked,
@@ -542,6 +601,11 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
       modePickerOverride={modePickerOverride ?? undefined}
       onCycleMode={handleCycleMode}
       disabled={isOrphanedProject}
+      sendDisabled={
+        // 已有聊天也必须遵守当前模型就绪状态，避免发送失败后消耗草稿。https://github.com/ItsDalk-Lane/Scribe/issues/21
+        descriptor.getInstallState(settings).kind !== "ready" ||
+        Boolean(modelPickerOverride && (!selectedModel || selectedModel._disabledReason))
+      }
     />
   );
 
@@ -585,23 +649,13 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   );
 
   const activeSession = manager.getSession(sessionId);
+  const handleCopyChatLink = () =>
+    handleCopyHistoryChatLink(manager.getSessionHistoryId(sessionId));
+
   const getActiveChatBookmarkState = useCallback(
-    () => getChatBookmarkState(manager.getSessionSourcePath(sessionId)),
+    () => getChatBookmarkState(manager.getSessionHistoryId(sessionId)),
     [getChatBookmarkState, manager, sessionId]
   );
-  const handleCopyChatLink = () =>
-    plugin.copyChatLink(async () => {
-      return (await manager.saveActiveSession())?.path ?? "";
-    });
-
-  const handleReportError = () => {
-    const evidence = activeSession?.getReportEvidence();
-    openReportIssueModal(plugin, {
-      activeBackend: evidence?.backendId ?? settings.agentMode.activeBackend,
-      initialNote: evidence ? formatChatReportNote(evidence) : undefined,
-      preselectAllSources: true,
-    });
-  };
 
   return (
     <div ref={setRootEl} className="tw-flex tw-size-full tw-flex-col tw-overflow-hidden">
@@ -707,21 +761,24 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
                 ) : (
                   <AgentTasksProvider tasks={tasks} openTask={handleOpenTask}>
                     <div className="tw-flex tw-min-h-0 tw-flex-1 tw-flex-col">
-                      <AgentChatMessages
-                        sourcePath={manager.getSessionSourcePath(sessionId)}
+                      <AgentHomeTranscript
                         key={sessionId}
-                        messages={messages}
+                        backend={backend}
                         plugin={plugin}
-                        currentPlan={currentPlan}
-                        pendingToolPermissions={pendingToolPermissions}
-                        pendingAskUserQuestions={pendingAskUserQuestions}
-                        chatBackend={backend}
                         onForkMessage={handleForkMessage}
                         isLoading={isLoading}
-                        feedbackOffer={feedbackOffer}
                       />
                       {queuedMessagesNode}
                       <AgentChatControls
+                        onPreviewRequest={
+                          activeSession
+                            ? () => {
+                                new RequestContextPreviewModal(app, () =>
+                                  activeSession.getRequestContextPreview()
+                                ).open();
+                              }
+                            : undefined
+                        }
                         onCopyChatLink={
                           activeSession?.hasUserVisibleMessages() ? handleCopyChatLink : undefined
                         }
@@ -731,9 +788,7 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
                             : undefined
                         }
                         onSetChatBookmarked={handleSetActiveChatBookmarked}
-                        onReportError={handleReportError}
                         onNewChat={handleNewChat}
-                        onSaveAsNote={handleSaveAsNote}
                         chatHistoryItems={chatHistoryItems}
                         onLoadHistory={handleLoadChatHistory}
                         onLoadChat={handleLoadChat}
@@ -742,16 +797,35 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
                         onCloseSession={handleCloseSession}
                         openChatIds={openChatIds}
                         runningChatIds={runningChatIds}
-                        onOpenSourceFile={handleOpenSourceFile}
                         usageMeter={<AgentContextMeter backend={backend} />}
                         tasksIndicator={
-                          <RunningTasksIndicator
-                            tasks={tasks}
-                            permissions={pendingToolPermissions}
-                            onOpenTask={handleOpenTask}
-                            onStopTask={backend.canStopTasks() ? handleStopTask : undefined}
-                            container={rootEl}
-                          />
+                          <>
+                            <RunningTasksIndicator
+                              tasks={tasks}
+                              permissions={pendingToolPermissions}
+                              onOpenTask={handleOpenTask}
+                              onStopTask={backend.canStopTasks() ? handleStopTask : undefined}
+                              container={rootEl}
+                            />
+                            {/* 切换聊天时隔离尚未返回的操作回执，避免归到另一聊天。https://github.com/ItsDalk-Lane/Scribe/issues/50 */}
+                            {subagents.length > 0 &&
+                            backend.getSubagentSessions &&
+                            backend.sendSubagentMessage &&
+                            backend.stopSubagent &&
+                            backend.setSubagentArchived &&
+                            backend.deleteSubagentSession &&
+                            backend.refreshSubagentSessions ? (
+                              <SubagentSessionsButton
+                                key={chatInputId}
+                                sessions={subagents}
+                                container={rootEl}
+                                onOpen={(subagentId) => {
+                                  void plugin.openSubagentChat(sessionId, subagentId);
+                                }}
+                                onRefresh={() => backend.refreshSubagentSessions!()}
+                              />
+                            ) : null}
+                          </>
                         }
                       />
                       {composerNode}

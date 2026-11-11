@@ -22,6 +22,38 @@ describe("listProviderModels", () => {
       mockSafeFetch.mockReset();
     });
 
+    it("masks echoed credentials before discovery results enter component state", async () => {
+      respondWithJson({ data: [{ id: "sk-private-credential" }] });
+      const result = await listProviderModels("openai-compatible", "https://example.test", {
+        apiKey: "sk-private-credential",
+      });
+      expect(result).toEqual({
+        ok: false,
+        message: "Model list contains credential values and was not loaded.",
+      });
+      expect(result).not.toHaveProperty("modelIds");
+      expect(JSON.stringify(result)).not.toContain("sk-private-credential");
+      mockSafeFetch.mockRejectedValueOnce(new Error("Rejected sk-private-credential"));
+      const failure = await listProviderModels("openai-compatible", "https://example.test", {
+        apiKey: "sk-private-credential",
+      });
+      expect(JSON.stringify(failure)).not.toContain("sk-private-credential");
+    });
+
+    it("rejects a catalog containing a short credential instead of renaming its wire IDs", async () => {
+      respondWithJson({ data: [{ id: "gpt-5" }, { id: "claude" }] });
+      const result = await listProviderModels("openai-compatible", "https://example.test", {
+        apiKey: "a",
+      });
+      expect(result).toEqual({
+        ok: false,
+        message: "Model list contains credential values and was not loaded.",
+      });
+      expect(result).not.toHaveProperty("modelIds");
+      expect(JSON.stringify(result)).not.toContain("cl[redacted]ude");
+      expect(JSON.stringify(result)).not.toContain("claude");
+    });
+
     it("lists openai-compatible models from <baseUrl>/models with the key and organization from extras", async () => {
       respondWithJson({ data: [{ id: "gpt-5" }] });
 

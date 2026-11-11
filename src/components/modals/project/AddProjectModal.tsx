@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ProjectContextSourceEditor } from "@/components/project/ProjectContextSourceEditor";
 import {
-  agentsFileIsUninitialized,
   captureInstructionFiles,
   readAgentsFile,
   restoreInstructionFiles,
@@ -16,7 +15,8 @@ import {
 } from "@/instructions/agentsFile";
 import { logError } from "@/logger";
 import { ProjectInstructionsField } from "@/instructions/ProjectInstructionsField";
-import { getProjectAnchorFromConfigPath } from "@/projects/projectPaths";
+import { validateProjectWorkspace } from "@/projects/projectWorkspace";
+import { ProjectFileManager } from "@/projects/ProjectFileManager";
 import { getCachedProjectRecordById } from "@/projects/state";
 import { err2String } from "@/utils";
 import { createPluginRoot } from "@/utils/react/createPluginRoot";
@@ -48,27 +48,18 @@ export function AddProjectModalContent({
   const [formData, setFormData] = useState<ProjectConfig>(() => ({ ...initialProject }));
 
   const record = useMemo(() => getCachedProjectRecordById(initialProject.id), [initialProject.id]);
-  const instructionsFolder = useMemo(
-    () => (record ? getProjectAnchorFromConfigPath(record.filePath).projectFolderPath : null),
-    [record]
-  );
+  const instructionsFolder = useMemo(() => record?.project.workspacePath ?? null, [record]);
   const [instructions, setInstructions] = useState<string | null>(null);
   const [originalInstructions, setOriginalInstructions] = useState<string | null>(null);
-  const [draftOwnsLegacyPrompt, setDraftOwnsLegacyPrompt] = useState(false);
-  const legacyPrompt = initialProject.systemPrompt ?? "";
   useEffect(() => {
     if (instructionsFolder === null) return;
     let cancelled = false;
-    void Promise.all([
-      readAgentsFile(app, instructionsFolder),
-      agentsFileIsUninitialized(app, instructionsFolder),
-    ])
-      .then(([content, uninitialized]) => {
+    void validateProjectWorkspace(app, instructionsFolder)
+      .then(() => readAgentsFile(app, instructionsFolder))
+      .then((content) => {
         if (cancelled) return;
-        const seedFromLegacy = uninitialized && legacyPrompt.trim().length > 0;
         setOriginalInstructions(content);
-        setInstructions(seedFromLegacy ? legacyPrompt : content);
-        setDraftOwnsLegacyPrompt(seedFromLegacy);
+        setInstructions(content);
       })
       .catch((error) => {
         logError(t("Failed to read project instructions."), error);
@@ -76,7 +67,7 @@ export function AddProjectModalContent({
     return () => {
       cancelled = true;
     };
-  }, [app, instructionsFolder, legacyPrompt]);
+  }, [app, instructionsFolder]);
 
   const handleEditProjectContext = (projectDraft: ProjectConfig) => {
     const modal = new ContextManageModal(
@@ -143,7 +134,6 @@ export function AddProjectModalContent({
     const saveData = {
       ...formData,
       name: trimmedName,
-      ...(draftOwnsLegacyPrompt ? { systemPrompt: "" } : {}),
     };
 
     if (!saveData.name) {
@@ -153,14 +143,13 @@ export function AddProjectModalContent({
     }
 
     const instructionEdit =
-      instructionsFolder !== null &&
-      instructions !== null &&
-      (draftOwnsLegacyPrompt || instructions !== originalInstructions)
+      instructionsFolder !== null && instructions !== null && instructions !== originalInstructions
         ? { folder: instructionsFolder, text: instructions }
         : null;
 
     try {
       setIsSubmitting(true);
+      if (instructionEdit) await validateProjectWorkspace(app, instructionEdit.folder);
       if (
         instructionEdit &&
         (await readAgentsFile(app, instructionEdit.folder)) !== originalInstructions
@@ -244,6 +233,17 @@ export function AddProjectModalContent({
                 />
               </FormField>
 
+              {instructionsFolder !== null && (
+                <FormField
+                  label={t("Project workspace")}
+                  description={t("Renaming the project does not move this folder.")}
+                >
+                  <div className="tw-text-sm tw-text-muted">
+                    {instructionsFolder || t("Vault root")}
+                  </div>
+                </FormField>
+              )}
+
               {instructions !== null && (
                 <ProjectInstructionsField value={instructions} onChange={setInstructions} />
               )}
@@ -282,11 +282,12 @@ export function AddProjectModalContent({
 }
 
 export class AddProjectModal extends Modal {
-  private root: Root;
+  private root: Root | null = null;
+  private opened = false;
 
   constructor(
     app: App,
-    private onSave: (project: ProjectConfig) => Promise<void>,
+    private onSave: (project: ProjectConfig, baseline: ProjectConfig) => Promise<void>,
     private initialProject: ProjectConfig
   ) {
     super(app);
@@ -299,26 +300,37 @@ export class AddProjectModal extends Modal {
 
     this.root = createPluginRoot(contentEl, this.app);
 
-    const handleSave = async (project: ProjectConfig) => {
-      await this.onSave(project);
-      this.close();
-    };
-
-    const handleCancel = () => {
-      this.close();
-    };
-
-    this.root.render(
-      <AddProjectModalContent
-        initialProject={this.initialProject}
-        onSave={handleSave}
-        onCancel={handleCancel}
-        popoverContainer={contentEl}
-      />
-    );
+    this.opened = true;
+    void ProjectFileManager.getInstance(this.app)
+      .fetchProjects()
+      .then((records) => {
+        if (!this.opened) return;
+        const latest = records.find((record) => record.project.id === this.initialProject.id);
+        if (!latest) throw new Error("项目已被删除，请重新打开项目列表。");
+        const handleSave = async (project: ProjectConfig) => {
+          await this.onSave(project, latest.project);
+          this.close();
+        };
+        this.root?.render(
+          <AddProjectModalContent
+            initialProject={latest.project}
+            onSave={handleSave}
+            onCancel={() => this.close()}
+            popoverContainer={contentEl}
+          />
+        );
+      })
+      .catch((error) => {
+        if (!this.opened) return;
+        logError("无法重新读取项目配置。", error);
+        new Notice(err2String(error));
+        this.close();
+      });
   }
 
   onClose() {
-    this.root.unmount();
+    this.opened = false;
+    this.root?.unmount();
+    this.root = null;
   }
 }

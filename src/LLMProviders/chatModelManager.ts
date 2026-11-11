@@ -19,6 +19,7 @@ export default class ChatModelManager {
     const provider = model.provider as ChatModelProviders;
     if (
       !model.apiKey &&
+      !model.credentialRef &&
       !(model.requiresApiKey === false && provider === ChatModelProviders.OPENAI_FORMAT)
     ) {
       throw new MissingApiKeyError(`API key is not provided for the model: ${model.name}.`);

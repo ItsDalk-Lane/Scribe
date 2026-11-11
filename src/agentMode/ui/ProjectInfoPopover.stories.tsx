@@ -6,6 +6,7 @@ const meta = {
   component: ProjectFilesList,
   args: {
     files: [],
+    workspacePath: "Research",
     onOpenInstructions: () => {},
     onOpenFile: () => {},
     onReveal: () => {},
@@ -55,3 +56,5 @@ export const LongFileNames: StoryObj<ProjectFilesListProps> = {
     ],
   },
 };
+
+export const VaultRootWorkspace: StoryObj<ProjectFilesListProps> = { args: { workspacePath: "" } };

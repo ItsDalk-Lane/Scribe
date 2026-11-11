@@ -13,7 +13,7 @@ function provider(overrides: Partial<Provider> = {}): Provider {
     displayName: "P",
     origin: { kind: "byok" },
     addedAt: 0,
-    apiKeyKeychainId: null,
+    apiKeyRef: null,
     ...overrides,
   };
 }
@@ -85,6 +85,16 @@ describe("configuredModelToCustomModel", () => {
   });
 
   describe("configuredModelToCustomModel", () => {
+    it("carries the configured provider display name for distinct usage sources https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const custom = configuredModelToCustomModel({
+        provider: provider({ displayName: "Research endpoint" }),
+        configuredModel: configuredModel(),
+      });
+      expect(custom).toHaveProperty("providerDisplayName", "Research endpoint");
+      expect(custom.configuredModelId).toBe("cm1");
+      expect(custom.name).toBe("gpt-5");
+    });
+
     it("uses the wire id as the model name and the stored display name", () => {
       const custom = configuredModelToCustomModel({
         provider: provider({ providerType: "anthropic" }),
@@ -120,6 +130,46 @@ describe("configuredModelToCustomModel", () => {
       expect(unknown.numCtx).toBeUndefined();
     });
 
+    it("carries the declared capability contract onto the runtime model without inventing values https://github.com/ItsDalk-Lane/Scribe/issues/67", () => {
+      const declared = configuredModelToCustomModel({
+        provider: provider(),
+        configuredModel: configuredModel({
+          info: {
+            id: "capable",
+            displayName: "Capable",
+            attachment: true,
+            toolCall: true,
+            structuredOutput: false,
+            temperature: true,
+            temperatureValue: 0.7,
+            cost: { input: 2.4, output: 9.6, cacheRead: 1.2, currency: "CNY" },
+          },
+        }),
+        apiKey: "fixture",
+      });
+      expect(declared).toMatchObject({
+        attachment: true,
+        toolCall: true,
+        structuredOutput: false,
+        temperatureSupport: true,
+        defaultTemperature: 0.7,
+        cost: { input: 2.4, output: 9.6, cacheRead: 1.2, currency: "CNY" },
+      });
+      const undeclared = configuredModelToCustomModel({
+        provider: provider(),
+        configuredModel: configuredModel({
+          info: { id: "bare", displayName: "Bare" },
+        }),
+        apiKey: "fixture",
+      });
+      expect(undeclared.attachment).toBeUndefined();
+      expect(undeclared.toolCall).toBeUndefined();
+      expect(undeclared.structuredOutput).toBeUndefined();
+      expect(undeclared.temperatureSupport).toBeUndefined();
+      expect(undeclared.defaultTemperature).toBeUndefined();
+      expect(undeclared.cost).toBeUndefined();
+    });
+
     it("caps an Anthropic model's published ceiling rather than passing it through", () => {
       const custom = configuredModelToCustomModel({
         provider: provider({ providerType: "anthropic" }),
@@ -134,6 +184,22 @@ describe("configuredModelToCustomModel", () => {
       });
 
       expect(custom.maxTokens).toBe(DEFAULT_MAX_OUTPUT_TOKENS);
+    });
+
+    it("keeps a published output ceiling below the product default instead of raising it https://github.com/ItsDalk-Lane/Scribe/issues/56", () => {
+      const custom = configuredModelToCustomModel({
+        provider: provider({ providerType: "anthropic" }),
+        configuredModel: configuredModel({
+          info: {
+            id: "claude-3-5-haiku",
+            displayName: "Claude 3.5 Haiku",
+            limits: { context: 200000, output: 8192 },
+          },
+        }),
+        apiKey: "sk-ant",
+      });
+
+      expect(custom.maxTokens).toBe(8192);
     });
 
     it("sends no output limit to a provider that accepts a request without one", () => {
@@ -166,24 +232,19 @@ describe("configuredModelToCustomModel", () => {
       expect(custom.baseUrl).toBe("https://api.example.com/v1");
     });
 
-    it("preserves the provider's explicit Quick tools CORS choice", () => {
-      const corsEnabled = configuredModelToCustomModel({
-        provider: provider({ baseUrl: "https://work.example.com/v1", enableCors: true }),
-        configuredModel: configuredModel(),
-        apiKey: "key-123",
-      });
-      const streaming = configuredModelToCustomModel({
-        provider: provider({
-          baseUrl: "https://openrouter.ai/api/v1",
-          enableCors: false,
-          origin: { kind: "byok", catalogProviderId: "openrouter" },
-        }),
-        configuredModel: configuredModel(),
-        apiKey: "key-123",
-      });
-      expect(corsEnabled.enableCors).toBe(true);
-      expect(streaming.enableCors).toBe(false);
-    });
+    it.each([false, true])(
+      "does not carry a retired CORS value %s into the automatic transport https://github.com/ItsDalk-Lane/Scribe/issues/51",
+      (enableCors) => {
+        const storedProvider = { ...provider(), enableCors };
+        const custom = configuredModelToCustomModel({
+          provider: storedProvider,
+          configuredModel: configuredModel(),
+          apiKey: "key-123",
+        });
+        expect(custom).not.toHaveProperty("enableCors");
+        expect(custom.apiKey).toBe("key-123");
+      }
+    );
 
     it("carries the runtime auth contract without synthesizing a key", () => {
       const keyless = configuredModelToCustomModel({
@@ -203,7 +264,7 @@ describe("configuredModelToCustomModel", () => {
       expect(requiresKey.requiresApiKey).toBe(true);
 
       const missingStoredKey = configuredModelToCustomModel({
-        provider: provider({ requiresApiKey: false, apiKeyKeychainId: "keychain-p1" }),
+        provider: provider({ requiresApiKey: false, apiKeyRef: "keychain-p1" }),
         configuredModel: configuredModel(),
         apiKey: null,
       });
@@ -224,6 +285,17 @@ describe("configuredModelToCustomModel", () => {
         apiKey: "k",
       });
       expect(custom.capabilities).toEqual([ModelCapability.REASONING, ModelCapability.VISION]);
+    });
+
+    it("preserves unknown image capabilities and explicit reasoning for a manually entered model https://github.com/ItsDalk-Lane/Scribe/issues/56", () => {
+      const custom = configuredModelToCustomModel({
+        provider: provider(),
+        configuredModel: configuredModel({
+          info: { id: "private-reasoner", displayName: "Private", reasoning: true },
+        }),
+      });
+      expect(custom.capabilities).toBeUndefined();
+      expect(custom).toHaveProperty("reasoning", true);
     });
 
     it("copies the OpenAI organization id from provider extras", () => {

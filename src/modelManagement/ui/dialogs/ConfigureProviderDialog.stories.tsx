@@ -28,9 +28,10 @@ const fixtureApi = {
   catalogService: {
     ensureLoaded: async () => undefined,
     onChange: () => () => undefined,
-    getProvider: () => provider,
+    getProvider: (id: string) => (id === provider.id ? provider : undefined),
+    getAllProviders: () => [],
   },
-  providerRegistry: { getApiKey: async () => null },
+  providerRegistry: { getApiKeyStatus: () => "missing" },
   setup: {
     byok: { setupProvider: async () => ({ providerId: "fixture", configuredModelIds: [] }) },
   },
@@ -69,4 +70,58 @@ export const LongCatalog: StoryObj<ConfigureProviderStoryProps> = {
       </div>
     </ModelManagementProvider>
   ),
+};
+
+export const CustomEndpoint: StoryObj<ConfigureProviderStoryProps> = {
+  render: LongCatalog.render,
+  args: {
+    state: {
+      mode: "new",
+      source: {
+        id: "custom-endpoint",
+        displayName: "本地或自定义模型服务",
+        providerType: "openai-compatible",
+        requiresApiKey: false,
+        modelInputHint: "模型 ID",
+      },
+    },
+  },
+};
+
+export const PresetVersionGrid: StoryObj<ConfigureProviderStoryProps> = {
+  render: LongCatalog.render,
+  args: {
+    state: {
+      mode: "new",
+      source: {
+        id: "kimi",
+        presetId: "kimi",
+        catalogProviderId: "moonshotai",
+        displayName: "Kimi",
+        providerType: "openai-compatible",
+        defaultBaseUrl: "https://api.moonshot.cn/v1",
+        requiresApiKey: true,
+        modelInputHint: "模型 ID",
+      },
+    },
+  },
+};
+
+export const PresetVersionList: StoryObj<ConfigureProviderStoryProps> = {
+  render: LongCatalog.render,
+  args: {
+    state: {
+      mode: "new",
+      source: {
+        id: "sudo-code-chat",
+        presetId: "sudo-code-chat",
+        catalogProviderId: "openai",
+        displayName: "SudoCode",
+        providerType: "openai-compatible",
+        defaultBaseUrl: "https://api.sudocode.chat/v1",
+        requiresApiKey: true,
+        modelInputHint: "模型 ID",
+      },
+    },
+  },
 };

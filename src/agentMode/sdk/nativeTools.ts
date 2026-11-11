@@ -1,6 +1,6 @@
 import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import { arr, bool, obj, oneOf, opt, str, int } from "@earendil-works/pi-schema";
-import { App, FileSystemAdapter } from "obsidian";
+import { App, FileSystemAdapter, TFile } from "obsidian";
 import type {
   AgentQuestionAnswers,
   AskUserQuestionPrompt,
@@ -11,15 +11,33 @@ import type {
   SessionUpdate,
   ToolCallSnapshot,
 } from "@/agentMode/session/types";
-import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
+import { NativeCommandTasks, formatCommandResult } from "@/agentMode/sdk/nativeCommandTasks";
+import { pageToolText, withToolExecution } from "@/utils/toolResultProjection";
+import { sha256 } from "@/utils/hash";
+import type { NativeObservedFileVersion } from "@/agentMode/sdk/nativeFileVersions";
+import type { NativeToolContext } from "@/agentMode/sdk/NativeBackendProcess";
 import { defineNativeTool, NATIVE_PERMISSION_OPTIONS } from "@/agentMode/sdk/nativeToolDefinition";
 import {
   resolveNativeVaultPath,
+  getNativeVaultIdentity,
+  readNativeVaultTarget,
   withNativeWriteLock,
   writeNativeVaultTarget,
 } from "@/agentMode/sdk/nativeVaultPath";
 
-export interface NativeToolsOptions {
+export interface NativeToolsOptions extends Pick<
+  NativeToolContext,
+  | "assertCanExecute"
+  | "observedFileVersions"
+  | "observeFileVersion"
+  | "readToolResult"
+  | "sendSubagentMessage"
+  | "listSubagentSessions"
+  | "readSubagentResult"
+  | "waitSubagents"
+  | "stopSubagent"
+  | "sendParentMessage"
+> {
   app: App;
   cwd: string;
   sessionId: string;
@@ -30,9 +48,18 @@ export interface NativeToolsOptions {
   requester?: PermissionRequester;
   onPlanApproved?(): void;
   commandTasks: NativeCommandTasks;
+  subagents?: readonly { id: string; name: string; description: string }[];
   executeSubagent?(
     toolCallId: string,
-    input: { prompt: string; description: string },
+    input: {
+      prompt: string;
+      description: string;
+      name?: string;
+      agent?: string;
+      background?: boolean;
+      skills?: string[];
+      allowedTools?: string[];
+    },
     signal?: AbortSignal
   ): Promise<AgentToolResult>;
 }
@@ -41,12 +68,36 @@ function textResult<T>(text: string, details?: T): AgentToolResult<T | undefined
   return { content: [{ type: "text", text }], details };
 }
 
+function pageEntries(
+  entries: readonly string[],
+  identity: string,
+  limit: number,
+  cursor?: string
+): AgentToolResult {
+  const source = entries.join("\n");
+  let page = pageToolText(source, identity, cursor);
+  let boundary = page.offset;
+  // 条数和字符上限共用同一个内容指纹游标，长条目也可继续读取。https://github.com/ItsDalk-Lane/Scribe/issues/70
+  for (let count = 0; count < limit; count++) {
+    const newline = source.indexOf("\n", boundary);
+    boundary = newline < 0 ? source.length : newline + 1;
+    if (boundary >= page.end) break;
+  }
+  if (boundary < page.end) page = pageToolText(source, identity, cursor, boundary - page.offset);
+  const { text: pageText, ...pageDetails } = page;
+  return textResult(
+    `${pageText}\n${JSON.stringify({ complete: !page.truncated, truncated: page.truncated, total: entries.length })}`,
+    { ...pageDetails, total: entries.length, complete: !page.truncated }
+  );
+}
+
 export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
   const adapter = options.app.vault.adapter;
   if (!(adapter instanceof FileSystemAdapter)) {
     throw new Error("Native file tools require a desktop vault.");
   }
-  const vaultBase = adapter.getBasePath();
+  const vaultBase = getNativeVaultIdentity(adapter);
+  const observed = options.observedFileVersions ?? new Map<string, NativeObservedFileVersion>();
 
   const resolvePath = (requested: string, allowMissing = false) =>
     resolveNativeVaultPath(adapter, requested, allowMissing);
@@ -97,101 +148,216 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
     toolCallId: string,
     requested: string,
     transform: (before: string | null) => string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    operationName = "write_note"
   ): Promise<AgentToolResult> {
     const path = await resolvePath(requested, true);
-    return withNativeWriteLock(`${vaultBase}/${path}`, async () => {
-      signal?.throwIfAborted();
-      const before = (await adapter.exists(path)) ? await adapter.read(path) : null;
-      const after = transform(before);
-      const content = [{ type: "diff" as const, path, oldText: before, newText: after }];
-      const toolCall: ToolCallSnapshot = {
-        toolCallId,
-        title: `Edit ${path}`,
-        kind: "edit",
-        rawInput: { path },
-        content,
-        locations: [{ path }],
-      };
-      const decision = await requirePermission(toolCall, signal);
-      if (!allowed(decision)) throw new Error(decision.denyMessage || "Permission denied.");
-      signal?.throwIfAborted();
-      await resolvePath(path, true);
-      const current = (await adapter.exists(path)) ? await adapter.read(path) : null;
-      if (current !== before)
-        throw new Error(
-          "The file changed while approval was pending; read it and request approval again."
-        );
-      options.emit({
-        sessionUpdate: "tool_call_update",
-        toolCallId,
-        originalFiles: { [path]: before },
-        locations: [{ path }],
-      });
-      const segments = path.split("/");
-      for (let index = 1; index < segments.length; index++) {
-        const directory = segments.slice(0, index).join("/");
-        if (!(await adapter.exists(directory))) {
+    return withNativeWriteLock(
+      `${vaultBase}/${path}`,
+      async () => {
+        signal?.throwIfAborted();
+        const before = (await adapter.exists(path)) ? await adapter.read(path) : null;
+        // 整文件覆盖必须来自本执行主体完整读过的当前版本。https://github.com/ItsDalk-Lane/Scribe/issues/70
+        const version = observed.get(path);
+        if (
+          operationName === "write_note" &&
+          before !== null &&
+          (version?.kind !== "text" || !version.complete || version.fingerprint !== sha256(before))
+        )
+          throw new Error(
+            "Read the complete current file before replacing it; the file may have changed."
+          );
+        const after = transform(before);
+        const content = [{ type: "diff" as const, path, oldText: before, newText: after }];
+        const toolCall: ToolCallSnapshot = {
+          toolCallId,
+          title: `Edit ${path}`,
+          kind: "edit",
+          rawInput: { path },
+          content,
+          locations: [{ path }],
+        };
+        const decision = await requirePermission(toolCall, signal);
+        if (!allowed(decision)) throw new Error(decision.denyMessage || "Permission denied.");
+        const checkPermission = () => {
           signal?.throwIfAborted();
-          await adapter.mkdir(directory);
+          options.assertCanExecute?.(operationName);
+          if (options.getMode() === "plan")
+            throw new Error("Plan approval is required before changing files or running commands.");
+        };
+        checkPermission();
+        await resolvePath(path, true);
+        const current = (await adapter.exists(path)) ? await adapter.read(path) : null;
+        if (current !== before)
+          throw new Error(
+            "The file changed while approval was pending; read it and request approval again."
+          );
+        options.emit({
+          sessionUpdate: "tool_call_update",
+          toolCallId,
+          originalFiles: { [path]: before },
+          locations: [{ path }],
+        });
+        const segments = path.split("/");
+        for (let index = 1; index < segments.length; index++) {
+          const directory = segments.slice(0, index).join("/");
+          if (!(await adapter.exists(directory))) {
+            // 创建父目录本身也是写入，不能在模式已改变时提前发生。https://github.com/ItsDalk-Lane/Scribe/issues/71
+            checkPermission();
+            await adapter.mkdir(directory);
+          }
         }
-      }
-      signal?.throwIfAborted();
-      if (options.getMode() === "plan")
-        throw new Error("Plan approval is required before changing files or running commands.");
-      await writeNativeVaultTarget(vaultBase, path, after, before === null);
-      options.emit({ sessionUpdate: "tool_call_update", toolCallId, status: "completed", content });
-      return textResult(`Saved ${path}`, { path, before, after });
-    });
+        checkPermission();
+        const checkCurrent = (current: string): string => {
+          // 原子处理的最终回调仍需拒绝已被替换的真实路径。https://github.com/ItsDalk-Lane/Scribe/issues/70
+          if (current !== before || readNativeVaultTarget(vaultBase, path) !== before)
+            throw new Error("The file changed; read it and request approval again.");
+          // 不覆盖编辑器尚未保存的内容，即使磁盘版本仍未变化。https://github.com/ItsDalk-Lane/Scribe/issues/70
+          for (const leaf of options.app.workspace?.getLeavesOfType("markdown") ?? []) {
+            const view = leaf.view as unknown as {
+              file?: { path: string };
+              editor?: { getValue(): string };
+            };
+            if (view.file?.path === path && view.editor && view.editor.getValue() !== current)
+              throw new Error(
+                "The editor has unsaved changes; save or discard them and read the file again."
+              );
+          }
+          checkPermission();
+          return after;
+        };
+        const indexed = options.app.vault.getAbstractFileByPath?.(path);
+        if (indexed instanceof TFile) await options.app.vault.process(indexed, checkCurrent);
+        else {
+          if (before !== null) checkCurrent(before);
+          await writeNativeVaultTarget(vaultBase, path, after, before);
+        }
+        observed.delete(path);
+        options.emit({
+          sessionUpdate: "tool_call_update",
+          toolCallId,
+          status: "completed",
+          content,
+        });
+        return textResult(`Saved ${path}`, { path, before, after });
+      },
+      signal
+    );
   }
 
   const tools: AgentTool[] = [
     defineNativeTool(
       "read_note",
       "Read note",
-      "Read the actual text of a file in the current Obsidian vault.",
-      obj({ path: str({ minLength: 1 }) }),
+      "Read actual text at an exact vault-relative path; paths are literal, not glob patterns. Each page is limited to 20000 characters; use cursor for the same unchanged file. startLine/lineCount select a limited line range and never grant whole-file replacement. To replace an existing file, read all consecutive pages of the current version. If generic output trimming hid any text, re-read with smaller maxCharacters pages before replacing.",
+      obj({
+        path: str({ minLength: 1 }),
+        cursor: opt(str()),
+        maxCharacters: opt(int({ minimum: 1, maximum: 20000 })),
+        startLine: opt(int({ minimum: 1 })),
+        lineCount: opt(int({ minimum: 1, maximum: 1000 })),
+      }),
       async (_toolCallId, args, signal) => {
         const path = await resolvePath(args.path);
         signal?.throwIfAborted();
-        return textResult(await adapter.read(path), { path });
-      }
+        const fullText = await adapter.read(path);
+        // 停止发生在读取途中时，不得给尚未交付的正文登记覆盖凭据。https://github.com/ItsDalk-Lane/Scribe/issues/71
+        signal?.throwIfAborted();
+        const fingerprint = sha256(fullText);
+        const ranged = args.startLine !== undefined || args.lineCount !== undefined;
+        const source = ranged
+          ? fullText
+              .split("\n")
+              .slice((args.startLine ?? 1) - 1, (args.startLine ?? 1) - 1 + (args.lineCount ?? 100))
+              .join("\n")
+          : fullText;
+        const page = pageToolText(
+          source,
+          `${path}:${fingerprint}:${args.startLine ?? ""}:${args.lineCount ?? ""}`,
+          args.cursor,
+          args.maxCharacters
+        );
+        const previous = observed.get(path);
+        const readThrough =
+          !ranged &&
+          (page.offset === 0 ||
+            (previous?.kind === "text" &&
+              previous.fingerprint === fingerprint &&
+              previous.readThrough === page.offset))
+            ? page.end
+            : 0;
+        const complete = !ranged && readThrough === fullText.length;
+        const result = textResult(
+          `Read ${path} ${JSON.stringify({ complete, fingerprint, offset: page.offset, end: page.end, totalCharacters: fullText.length })}\n${page.text}`,
+          {
+            path,
+            ...page,
+            complete,
+            startLine: args.startLine,
+            lineCount: args.lineCount,
+          }
+        );
+        const version = { kind: "text" as const, fingerprint, complete, readThrough };
+        if (options.observeFileVersion) options.observeFileVersion(result, path, version);
+        else observed.set(path, version);
+        return result;
+      },
+      { kind: "read", skillAuthoring: true }
     ),
     defineNativeTool(
       "list_directory",
       "List directory",
-      "List immediate file and folder paths in a vault directory.",
-      obj({ path: opt(str()) }),
+      "List immediate files and folders at a literal vault-relative directory path, not a glob. limit caps entries per page; continue with nextCursor until complete. Changed listings invalidate the cursor.",
+      obj({ path: opt(str()), limit: opt(int({ minimum: 1, maximum: 1000 })), cursor: opt(str()) }),
       async (_toolCallId, args, signal) => {
         const path = await resolvePath(args.path ?? "");
         signal?.throwIfAborted();
         const listed = await adapter.list(path);
-        return textResult(JSON.stringify(listed), { path, ...listed });
-      }
+        return pageEntries(
+          [
+            ...listed.files.map((path) => JSON.stringify({ type: "file", path })),
+            ...listed.folders.map((path) => JSON.stringify({ type: "folder", path })),
+          ].sort(),
+          `directory:${path}`,
+          args.limit ?? 100,
+          args.cursor
+        );
+      },
+      { kind: "read", skillAuthoring: true }
     ),
     defineNativeTool(
       "find_paths",
       "Find paths",
-      "Find vault files whose path contains the query. Results are vault-relative paths.",
-      obj({ query: str(), path: opt(str()), limit: opt(int({ minimum: 1, maximum: 1000 })) }),
+      "Find files whose literal vault-relative path contains query; no glob matching. Optional path is an exact vault-relative directory. limit caps entries per page; continue the same search with nextCursor until complete. Changed results invalidate the cursor.",
+      obj({
+        query: str(),
+        path: opt(str()),
+        limit: opt(int({ minimum: 1, maximum: 1000 })),
+        cursor: opt(str()),
+      }),
       async (_toolCallId, args, signal) => {
         const files = await walk(args.path ?? "", signal);
         const matches = files.filter((path) =>
           path.toLowerCase().includes(args.query.toLowerCase())
         );
-        return textResult(matches.slice(0, args.limit ?? 100).join("\n"), {
-          total: matches.length,
-        });
-      }
+        return pageEntries(
+          matches.map((path) => JSON.stringify(path)),
+          `find:${args.path ?? ""}:${args.query}`,
+          args.limit ?? 100,
+          args.cursor
+        );
+      },
+      { kind: "search", skillAuthoring: true }
     ),
     defineNativeTool(
       "search_content",
       "Search content",
-      "Search literal text in vault files and return matching paths, line numbers, and actual lines.",
+      "Search literal text in files under an exact vault-relative directory path, not a glob. Return paths, line numbers and actual lines. limit caps entries per page; long lines also have a character limit. Continue with nextCursor until complete; changed results invalidate the cursor.",
       obj({
         query: str({ minLength: 1 }),
         path: opt(str()),
         case_sensitive: opt(bool()),
+        cursor: opt(str()),
         limit: opt(int({ minimum: 1, maximum: 1000 })),
       }),
       async (_toolCallId, args, signal) => {
@@ -203,20 +369,26 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
           const text = await adapter.read(path);
           for (const [index, line] of text.split("\n").entries()) {
             if ((args.case_sensitive ? line : line.toLowerCase()).includes(query)) {
-              matches.push(`${path}:${index + 1}: ${line}`);
-              if (matches.length >= (args.limit ?? 100)) return textResult(matches.join("\n"));
+              matches.push(`${JSON.stringify(path).slice(1, -1)}:${index + 1}: ${line}`);
             }
           }
         }
-        return textResult(matches.join("\n"));
-      }
+        return pageEntries(
+          matches,
+          `search:${JSON.stringify(args.query)}:${args.path ?? ""}:${args.case_sensitive ?? false}`,
+          args.limit ?? 100,
+          args.cursor
+        );
+      },
+      { kind: "search", skillAuthoring: true }
     ),
     defineNativeTool(
       "write_note",
       "Write note",
-      "Create or replace a text file in the vault after the required permission decision.",
+      "Create or replace a text file at an exact literal vault-relative path after permission. Replacing an existing file requires this execution scope to have read its entire unchanged contents using read_note, including all consecutive pages. Partial ranges or generically trimmed reads do not qualify; re-read smaller pages or use an exact edit_note patch.",
       obj({ path: str({ minLength: 1 }), content: str() }),
-      (toolCallId, args, signal) => changeFile(toolCallId, args.path, () => args.content, signal)
+      (toolCallId, args, signal) => changeFile(toolCallId, args.path, () => args.content, signal),
+      { kind: "edit", skillAuthoring: false }
     ),
     defineNativeTool(
       "edit_note",
@@ -245,8 +417,10 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
               ? pieces.join(args.new_text)
               : before.replace(args.old_text, () => args.new_text);
           },
-          signal
-        )
+          signal,
+          "edit_note"
+        ),
+      { kind: "edit", skillAuthoring: false }
     ),
     defineNativeTool(
       "ask_user",
@@ -274,7 +448,8 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
         });
         signal?.throwIfAborted();
         return textResult(JSON.stringify(answers));
-      }
+      },
+      { kind: "think", skillAuthoring: true, executionMode: "sequential" }
     ),
     defineNativeTool(
       "propose_plan",
@@ -295,7 +470,8 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
           return { ...textResult(decision.denyMessage || "Plan rejected."), isError: true };
         options.onPlanApproved?.();
         return textResult("Plan approved.");
-      }
+      },
+      { kind: "switch_mode", skillAuthoring: false }
     ),
     defineNativeTool(
       "update_todos",
@@ -313,7 +489,8 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
       async (_toolCallId, args) => {
         options.emit({ sessionUpdate: "plan", entries: args.entries });
         return textResult(JSON.stringify(args.entries));
-      }
+      },
+      { kind: "think", skillAuthoring: false }
     ),
     defineNativeTool(
       "run_command",
@@ -338,6 +515,7 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
           background: args.background,
           signal,
           checkPermission: () => {
+            options.assertCanExecute?.("run_command");
             if (options.getMode() === "plan")
               throw new Error(
                 "Plan approval is required before changing files or running commands."
@@ -345,23 +523,199 @@ export function createNativeTools(options: NativeToolsOptions): AgentTool[] {
           },
           onUpdate: (output) => onUpdate?.(textResult(output)),
         });
-        return {
-          ...textResult(result.output || JSON.stringify(result), result),
-          isError: result.status === "failed" || result.status === "stopped",
-        };
-      }
+        return withToolExecution(
+          {
+            ...textResult(formatCommandResult(result), { ...result }),
+            isError: result.status === "failed" || result.status === "stopped",
+          },
+          {
+            status: result.status === "stopped" ? "outcome_unknown" : result.status,
+            retry:
+              result.status === "completed" || result.status === "running"
+                ? "never"
+                : "verify_before_retry",
+            complete: result.complete,
+            truncated: result.truncated,
+          }
+        );
+      },
+      { kind: "execute", skillAuthoring: false }
     ),
   ];
+  if (options.readToolResult)
+    tools.push(
+      defineNativeTool(
+        "read_tool_result",
+        "Read tool result",
+        "Read a bounded page of this execution scope's saved tool result.",
+        obj({
+          tool_call_id: str({ minLength: 1 }),
+          cursor: opt(str()),
+          max_characters: opt(int({ minimum: 1, maximum: 20000 })),
+        }),
+        async (_id, input, signal) => {
+          signal?.throwIfAborted();
+          return options.readToolResult!({
+            toolCallId: input.tool_call_id,
+            cursor: input.cursor,
+            maxCharacters: input.max_characters,
+          });
+        },
+        { kind: "read", skillAuthoring: true }
+      )
+    );
   if (options.executeSubagent) {
     tools.push(
       defineNativeTool(
         "delegate_task",
         "Delegate task",
-        "Run an independent Scribe child agent for a specific task and return its actual result.",
-        obj({ prompt: str({ minLength: 1 }), description: str({ minLength: 1 }) }),
-        (toolCallId, args, signal) => options.executeSubagent!(toolCallId, args, signal)
+        [
+          "Run an independent Scribe child agent for a specific task and return its actual result.",
+          ...(options.subagents ?? []).map(
+            (entry) => `Custom agent ${entry.id}: ${entry.name} — ${entry.description}`
+          ),
+        ].join("\n"),
+        obj({
+          prompt: str({ minLength: 1 }),
+          description: str({ minLength: 1 }),
+          name: opt(
+            str({
+              minLength: 1,
+              description:
+                "Short stable name for this child instance, shown in the parent chat's child agent list. Use a distinct descriptive name for every new child.",
+            })
+          ),
+          background: opt(bool()),
+          skills: opt(arr(str({ minLength: 1 }))),
+          allowedTools: opt(arr(str({ minLength: 1 }))),
+          agent: opt(
+            str({
+              minLength: 1,
+              description:
+                "Optional custom agent ID from the list above; omit for general delegation.",
+            })
+          ),
+        }),
+        (toolCallId, args, signal) => options.executeSubagent!(toolCallId, args, signal),
+        { kind: "think", skillAuthoring: false, executionMode: "parallel" }
       )
     );
   }
+  if (options.sendSubagentMessage)
+    tools.push(
+      defineNativeTool(
+        "send_subagent_message",
+        "Send subagent message",
+        "Send a scoped instruction to a retained child session. enqueue only queues; wake starts an idle session; interrupt stops the old run before continuing. For an idle wake, skills may name skills explicitly selected by the user in this task; this grants them only to the new run.",
+        obj({
+          subagentId: str({ minLength: 1 }),
+          text: str({ minLength: 1 }),
+          mode: oneOf(["enqueue", "wake", "interrupt"]),
+          messageId: opt(str({ minLength: 1 })),
+          skills: opt(arr(str({ minLength: 1 }))),
+        }),
+        async (_id, input) => textResult(JSON.stringify(await options.sendSubagentMessage!(input))),
+        { kind: "think", skillAuthoring: false }
+      )
+    );
+  if (options.listSubagentSessions)
+    tools.push(
+      defineNativeTool(
+        "list_subagent_sessions",
+        "List child sessions",
+        "Read this chat's retained child sessions, runs, messages and saved results without starting a model.",
+        obj({}),
+        async () =>
+          textResult(
+            JSON.stringify(
+              options.listSubagentSessions!().map((state) => ({
+                ...state,
+                runs: state.runs.map(({ result: _result, ...run }) => run),
+                // 列表仅供定位消息，不能把子聊天附件和选区发送给主模型。https://github.com/ItsDalk-Lane/Scribe/issues/50
+                messages: state.messages.map(
+                  ({ text: _text, payload: _payload, ...message }) => message
+                ),
+              }))
+            )
+          ),
+        { kind: "read", skillAuthoring: false }
+      )
+    );
+  if (options.readSubagentResult)
+    tools.push(
+      defineNativeTool(
+        "read_subagent_result",
+        "Read saved child result",
+        "Deliver the selected canonical saved result once. An already delivered result returns its identity without repeating its body.",
+        obj({ subagentId: str({ minLength: 1 }), runId: opt(str({ minLength: 1 })) }),
+        async (_id, input) => options.readSubagentResult!(input.subagentId, input.runId),
+        { kind: "read", skillAuthoring: false, executionMode: "sequential" }
+      )
+    );
+  if (options.waitSubagents)
+    tools.push(
+      defineNativeTool(
+        options.sendParentMessage ? "wait_for_message" : "wait_subagents",
+        "Wait for collaboration",
+        "Wait for a new message, result, user input, cancellation or timeout. Use the returned sequence as after for the next wait.",
+        obj({
+          subagentIds: opt(arr(str({ minLength: 1 }))),
+          after: opt(int({ minimum: 0 })),
+          timeoutMs: opt(int({ minimum: 0, maximum: 60000 })),
+        }),
+        async (_id, input, signal) => {
+          const event = await options.waitSubagents!({
+            ...input,
+            timeoutMs: input.timeoutMs ?? 30000,
+            signal,
+          });
+          return textResult(
+            JSON.stringify({
+              ...event,
+              ...(event.message
+                ? {
+                    message: {
+                      id: event.message.id,
+                      kind: event.message.kind,
+                      subagentId: event.message.subagentId,
+                      runId: event.message.runId,
+                    },
+                  }
+                : {}),
+            })
+          );
+        },
+        { kind: "think", skillAuthoring: false, executionMode: "sequential" }
+      )
+    );
+  if (options.stopSubagent)
+    tools.push(
+      defineNativeTool(
+        "stop_subagent",
+        "Stop child run",
+        "Stop only the selected child run, preserving its retained context.",
+        obj({ subagentId: str({ minLength: 1 }) }),
+        async (_id, input) => {
+          await options.stopSubagent!(input.subagentId);
+          return textResult("Child run stopped.");
+        },
+        { kind: "think", skillAuthoring: false }
+      )
+    );
+  if (options.sendParentMessage)
+    tools.push(
+      defineNativeTool(
+        "send_parent_message",
+        "Send parent message",
+        "Reliably send a progress report, discovery, question or blocker to the owning parent chat without waiting for an answer.",
+        obj({
+          text: str({ minLength: 1 }),
+          kind: oneOf(["progress", "discovery", "question", "blocked"]),
+          messageId: opt(str({ minLength: 1 })),
+        }),
+        async (_id, input) => textResult(JSON.stringify(await options.sendParentMessage!(input))),
+        { kind: "think", skillAuthoring: false }
+      )
+    );
   return tools;
 }

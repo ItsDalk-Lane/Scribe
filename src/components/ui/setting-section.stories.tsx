@@ -17,7 +17,7 @@ const Controls = ({ disabled = false }: { disabled?: boolean }) => {
   const [enabled, setEnabled] = useState(true);
   return (
     <div className="tw-group/settings tw-space-y-5">
-      <SettingSection label="常规">
+      <SettingSection>
         <SettingItem
           type="switch"
           title="显示聊天入口"

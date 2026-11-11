@@ -1,7 +1,5 @@
 import { t } from "@/lib/i18n";
 import { logFileManager } from "@/logFileManager";
-import { FileCache } from "@/cache/fileCache";
-import { clearLegacyCaches } from "@/cache/legacyCaches";
 import { logError } from "@/logger";
 import ChatModelManager from "@/LLMProviders/chatModelManager";
 
@@ -137,7 +135,6 @@ export function registerCommands(plugin: ScribePlugin) {
       title: t("Quick Command"),
       content: "",
       showInContextMenu: false,
-      showInSlashMenu: false,
       order: 0,
       modelKey: "",
       lastUsedMs: Date.now(),
@@ -160,18 +157,6 @@ export function registerCommands(plugin: ScribePlugin) {
     modal.open();
 
     return true;
-  });
-
-  addCommand(plugin, COMMAND_IDS.CLEAR_SCRIBE_CACHE, async () => {
-    try {
-      await FileCache.getInstance<string>().clear(plugin.app.vault);
-      await clearLegacyCaches(plugin.app);
-
-      new Notice(t("All Scribe caches cleared successfully"));
-    } catch (error) {
-      logError("Error clearing Scribe caches:", error);
-      new Notice(t("Failed to clear Scribe caches"));
-    }
   });
 
   addCommand(plugin, COMMAND_IDS.OPEN_LOG_FILE, async () => {

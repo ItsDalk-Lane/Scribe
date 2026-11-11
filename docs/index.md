@@ -2,11 +2,17 @@
 
 Scribe starts with **Agent Chat**, where Scribe can read your vault, use tools, and complete multi-step work with your approval. Quick Ask, Quick Command, and saved Scribe commands remain available for smaller jobs and mobile use.
 
+**Current safety notice:** Isolated tests found risks to existing files during startup migrations, credential changes, skill edits, cache cleanup, and note writes. Back up your files first, then disable Scribe until these issues are fixed; pending saves may finish during shutdown. See [Troubleshooting](troubleshooting-and-faq.md).
+
+**当前安全提示：** 隔离测试发现启动迁移、更改密钥、编辑技能、清除缓存和写入笔记时存在文件受损风险。请先备份现有文件，再暂时停用 Scribe，直到问题修复；关闭时程序可能完成之前排队的保存。详见[故障排查](troubleshooting-and-faq.md)。
+
 ## Start here
 
+Follow these steps after the safety issues are fixed. 以下步骤应在安全问题修复后执行。
+
 1. Install Scribe using the [installation steps](getting-started.md#install-scribe).
-2. Under **Settings → Scribe → 快捷操作 → 模型**, configure a provider or local model, then enable a chat model under **代理 → Scribe**. See [Getting Started with Scribe](getting-started.md).
-3. Run **打开 Scribe 代理聊天窗口**. Scribe 使用你启用的聊天模型；未配置时按提示打开模型设置。
+2. Under **Settings → Scribe → 模型**, configure a provider or local model. Configured, runnable models are available directly. See [Getting Started with Scribe](getting-started.md).
+3. Run **打开 Scribe 代理聊天窗口**. Scribe 使用你配置的可运行聊天模型；未配置时按提示打开模型设置。
 
 Agent Chat 在 Obsidian 内直接运行，无需外部代理或其订阅账户。 Windows users can also follow [Windows setup for Agent Chat](agent-mode-windows-setup.md).
 
@@ -25,12 +31,12 @@ Agent Chat 在 Obsidian 内直接运行，无需外部代理或其订阅账户�
 
 ## Models
 
-- [Model Sources and BYOK](llm-providers.md) covers Agent Chat 和快捷工具共用的自备模型及本地连接.
+- [Models and providers](llm-providers.md) covers Agent Chat 和快捷工具共用的供应商及本机连接.
 - [Models, Effort, and Permissions](models-and-parameters.md) explains model selection, defaults, approval behavior, and reasoning effort.
 
 ## Settings
 
-[Scribe Settings](settings.md) walks through every tab in the order it appears in Obsidian: **通用**、**快捷操作**、**代理**、**技能**、**命令** 和 **子Agent**.
+[Scribe Settings](settings.md) walks through every tab in the order it appears in Obsidian: **Agent 配置**、**模型**、**我的指令**、**技能**、**命令**、**子代理** 和 **关于**.
 
 ## Help
 

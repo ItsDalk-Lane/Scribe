@@ -42,15 +42,7 @@ export function formatStartupMigrationSummary(items: readonly StartupMigrationIt
       ...(item.details ?? []).map((detail) => `• ${detail}`),
     ].join("\n")
   );
-  return [t("Scribe finished updating this vault."), ...sections].join("\n\n");
-}
-
-export function shouldClearCredentialRecovery(
-  items: readonly StartupMigrationItem[],
-  recoveryDeviceId: string | undefined,
-  currentDeviceId: string
-): boolean {
-  return recoveryDeviceId === currentDeviceId && items.some(({ id }) => id === "credentials");
+  return [t("Scribe startup report."), ...sections].join("\n\n");
 }
 
 export async function runStartupMigrationSummary(plan: StartupMigrationPlan): Promise<void> {

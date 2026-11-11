@@ -1,5 +1,6 @@
 import React from "react";
 import type { Meta, StoryObj } from "@/lib/story";
+import { SettingItem } from "@/components/ui/setting-item";
 import { Button } from "@/components/ui/button";
 import { GripVertical } from "lucide-react";
 import {
@@ -13,7 +14,6 @@ const args: CommandConfigurationRowProps = {
     content: "Read the selected notes and list questions that need clarification.",
     enabled: true,
     showInContextMenu: true,
-    showInSlashMenu: true,
     modelKey: "",
     order: 0,
     lastUsedMs: 0,
@@ -40,7 +40,7 @@ export const Disabled: StoryObj<CommandConfigurationRowProps> = {
   args: { command: { ...args.command, enabled: false } },
 };
 export const MenuPreferencesOff: StoryObj<CommandConfigurationRowProps> = {
-  args: { command: { ...args.command, showInContextMenu: false, showInSlashMenu: false } },
+  args: { command: { ...args.command, showInContextMenu: false } },
 };
 export const LongContent: StoryObj<CommandConfigurationRowProps> = {
   args: {
@@ -55,6 +55,18 @@ export const LongContent: StoryObj<CommandConfigurationRowProps> = {
 export const GroupedCommands: StoryObj<CommandConfigurationRowProps> = {
   render: () => (
     <section className="tw-group/settings tw-space-y-3">
+      <SettingItem type="switch" title="指令变量替换" checked onCheckedChange={() => undefined} />
+      <SettingItem
+        type="select"
+        title="指令排序"
+        value="timestamp"
+        options={[
+          { label: "最近使用", value: "timestamp" },
+          { label: "按名称", value: "alphabetical" },
+          { label: "手动排序", value: "manual" },
+        ]}
+        onChange={() => undefined}
+      />
       <h3 className="tw-m-0 tw-text-sm tw-font-semibold">
         我的指令 <span className="tw-text-xs tw-font-normal tw-text-muted">2</span>
       </h3>

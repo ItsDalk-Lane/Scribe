@@ -4,7 +4,7 @@ import React from "react";
 
 describe("AgentConfigurationHeader", () => {
   describe("AgentConfigurationHeader()", () => {
-    it("keeps the label, search, and actions on one row below the agent tabs", () => {
+    it("keeps search and actions without a redundant single-agent tab https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
       const search = jest.fn();
       render(
         <AgentConfigurationHeader
@@ -18,9 +18,7 @@ describe("AgentConfigurationHeader", () => {
           actions={<button type="button">New</button>}
         />
       );
-      expect(screen.getByRole("tab", { name: "Claude Code" }).getAttribute("aria-selected")).toBe(
-        "true"
-      );
+      expect(screen.queryByRole("tablist")).toBeNull();
       fireEvent.change(screen.getByPlaceholderText("Search skills"), {
         target: { value: "notes" },
       });

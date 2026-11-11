@@ -713,6 +713,34 @@ describe("translateBackendState", () => {
         );
         expect(state.mode!.current).toBeNull();
       });
+
+      it("translates a full-mode mapping after the other canonical modes (https://github.com/ItsDalk-Lane/Scribe/issues/38)", () => {
+        const modes: RawModeState = {
+          currentModeId: "full",
+          availableModes: [
+            { id: "default", name: "Default" },
+            { id: "plan", name: "Plan" },
+            { id: "bypassPermissions", name: "Auto" },
+            { id: "full", name: "Full" },
+          ],
+        };
+        const fullMapping: ModeMapping = {
+          kind: "setMode",
+          canonical: { default: "default", plan: "plan", auto: "bypassPermissions", full: "full" },
+        };
+        const state = translateBackendState(
+          { models: null, modes, configOptions: null },
+          descriptor({ getModeMapping: () => fullMapping })
+        );
+        expect(state.mode!.current).toBe("full");
+        expect(state.mode!.options.map((o) => o.value)).toEqual([
+          "default",
+          "plan",
+          "auto",
+          "full",
+        ]);
+        expect(state.mode!.apply.full).toEqual({ kind: "setMode", nativeId: "full" });
+      });
     });
 
     describe("mode (configOption style)", () => {

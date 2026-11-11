@@ -1,5 +1,7 @@
-import { ProjectConfig } from "@/aiParams";
+import type { ProjectConfig } from "@/aiParams";
+import { logWarn } from "@/logger";
 import {
+  PROJECT_CONFIG_FILE_NAME,
   SCRIBE_PROJECT_CREATED,
   SCRIBE_PROJECT_DESCRIPTION,
   SCRIBE_PROJECT_EXCLUSIONS,
@@ -9,25 +11,19 @@ import {
   SCRIBE_PROJECT_NAME,
   SCRIBE_PROJECT_WEB_URLS,
   SCRIBE_PROJECT_YOUTUBE_URLS,
-  EMPTY_PROJECT_CONFIG,
-  PROJECT_CONFIG_FILE_NAME,
-  PROJECTS_UNSUPPORTED_FOLDER_NAME,
+  SCRIBE_PROJECT_WORKSPACE,
 } from "@/projects/constants";
 import {
   getProjectFolderNameFromConfigPath,
   getProjectsFolder,
   splitUrlsStringToArray,
 } from "@/projects/projectPaths";
-import { ProjectFileRecord } from "@/projects/type";
-import { stripFrontmatter } from "@/utils";
-import { logError, logWarn } from "@/logger";
-import { App, parseYaml, TFile, TFolder } from "obsidian";
-import {
-  addPendingFileWrite,
-  isPendingFileWrite,
-  removePendingFileWrite,
-  updateCachedProjectRecords,
-} from "@/projects/state";
+import { normalizeProjectWorkspace } from "@/projects/projectWorkspace";
+import { updateCachedProjectRecords } from "@/projects/state";
+import type { ProjectFileRecord } from "@/projects/type";
+import { parseYaml, type App } from "obsidian";
+import { assertScribePath } from "@/utils/vaultFileStore";
+import { parseDocument, stringify } from "yaml";
 
 export {
   getProjectAnchorFromConfigPath,
@@ -40,193 +36,101 @@ export {
   readFrontmatterFieldFromFile,
 } from "@/projects/projectPaths";
 
-export async function writeProjectFrontmatter(
-  app: App,
-  file: TFile,
-  project: ProjectConfig,
-  folderName: string,
-  timestamps: { createdMs: number; lastUsedMs: number }
-): Promise<void> {
-  const webUrls = splitUrlsStringToArray(project.contextSource?.webUrls || "");
-  const youtubeUrls = splitUrlsStringToArray(project.contextSource?.youtubeUrls || "");
-
-  await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-    frontmatter[SCRIBE_PROJECT_ID] = project.id.trim();
-    frontmatter[SCRIBE_PROJECT_NAME] = (project.name || folderName).trim();
-    frontmatter[SCRIBE_PROJECT_DESCRIPTION] = (project.description || "").trim();
-    frontmatter[SCRIBE_PROJECT_INCLUSIONS] = project.contextSource?.inclusions || "";
-    frontmatter[SCRIBE_PROJECT_EXCLUSIONS] = project.contextSource?.exclusions || "";
-    frontmatter[SCRIBE_PROJECT_WEB_URLS] = webUrls;
-    frontmatter[SCRIBE_PROJECT_YOUTUBE_URLS] = youtubeUrls;
-    frontmatter[SCRIBE_PROJECT_CREATED] = timestamps.createdMs;
-    frontmatter[SCRIBE_PROJECT_LAST_USED] = timestamps.lastUsedMs;
-  });
-}
-
-function coerceFrontmatterNumber(value: unknown, fallback: number): number {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string") {
-    const parsed = Number(value);
-    if (Number.isFinite(parsed)) return parsed;
+export function serializeProjectConfig(project: ProjectConfig, previous?: string): string {
+  const metadata = {
+    [SCRIBE_PROJECT_ID]: project.id,
+    [SCRIBE_PROJECT_NAME]: project.name,
+    [SCRIBE_PROJECT_WORKSPACE]: project.workspacePath,
+    [SCRIBE_PROJECT_DESCRIPTION]: project.description || "",
+    [SCRIBE_PROJECT_INCLUSIONS]: project.contextSource.inclusions || "",
+    [SCRIBE_PROJECT_EXCLUSIONS]: project.contextSource.exclusions || "",
+    [SCRIBE_PROJECT_WEB_URLS]: splitUrlsStringToArray(project.contextSource.webUrls || ""),
+    [SCRIBE_PROJECT_YOUTUBE_URLS]: splitUrlsStringToArray(project.contextSource.youtubeUrls || ""),
+    [SCRIBE_PROJECT_CREATED]: project.created,
+    [SCRIBE_PROJECT_LAST_USED]: project.UsageTimestamps,
+  };
+  let header = stringify(metadata);
+  if (previous !== undefined) {
+    const frontmatter = previous
+      .replace(/^\uFEFF/, "")
+      .match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+    if (!frontmatter) throw new Error("项目配置已被其他操作更改，请刷新后重试。");
+    const document = parseDocument(frontmatter[1]);
+    if (document.errors.length > 0) throw new Error("项目配置无法读取，未覆盖现有内容。");
+    for (const [key, value] of Object.entries(metadata)) document.set(key, value);
+    header = document.toString();
   }
-  return fallback;
-}
-
-function coerceFrontmatterString(value: unknown): string {
-  return typeof value === "string" ? value : "";
-}
-
-function coerceFrontmatterStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .filter((v): v is string => typeof v === "string")
-      .map((v) => v.trim())
-      .filter(Boolean);
-  }
-  if (typeof value === "string") {
-    return value
-      .split("\n")
-      .map((v) => v.trim())
-      .filter(Boolean);
-  }
-  return [];
-}
-
-function stripYamlFoldingArtifacts(value: string): string {
-  return value.replace(/\n\s*/g, "").replace(/\r/g, "");
-}
-
-function joinUrlsArrayToString(urls: string[]): string {
-  return (urls || [])
-    .map((u) => u.trim())
-    .filter(Boolean)
-    .join("\n");
+  return `---\n${header}---\n${project.systemPrompt || ""}`;
 }
 
 export async function parseProjectConfigFile(
   app: App,
-  file: TFile
+  file: string | { path: string },
+  contents?: string
 ): Promise<ProjectFileRecord | null> {
-  const rawContent = await app.vault.read(file);
-  const content = stripFrontmatter(rawContent, { trimStart: false });
-
-  let frontmatter: Record<string, unknown> | undefined;
-  const fmMatch = rawContent.replace(/^\uFEFF/, "").match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (fmMatch) {
-    try {
-      const parsed = parseYaml(fmMatch[1]);
-      if (parsed && typeof parsed === "object") {
-        frontmatter = parsed as Record<string, unknown>;
-      }
-    } catch {
-      logWarn(`[Projects] Failed to parse YAML frontmatter from file: ${file.path}`);
-      return null;
-    }
-  }
-  if (!frontmatter) {
-    frontmatter = app.metadataCache.getFileCache(file)?.frontmatter;
-  }
-
-  const folderName = getProjectFolderNameFromConfigPath(file.path);
-  if (!folderName) {
-    logWarn(`[Projects] Cannot extract folder name from path, ignoring file: ${file.path}`);
+  const filePath = typeof file === "string" ? file : file.path;
+  const folderName = getProjectFolderNameFromConfigPath(filePath);
+  if (!folderName) return null;
+  await assertScribePath(app.vault, filePath);
+  const raw = contents ?? (await app.vault.adapter.read(filePath));
+  const match = raw.replace(/^\uFEFF/, "").match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  if (!match) return null;
+  const data = parseYaml(match[1]) as Record<string, unknown> | null;
+  if (
+    !data ||
+    typeof data !== "object" ||
+    data[SCRIBE_PROJECT_ID] !== folderName ||
+    typeof data[SCRIBE_PROJECT_NAME] !== "string" ||
+    typeof data[SCRIBE_PROJECT_WORKSPACE] !== "string"
+  )
     return null;
-  }
-
-  const rawId = frontmatter?.[SCRIBE_PROJECT_ID];
-  const idFromFrontmatter =
-    typeof rawId === "number" && Number.isFinite(rawId)
-      ? String(rawId)
-      : coerceFrontmatterString(rawId);
-  if (!idFromFrontmatter.trim()) {
-    logWarn(`[Projects] Missing ${SCRIBE_PROJECT_ID} in frontmatter, skipping file: ${file.path}`);
-    return null;
-  }
-  const projectId = idFromFrontmatter.trim();
-
-  const nameFromFrontmatter = coerceFrontmatterString(frontmatter?.[SCRIBE_PROJECT_NAME]).trim();
-  const projectName = nameFromFrontmatter || folderName;
-
-  const description = coerceFrontmatterString(frontmatter?.[SCRIBE_PROJECT_DESCRIPTION]).trim();
-
-  const rawInclusions = coerceFrontmatterString(frontmatter?.[SCRIBE_PROJECT_INCLUSIONS]);
-  const rawExclusions = coerceFrontmatterString(frontmatter?.[SCRIBE_PROJECT_EXCLUSIONS]);
-  const inclusions = stripYamlFoldingArtifacts(rawInclusions);
-  const exclusions = stripYamlFoldingArtifacts(rawExclusions);
-
-  const webUrlsArray = coerceFrontmatterStringArray(frontmatter?.[SCRIBE_PROJECT_WEB_URLS]);
-  const youtubeUrlsArray = coerceFrontmatterStringArray(frontmatter?.[SCRIBE_PROJECT_YOUTUBE_URLS]);
-
-  const createdMs = coerceFrontmatterNumber(
-    frontmatter?.[SCRIBE_PROJECT_CREATED],
-    file.stat?.ctime ?? 0
-  );
-  const lastUsedMs = coerceFrontmatterNumber(frontmatter?.[SCRIBE_PROJECT_LAST_USED], 0);
-
+  const text = (key: string): string => (typeof data[key] === "string" ? data[key] : "");
+  const urls = (key: string): string =>
+    Array.isArray(data[key])
+      ? (data[key] as unknown[])
+          .filter((value): value is string => typeof value === "string")
+          .join("\n")
+      : text(key);
+  const timestamp = (key: string): number =>
+    typeof data[key] === "number" && Number.isFinite(data[key]) && data[key] > 0 ? data[key] : 0;
   return {
     project: {
-      ...EMPTY_PROJECT_CONFIG,
-      id: projectId,
-      name: projectName,
-      description: description || "",
-      systemPrompt: content,
+      id: folderName,
+      name: text(SCRIBE_PROJECT_NAME),
+      workspacePath: normalizeProjectWorkspace(text(SCRIBE_PROJECT_WORKSPACE), app.vault.configDir),
+      description: text(SCRIBE_PROJECT_DESCRIPTION),
+      systemPrompt: raw.slice(match[0].length),
       contextSource: {
-        inclusions: inclusions || "",
-        exclusions: exclusions || "",
-        webUrls: joinUrlsArrayToString(webUrlsArray),
-        youtubeUrls: joinUrlsArrayToString(youtubeUrlsArray),
+        inclusions: text(SCRIBE_PROJECT_INCLUSIONS),
+        exclusions: text(SCRIBE_PROJECT_EXCLUSIONS),
+        webUrls: urls(SCRIBE_PROJECT_WEB_URLS),
+        youtubeUrls: urls(SCRIBE_PROJECT_YOUTUBE_URLS),
       },
-      created: Number.isFinite(createdMs) && createdMs > 0 ? createdMs : 0,
-      UsageTimestamps: Number.isFinite(lastUsedMs) && lastUsedMs > 0 ? lastUsedMs : 0,
+      created: timestamp(SCRIBE_PROJECT_CREATED),
+      UsageTimestamps: timestamp(SCRIBE_PROJECT_LAST_USED),
     },
-    filePath: file.path,
+    filePath,
     folderName,
   };
 }
 
 export async function scanAllProjectConfigFiles(app: App): Promise<ProjectFileRecord[]> {
-  const projectsFolder = getProjectsFolder();
-  const rootFolder = app.vault.getAbstractFileByPath(projectsFolder);
-
-  const files: TFile[] = [];
-  if (rootFolder instanceof TFolder) {
-    for (const child of rootFolder.children) {
-      if (!(child instanceof TFolder)) continue;
-      if (child.name === PROJECTS_UNSUPPORTED_FOLDER_NAME) continue;
-      const configFile = child.children.find(
-        (f) => f instanceof TFile && f.name === PROJECT_CONFIG_FILE_NAME
-      );
-      if (configFile instanceof TFile) {
-        files.push(configFile);
-      }
-    }
-  }
-
-  files.sort((a, b) => a.path.localeCompare(b.path));
-
-  const firstPathById = new Map<string, string>();
+  const adapter = app.vault.adapter;
+  const root = getProjectsFolder();
+  await assertScribePath(app.vault, root);
+  if (!(await adapter.exists(root))) return [];
   const records: ProjectFileRecord[] = [];
-
-  for (const file of files) {
-    let record: ProjectFileRecord | null;
+  const { folders } = await adapter.list(root);
+  for (const folder of folders.sort()) {
+    const filePath = `${folder}/${PROJECT_CONFIG_FILE_NAME}`;
+    if (!(await adapter.exists(filePath))) continue;
     try {
-      record = await parseProjectConfigFile(app, file);
+      const record = await parseProjectConfigFile(app, filePath);
+      if (record) records.push(record);
     } catch (error) {
-      logError(`[Projects] Failed to parse project file, skipping: ${file.path}`, error);
-      continue;
+      logWarn(`无法读取项目配置：${filePath}`, error);
     }
-    if (!record) continue;
-
-    const id = record.project.id;
-    const firstPath = firstPathById.get(id);
-    if (firstPath !== undefined) {
-      logWarn(`[Projects] Duplicate project id="${id}": ${file.path}; keeping first: ${firstPath}`);
-      continue;
-    }
-    firstPathById.set(id, file.path);
-    records.push(record);
   }
-
   return records;
 }
 
@@ -234,67 +138,4 @@ export async function loadAllProjects(app: App): Promise<ProjectFileRecord[]> {
   const records = await scanAllProjectConfigFiles(app);
   updateCachedProjectRecords(records);
   return records;
-}
-
-export async function ensureProjectFrontmatter(
-  app: App,
-  file: TFile,
-  record: ProjectFileRecord
-): Promise<void> {
-  const alreadyPending = isPendingFileWrite(file.path);
-
-  const now = Date.now();
-  const createdMs =
-    Number.isFinite(record.project.created) && record.project.created > 0
-      ? record.project.created
-      : now;
-  const lastUsedMs =
-    Number.isFinite(record.project.UsageTimestamps) && record.project.UsageTimestamps > 0
-      ? record.project.UsageTimestamps
-      : 0;
-
-  const webUrls = splitUrlsStringToArray(record.project.contextSource?.webUrls || "");
-  const youtubeUrls = splitUrlsStringToArray(record.project.contextSource?.youtubeUrls || "");
-
-  try {
-    if (!alreadyPending) addPendingFileWrite(file.path);
-
-    await app.fileManager.processFrontMatter(file, (frontmatter: Record<string, unknown>) => {
-      if (frontmatter[SCRIBE_PROJECT_ID] == null && record.project.id) {
-        frontmatter[SCRIBE_PROJECT_ID] = record.project.id;
-      }
-      if (frontmatter[SCRIBE_PROJECT_NAME] == null) {
-        frontmatter[SCRIBE_PROJECT_NAME] = record.project.name || record.folderName;
-      }
-      if (frontmatter[SCRIBE_PROJECT_DESCRIPTION] == null && record.project.description) {
-        frontmatter[SCRIBE_PROJECT_DESCRIPTION] = record.project.description;
-      }
-      if (
-        frontmatter[SCRIBE_PROJECT_INCLUSIONS] == null &&
-        record.project.contextSource?.inclusions
-      ) {
-        frontmatter[SCRIBE_PROJECT_INCLUSIONS] = record.project.contextSource.inclusions;
-      }
-      if (
-        frontmatter[SCRIBE_PROJECT_EXCLUSIONS] == null &&
-        record.project.contextSource?.exclusions
-      ) {
-        frontmatter[SCRIBE_PROJECT_EXCLUSIONS] = record.project.contextSource.exclusions;
-      }
-      if (frontmatter[SCRIBE_PROJECT_WEB_URLS] == null && webUrls.length > 0) {
-        frontmatter[SCRIBE_PROJECT_WEB_URLS] = webUrls;
-      }
-      if (frontmatter[SCRIBE_PROJECT_YOUTUBE_URLS] == null && youtubeUrls.length > 0) {
-        frontmatter[SCRIBE_PROJECT_YOUTUBE_URLS] = youtubeUrls;
-      }
-      if (frontmatter[SCRIBE_PROJECT_CREATED] == null) {
-        frontmatter[SCRIBE_PROJECT_CREATED] = createdMs;
-      }
-      if (frontmatter[SCRIBE_PROJECT_LAST_USED] == null) {
-        frontmatter[SCRIBE_PROJECT_LAST_USED] = lastUsedMs;
-      }
-    });
-  } finally {
-    if (!alreadyPending) removePendingFileWrite(file.path);
-  }
 }

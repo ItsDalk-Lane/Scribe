@@ -1,3 +1,4 @@
+import { ProviderRequestError } from "@/LLMProviders/providerRequestFailure";
 import React from "react";
 import { Notice } from "obsidian";
 import type { MenuCommandModal } from "@/components/command-ui";
@@ -7,17 +8,28 @@ import { processCommandPrompt } from "@/commands/customCommandUtils";
 import { updateSetting } from "@/settings/model";
 import { openScribeSettings } from "@/settings/openSettings";
 
+let mockFirstModel: string | undefined = "quick";
 const mockSettings = { quickCommandModelKey: "quick", quickCommandIncludeNoteContext: false };
 const mockApp = { workspace: { getActiveFile: () => null } };
 const mockModels = {
-  explicit: { name: "explicit", configuredModelId: "explicit" },
+  explicit: {
+    name: "explicit",
+    configuredModelId: "explicit",
+    credentialRef: undefined as string | undefined,
+  },
   quick: { name: "quick", configuredModelId: "quick" },
   picked: { name: "picked", configuredModelId: "picked" },
 };
+let mockTurnGate: Promise<void> | undefined;
+let mockTurnOutcome: "normal" | "context" | "length" = "normal";
 const mockTurns: { model: string; prompt: string }[] = [];
 const mockStop = jest.fn();
 const mockReset = jest.fn();
 const mockLatest = () => "";
+const mockWithSecret = jest.fn<Promise<void>, [string, (value: string) => Promise<void>]>();
+jest.mock("@/services/secretStore", () => ({
+  SecretStore: { getInstance: () => ({ withSecret: mockWithSecret }) },
+}));
 /* eslint-disable @eslint-react/hooks-extra/no-unnecessary-use-prefix -- mocks the real hooks; names must match the exports */
 jest.mock("@/context", () => ({ useApp: () => mockApp }));
 jest.mock("@/settings/model", () => ({
@@ -34,6 +46,11 @@ jest.mock("@/components/chat-components/useChatModelPicker", () => ({
     models: [],
   }),
 }));
+jest.mock("@/hooks/useChatBackendModelOptions", () => ({
+  useChatBackendModelOptions: () => ({
+    options: mockFirstModel ? [{ label: mockFirstModel, value: mockFirstModel }] : [],
+  }),
+}));
 jest.mock("@/hooks/useResolvedChatBackendModel", () => ({
   useResolvedChatBackendModel: (_app: unknown, key: keyof typeof mockModels) =>
     mockModels[key] ?? null,
@@ -42,10 +59,16 @@ jest.mock("@/hooks/use-streaming-chat-session", () => ({
   useStreamingChatSession: ({
     model,
     onNoModel,
+    onNonAbortError,
+    onTruncated,
   }: {
     model: { name: string } | null;
     onNoModel: () => void;
+    onNonAbortError: (error: unknown) => void;
+    onTruncated: () => void;
   }) => {
+    const callbacksRef = React.useRef({ onNonAbortError, onTruncated });
+    callbacksRef.current = { onNonAbortError, onTruncated };
     const onNoModelRef = React.useRef(onNoModel);
     onNoModelRef.current = onNoModel;
     const runTurn = React.useCallback(
@@ -56,6 +79,16 @@ jest.mock("@/hooks/use-streaming-chat-session", () => ({
         }
         const prompt = await getPrompt({ signal: new AbortController().signal, isFirstTurn: true });
         mockTurns.push({ model: model.name, prompt });
+        if (mockTurnGate) await mockTurnGate;
+        if (mockTurnOutcome === "context") {
+          callbacksRef.current.onNonAbortError(
+            new ProviderRequestError("Shorten this question or choose a larger model.", {
+              kind: "context",
+            })
+          );
+          return null;
+        }
+        if (mockTurnOutcome === "length") callbacksRef.current.onTruncated();
         return `Answer from ${model.name}`;
       },
       [model]
@@ -77,6 +110,11 @@ jest.mock("@/components/command-ui", () => ({
       <div>
         {props.contentState.type === "result" ? props.contentState.text : props.contentState.type}
       </div>
+      <input
+        aria-label="Result"
+        value={props.editableContent ?? ""}
+        onChange={(event) => props.onEditableContentChange?.(event.target.value)}
+      />
       <button type="button" onClick={() => props.onSelectModel("picked")}>
         Choose model
       </button>
@@ -119,7 +157,6 @@ function commandModal(modelKey: string, autoExecuteOnOpen = true) {
         content: "Rewrite clearly",
         modelKey,
         showInContextMenu: true,
-        showInSlashMenu: true,
       }}
       onClose={() => undefined}
       onInsert={() => undefined}
@@ -137,9 +174,102 @@ describe("CustomCommandChatModal", () => {
   describe("CustomCommandChatModalContent", () => {
     beforeEach(() => {
       mockTurns.length = 0;
+      mockTurnOutcome = "normal";
+      mockTurnGate = undefined;
+      mockModels.explicit.credentialRef = undefined;
+      mockWithSecret.mockReset().mockResolvedValue(undefined);
       jest.clearAllMocks();
-      mockSettings.quickCommandModelKey = "quick";
+      mockFirstModel = "quick";
+      mockSettings.quickCommandModelKey = "explicit";
     });
+    it.each([new DOMException("Cancelled", "AbortError"), new Error("Damaged encrypted entry")])(
+      "keeps the instruction when selected-key validation fails: %s",
+      async (failure) => {
+        mockModels.explicit.credentialRef = "saved-reference";
+        mockWithSecret.mockRejectedValueOnce(failure);
+        renderCommand("explicit", false);
+        fireEvent.change(screen.getByLabelText("Instruction"), {
+          target: { value: "Keep this instruction" },
+        });
+        fireEvent.click(screen.getByText("Submit"));
+        await waitFor(() => expect(mockWithSecret).toHaveBeenCalledTimes(1));
+        expect(screen.getByLabelText<HTMLInputElement>("Instruction").value).toBe(
+          "Keep this instruction"
+        );
+        expect(mockTurns).toEqual([]);
+        expect(processCommandPrompt).not.toHaveBeenCalled();
+      }
+    );
+
+    it("keeps a locally rejected instruction until the user edits and successfully retries https://github.com/ItsDalk-Lane/Scribe/issues/64", async () => {
+      mockTurnOutcome = "context";
+      renderCommand("explicit", false);
+      fireEvent.change(screen.getByLabelText("Instruction"), {
+        target: { value: "Long instruction" },
+      });
+      fireEvent.click(screen.getByText("Submit"));
+      await waitFor(() =>
+        expect(Notice).toHaveBeenCalledWith("Shorten this question or choose a larger model.")
+      );
+      expect(screen.getByLabelText<HTMLInputElement>("Instruction").value).toBe("Long instruction");
+      mockTurnOutcome = "normal";
+      fireEvent.change(screen.getByLabelText("Instruction"), {
+        target: { value: "Short instruction" },
+      });
+      fireEvent.click(screen.getByText("Submit"));
+      await screen.findByText("Answer from explicit");
+      expect(screen.getByLabelText<HTMLInputElement>("Instruction").value).toBe("");
+    });
+
+    it("keeps newer instruction edits when an older accepted request finishes https://github.com/ItsDalk-Lane/Scribe/issues/64", async () => {
+      let finish!: () => void;
+      mockTurnGate = new Promise<void>((resolve) => {
+        finish = resolve;
+      });
+      renderCommand("explicit", false);
+      fireEvent.change(screen.getByLabelText("Instruction"), {
+        target: { value: "Original instruction" },
+      });
+      fireEvent.click(screen.getByText("Submit"));
+      await waitFor(() => expect(mockTurns).toHaveLength(1));
+      fireEvent.change(screen.getByLabelText("Instruction"), {
+        target: { value: "New instruction draft" },
+      });
+      finish();
+      await screen.findByText("Answer from explicit");
+      expect(screen.getByLabelText<HTMLInputElement>("Instruction").value).toBe(
+        "New instruction draft"
+      );
+    });
+
+    it("retains the previous visible answer and manual edits when a follow-up is rejected locally https://github.com/ItsDalk-Lane/Scribe/issues/64", async () => {
+      renderCommand("explicit");
+      await screen.findByText("Answer from explicit");
+      fireEvent.change(screen.getByLabelText("Result"), { target: { value: "My edited answer" } });
+      mockTurnOutcome = "context";
+      fireEvent.change(screen.getByLabelText("Instruction"), {
+        target: { value: "Too much follow-up content" },
+      });
+      fireEvent.click(screen.getByText("Submit"));
+      await waitFor(() =>
+        expect(Notice).toHaveBeenCalledWith("Shorten this question or choose a larger model.")
+      );
+      expect(screen.getByText("Answer from explicit")).not.toBeNull();
+      expect(screen.getByLabelText<HTMLInputElement>("Result").value).toBe("My edited answer");
+      expect(screen.getByLabelText<HTMLInputElement>("Instruction").value).toBe(
+        "Too much follow-up content"
+      );
+    });
+
+    it("shows the output-limit notice while retaining the generated partial result https://github.com/ItsDalk-Lane/Scribe/issues/64", async () => {
+      mockTurnOutcome = "length";
+      renderCommand("explicit");
+      await screen.findByText("Answer from explicit");
+      expect(Notice).toHaveBeenCalledWith(
+        "The answer reached the model's output limit and may be incomplete. Ask to continue."
+      );
+    });
+
     it("runs the saved command with its explicit model", async () => {
       renderCommand("explicit");
       await screen.findByText("Answer from explicit");
@@ -147,7 +277,7 @@ describe("CustomCommandChatModal", () => {
         { model: "explicit", prompt: "Rewrite clearly: Selected sentence" },
       ]);
     });
-    it("uses the shared default for a saved command without a model", async () => {
+    it("uses the first configured model instead of the retired quick-tool default https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
       renderCommand("");
       await screen.findByText("Answer from quick");
       expect(mockTurns[0].model).toBe("quick");
@@ -155,16 +285,13 @@ describe("CustomCommandChatModal", () => {
     it.each([
       [
         "removed",
-        "This command's model is unavailable. Edit the command in Settings → Scribe → Quick actions → Tool configuration to choose another, then rerun.",
+        "This command's model is unavailable. Edit it in Settings → Scribe → My commands to choose another model, then rerun.",
       ],
-      [
-        "",
-        "Configure a model in Settings → Scribe → Quick actions → Tool configuration, then rerun the command.",
-      ],
+      ["", "Configure a model in Settings → Scribe → Models, then rerun the command."],
     ])(
       "with unavailable selection %p, shows %p and does not resume after a popup choice",
       async (modelKey, notice) => {
-        mockSettings.quickCommandModelKey = "";
+        mockFirstModel = "";
         renderCommand(modelKey);
         await waitFor(() => expect(Notice).toHaveBeenCalledWith(notice));
         expect(screen.getByText("idle")).not.toBeNull();
@@ -177,7 +304,7 @@ describe("CustomCommandChatModal", () => {
       }
     );
     it("preserves a quick-command draft until a model is selected and keeps that choice local", async () => {
-      mockSettings.quickCommandModelKey = "";
+      mockFirstModel = "";
       renderCommand("", false);
       fireEvent.change(screen.getByLabelText("Instruction"), { target: { value: "Make concise" } });
       fireEvent.click(screen.getByText("Submit"));
@@ -190,21 +317,21 @@ describe("CustomCommandChatModal", () => {
       );
       expect(updateSetting).not.toHaveBeenCalled();
     });
-    it("flags a missing model and opens General / Quick tools to set the default", async () => {
-      mockSettings.quickCommandModelKey = "";
+    it("flags a missing model and opens Models to configure one https://github.com/ItsDalk-Lane/Scribe/issues/31", async () => {
+      mockFirstModel = "";
       renderCommand("");
       fireEvent.click(await screen.findByText("Model missing"));
-      expect(openScribeSettings).toHaveBeenCalledWith(mockApp, window, "basic");
+      expect(openScribeSettings).toHaveBeenCalledWith(mockApp, window, "quickActions");
     });
     it("follows a default set in settings until the user picks a model in the dialog", async () => {
-      mockSettings.quickCommandModelKey = "";
+      mockFirstModel = "";
       const view = renderCommand("", false);
       expect(screen.getByText("Model missing")).not.toBeNull();
-      mockSettings.quickCommandModelKey = "quick";
+      mockFirstModel = "quick";
       view.rerender(commandModal("", false));
       expect(screen.getByText("Configure default")).not.toBeNull();
       fireEvent.click(screen.getByText("Choose model"));
-      mockSettings.quickCommandModelKey = "explicit";
+      mockFirstModel = "explicit";
       view.rerender(commandModal("", false));
       fireEvent.change(screen.getByLabelText("Instruction"), { target: { value: "Summarize" } });
       fireEvent.click(screen.getByText("Submit"));

@@ -5,7 +5,8 @@ import { ReactModal } from "@/components/modals/ReactModal";
 import { Button } from "@/components/ui/button";
 import { FormField } from "@/components/ui/form-field";
 import { Input } from "@/components/ui/input";
-import { PasswordInput } from "@/components/ui/password-input";
+import { SegmentedControl } from "@/components/ui/segmented-control";
+import { ProviderCredentialField } from "@/modelManagement/ui/components/ProviderCredentialField";
 import { useApp } from "@/context";
 import { logError } from "@/logger";
 import type { ModelManagementApi } from "@/modelManagement/createModelManagement";
@@ -15,8 +16,28 @@ import { byokProvidersAtom, configuredModelsAtom } from "@/modelManagement/state
 import type { ModelInfo, ProviderType } from "@/modelManagement/types/catalog";
 import type { ConfiguredModel, Provider } from "@/modelManagement/types/persisted";
 import type { ProviderDefinition, VerificationResult } from "@/modelManagement/types/runtime";
-import { CorsCompatibilitySetting } from "@/modelManagement/ui/components/CorsCompatibilitySetting";
+import {
+  catalogToPseudoPreset,
+  catalogVendorLink,
+  getProviderPreset,
+  isPseudoPresetId,
+  PROVIDER_PRESETS,
+  pseudoPresetCatalogId,
+  type ProviderPreset,
+} from "@/modelManagement/catalog/presets/providerPresets";
+import type {
+  PresetFamilyId,
+  PresetPlanKey,
+  PresetRegionKey,
+} from "@/modelManagement/catalog/presets/presetFamilies";
+import {
+  presetPlanLabel,
+  presetRegionLabel,
+  presetVersionPickerModel,
+} from "@/modelManagement/catalog/presets/presetVersionLabels";
 import { ModelChecklist } from "@/modelManagement/ui/components/ModelChecklist";
+import { SelectedModelList } from "@/modelManagement/ui/components/SelectedModelList";
+import { ModelConfigForm } from "@/modelManagement/ui/dialogs/ModelConfigDialog";
 import {
   ModelManagementProvider,
   useModelManagement,
@@ -40,6 +61,15 @@ import {
 
 const EMPTY_METADATA: Record<string, ModelInfo> = Object.freeze({});
 const EMPTY_MODELS: readonly ConfiguredModel[] = Object.freeze([]);
+
+function hostOf(url: string | undefined): string {
+  if (!url) return "";
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
+}
 
 export type ConfigureState =
   | { mode: "new"; source: ProviderDefinition }
@@ -76,34 +106,10 @@ export const ConfigureProviderForm: React.FC<ConfigureProviderFormProps> = ({
     [state, configuredModels]
   );
 
-  const keyProviderId = state.mode === "edit" ? state.providerId : null;
-  const [initialApiKey, setInitialApiKey] = useState<string | null>(null);
-  const [keyResolved, setKeyResolved] = useState(keyProviderId === null);
-  useEffect(() => {
-    if (keyProviderId === null) return;
-    let cancelled = false;
-    void api.providerRegistry
-      .getApiKey(keyProviderId)
-      .then((key) => {
-        if (cancelled) return;
-        setInitialApiKey(key);
-        setKeyResolved(true);
-      })
-      .catch(() => {
-        if (!cancelled) setKeyResolved(true);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [keyProviderId, api]);
-
-  if (state.mode === "edit" && (!provider || !keyResolved)) {
-    return (
-      <div className="tw-flex tw-h-full tw-items-center tw-justify-center">
-        <Loader2 className="tw-size-5 tw-animate-spin tw-text-muted" />
-      </div>
-    );
-  }
+  const hasSavedKey =
+    !!provider?.apiKeyRef &&
+    api.providerRegistry.getApiKeyStatus(provider.providerId) !== "missing";
+  if (state.mode === "edit" && !provider) return null;
 
   return (
     <ConfigureProviderBody
@@ -112,7 +118,7 @@ export const ConfigureProviderForm: React.FC<ConfigureProviderFormProps> = ({
       onSaved={onSaved}
       provider={provider}
       existingModels={existingModels}
-      initialApiKey={initialApiKey}
+      hasSavedKey={hasSavedKey}
     />
   );
 };
@@ -123,7 +129,7 @@ interface ConfigureProviderBodyProps {
   onSaved?: () => void;
   provider: Provider | undefined;
   existingModels: readonly ConfiguredModel[];
-  initialApiKey: string | null;
+  hasSavedKey: boolean;
 }
 
 const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
@@ -132,7 +138,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
   onSaved,
   provider,
   existingModels,
-  initialApiKey,
+  hasSavedKey,
 }) => {
   const api = useModelManagement();
   const app = useApp();
@@ -140,7 +146,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
   const providerType: ProviderType | undefined =
     state.mode === "new" ? state.source.providerType : provider?.providerType;
 
-  const catalogProviderId: string | undefined =
+  const sourceCatalogProviderId =
     state.mode === "new"
       ? state.source.catalogProviderId
       : provider?.origin.kind === "byok"
@@ -164,25 +170,78 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     };
   }, [api]);
 
+  const [displayName, setDisplayName] = useState(() =>
+    state.mode === "new" ? state.source.displayName : (provider?.displayName ?? "")
+  );
+  const [apiKey, setApiKey] = useState("");
+  const [clearKey, setClearKey] = useState(false);
+  const [baseUrl, setBaseUrl] = useState(() =>
+    state.mode === "edit" ? (provider?.baseUrl ?? "") : ""
+  );
+  const [extras, setExtras] = useState<Record<string, unknown>>(() =>
+    state.mode === "edit"
+      ? (provider?.extras ?? {})
+      : state.source.presetId
+        ? { presetId: state.source.presetId }
+        : {}
+  );
+  const [presetId, setPresetId] = useState(() => {
+    if (state.mode === "new") return state.source.presetId;
+    const saved = provider?.extras?.presetId;
+    return typeof saved === "string" ? saved : undefined;
+  });
+  const presetVersions = useMemo(() => {
+    let familyId: PresetFamilyId | undefined;
+    let standalone: ProviderPreset | undefined;
+    if (presetId) {
+      const preset = getProviderPreset(presetId);
+      if (preset) {
+        familyId = preset.family;
+        standalone = preset.family ? undefined : preset;
+      } else if (isPseudoPresetId(presetId)) {
+        familyId = catalogVendorLink(pseudoPresetCatalogId(presetId))?.family;
+      }
+    }
+    const base = familyId
+      ? PROVIDER_PRESETS.filter((candidate) => candidate.family === familyId)
+      : standalone
+        ? [standalone]
+        : [];
+    if (!familyId) return base;
+    const pseudo = api.catalogService
+      .getAllProviders()
+      .map((provider) => {
+        const link = catalogVendorLink(provider.id);
+        if (!link || link.family !== familyId) return undefined;
+        return catalogToPseudoPreset(provider, link);
+      })
+      .filter((candidate): candidate is ProviderPreset => !!candidate)
+      .filter(
+        (candidate) => !base.some((preset) => hostOf(preset.baseUrl) === hostOf(candidate.baseUrl))
+      );
+    return [...base, ...pseudo];
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion intentionally invalidates the getAllProviders read
+  }, [presetId, api, catalogVersion]);
+  const versionPicker = useMemo(
+    () =>
+      presetVersionPickerModel(
+        presetVersions,
+        presetVersions.some((version) => isPseudoPresetId(version.id))
+      ),
+    [presetVersions]
+  );
+  const currentVersion = presetVersions.find((candidate) => candidate.id === presetId);
+  const catalogProviderId = currentVersion?.catalogProviderId ?? sourceCatalogProviderId;
+
   const catalogMetadata = useMemo<Record<string, ModelInfo>>(() => {
     if (!catalogProviderId) return EMPTY_METADATA;
     return api.catalogService.getProvider(catalogProviderId)?.models ?? EMPTY_METADATA;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- catalogVersion intentionally invalidates metadata read through catalogService
   }, [catalogProviderId, api, catalogVersion]);
-
-  const [displayName, setDisplayName] = useState(() =>
-    state.mode === "new" ? state.source.displayName : (provider?.displayName ?? "")
-  );
-  const [apiKey, setApiKey] = useState(() => initialApiKey ?? "");
-  const [baseUrl, setBaseUrl] = useState(() =>
-    state.mode === "edit" ? (provider?.baseUrl ?? "") : ""
-  );
-  const [enableCors, setEnableCors] = useState(() =>
-    state.mode === "edit" ? (provider?.enableCors ?? true) : true
-  );
-  const [extras, setExtras] = useState<Record<string, unknown>>(() =>
-    state.mode === "edit" ? (provider?.extras ?? {}) : {}
-  );
+  const initialPresetSelection = useMemo(() => {
+    if (state.mode !== "new" || !state.source.presetId) return undefined;
+    return getProviderPreset(state.source.presetId)?.recommendedModelIds;
+  }, [state]);
   const [testModelId, setTestModelId] = useState("");
   const [chatCheck, setChatCheck] = useState<{
     key: string;
@@ -192,7 +251,8 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
   const chatRequest = useRef(0);
   const chatController = useRef<{ key: string; controller: AbortController } | null>(null);
   const [saving, setSaving] = useState(false);
-  const [modelQuery, setModelQuery] = useState("");
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [editingConfiguredId, setEditingConfiguredId] = useState<string | null>(null);
 
   const requiresApiKey =
     state.mode === "new" ? state.source.requiresApiKey : providerRequiresApiKey(provider!);
@@ -266,7 +326,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     const value = connectionExtras[parameter.key];
     return parameter.required && (typeof value !== "string" || !value.trim());
   });
-  const missingRequiredKey = requiresApiKey && !apiKey.trim();
+  const missingRequiredKey = requiresApiKey && !apiKey.trim() && !(hasSavedKey && !clearKey);
 
   const pool = useModelCandidatePool({
     mode: state.mode,
@@ -275,11 +335,41 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     existingModels,
     catalogMetadata,
     apiKey,
+    apiKeyRef: clearKey ? undefined : (provider?.apiKeyRef ?? undefined),
     extras: connectionExtras,
     requiresApiKey,
-    autoDiscover: !!defaultBaseUrl,
+    autoDiscover: state.mode === "new" && !!defaultBaseUrl,
     providerHydrated: !missingParameters && !baseUrlError && (state.mode !== "edit" || !!provider),
+    initialSelectedIds: initialPresetSelection,
   });
+  const handleVersionChange = (versionId: string): void => {
+    const version = presetVersions.find((candidate) => candidate.id === versionId);
+    if (!version || version.id === presetId) return;
+    invalidateChatCheck();
+    setPresetId(version.id);
+    setBaseUrl(version.baseUrl);
+    setExtras((previous) => ({ ...previous, presetId: version.id }));
+    if (state.mode === "new") pool.setSelection(version.recommendedModelIds);
+  };
+  const changeVersionDimension = (value: string): void => {
+    const model = versionPicker;
+    if (!model || !currentVersion) return;
+    let target: ProviderPreset | undefined;
+    if (model.kind === "grid") {
+      const plan = model.plans.includes(value as PresetPlanKey)
+        ? (value as PresetPlanKey)
+        : (currentVersion.planKey ?? model.plans[0]);
+      const region = model.regions.includes(value as PresetRegionKey)
+        ? (value as PresetRegionKey)
+        : (currentVersion.regionKey ?? model.regions[0]);
+      target = model.versionAt(plan, region);
+    } else if (model.kind === "single-dimension" && model.dimension === "plan") {
+      target = presetVersions.find((candidate) => candidate.planKey === value);
+    } else if (model.kind === "single-dimension") {
+      target = presetVersions.find((candidate) => candidate.regionKey === value);
+    }
+    if (target) handleVersionChange(target.id);
+  };
   const testModels = pool.buildSelectedModelInfos().filter(isChatModelInfo);
   const activeTestModelId = testModels.some((model) => model.id === testModelId)
     ? testModelId
@@ -290,7 +380,6 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     storedBaseUrl,
     apiKey,
     connectionExtras,
-    enableCors,
     testModel,
   ]);
   const currentConnectionKey = useRef(connectionKey);
@@ -304,6 +393,10 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     chatController.current?.controller.abort();
     chatController.current = null;
     setChatCheck(null);
+  };
+  const handleModelToggle = (id: string, next: boolean): void => {
+    invalidateChatCheck();
+    pool.toggle(id, next);
   };
   useEffect(
     () => () => {
@@ -336,8 +429,8 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
       }),
       providerType,
       displayName,
+      apiKeyRef: clearKey ? null : provider?.apiKeyRef,
       baseUrl: storedBaseUrl || undefined,
-      enableCors,
       requiresApiKey,
       extras: configurationExtras(),
     };
@@ -372,11 +465,10 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
     setSaving(true);
     try {
       await api.setup.byok.setupProvider({
-        catalogProviderId: state.source.catalogProviderId,
+        catalogProviderId,
         providerType,
         displayName,
         baseUrl: storedBaseUrl || undefined,
-        enableCors,
         apiKey: apiKey || undefined,
         requiresApiKey: state.source.requiresApiKey,
         extras: configurationExtras(),
@@ -399,10 +491,9 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
       await saveProviderEdit({
         providerId: state.providerId,
         apiKey,
-        initialApiKey,
+        clearKey,
         displayName,
         effectiveBaseUrl: storedBaseUrl,
-        enableCors,
         extras: configurationExtras(),
         existingModels,
         selectedWireIds: pool.selectedWireIds,
@@ -421,6 +512,7 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
 
   const handleClearKey = (): void => {
     setApiKey("");
+    setClearKey(true);
     invalidateChatCheck();
   };
 
@@ -453,13 +545,83 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
   const canSave =
     pool.selectedWireIds.size > 0 &&
     !missingRequiredBaseUrl &&
-    !missingRequiredKey &&
+    (state.mode === "edit" || !missingRequiredKey) &&
     !missingParameters &&
     !baseUrlError;
   const canTest =
     !missingRequiredBaseUrl && !missingRequiredKey && !missingParameters && !baseUrlError;
 
   const modelInputHint = state.mode === "new" ? state.source.modelInputHint : undefined;
+
+  if (modelPickerOpen) {
+    return (
+      <div className="tw-group/settings tw-flex tw-h-full tw-min-h-0 tw-flex-col tw-gap-4 tw-overflow-hidden">
+        <div className="tw-flex tw-shrink-0 tw-flex-col tw-gap-1 tw-border-b tw-border-border tw-px-2 tw-pb-3">
+          <div
+            role="heading"
+            aria-level={2}
+            className="tw-text-base tw-font-semibold tw-leading-normal"
+          >
+            {t("Model list")}
+          </div>
+          <div className="tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
+            {t("Uncheck a model to remove it from your added models.")}
+          </div>
+        </div>
+
+        <div
+          role="region"
+          aria-label={t("Model list")}
+          className="tw-min-h-0 tw-min-w-0 tw-flex-1 tw-overflow-y-auto tw-px-2 tw-py-1"
+        >
+          <ModelChecklist
+            availableModels={pool.availableModels}
+            selected={pool.selectedWireIds}
+            onToggle={handleModelToggle}
+            onAddId={(id) => {
+              invalidateChatCheck();
+              pool.addId(id);
+            }}
+            onRemoveId={(id) => {
+              invalidateChatCheck();
+              pool.removeId(id);
+            }}
+            customIds={pool.customIds}
+            modelInputHint={modelInputHint}
+            fetching={pool.fetching}
+            fetchError={
+              pool.fetchError ??
+              (!effectiveBaseUrl && !pool.fetching
+                ? t("Enter a base URL before fetching models.")
+                : null)
+            }
+          />
+        </div>
+
+        <div className="tw-flex tw-shrink-0 tw-justify-end tw-gap-2 tw-px-2">
+          <Button variant="secondary" onClick={() => setModelPickerOpen(false)}>
+            {t("Back")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // 已保存服务商的模型行内「编辑」：原位切换到单模型配置视图，保存/返回后回到服务商配置。https://github.com/ItsDalk-Lane/Scribe/issues/67
+  const editingModel =
+    editingConfiguredId !== null
+      ? existingModels.find((m) => m.configuredModelId === editingConfiguredId)
+      : undefined;
+  if (editingModel) {
+    return (
+      <ModelConfigForm
+        provider={provider!}
+        configuredModel={editingModel}
+        onClose={() => setEditingConfiguredId(null)}
+        onSaved={onSaved}
+      />
+    );
+  }
 
   return (
     <div className="tw-group/settings tw-flex tw-h-full tw-min-h-0 tw-flex-col tw-gap-4 tw-overflow-hidden">
@@ -486,6 +648,71 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
           disabled={saving}
           className="tw-m-0 tw-flex tw-min-w-0 tw-flex-col tw-gap-4 tw-border-0 tw-p-0"
         >
+          {versionPicker?.kind === "grid" && currentVersion && (
+            <>
+              <FormField label={t("Preset plan")}>
+                <SegmentedControl
+                  aria-label={t("Preset plan")}
+                  value={currentVersion.planKey ?? versionPicker.plans[0]}
+                  onChange={changeVersionDimension}
+                  options={versionPicker.plans.map((plan) => ({
+                    value: plan,
+                    label: presetPlanLabel(plan),
+                  }))}
+                />
+              </FormField>
+              <FormField label={t("Preset region")}>
+                <SegmentedControl
+                  aria-label={t("Preset region")}
+                  value={currentVersion.regionKey ?? versionPicker.regions[0]}
+                  onChange={changeVersionDimension}
+                  options={versionPicker.regions.map((region) => ({
+                    value: region,
+                    label: presetRegionLabel(region),
+                  }))}
+                />
+              </FormField>
+            </>
+          )}
+          {versionPicker?.kind === "single-dimension" && versionPicker.dimension === "plan" && (
+            <FormField label={t("Version")}>
+              <SegmentedControl
+                aria-label={t("Version")}
+                value={currentVersion?.planKey ?? versionPicker.plans[0]}
+                onChange={changeVersionDimension}
+                options={versionPicker.plans.map((plan) => ({
+                  value: plan,
+                  label: presetPlanLabel(plan),
+                }))}
+              />
+            </FormField>
+          )}
+          {versionPicker?.kind === "single-dimension" && versionPicker.dimension === "region" && (
+            <FormField label={t("Version")}>
+              <SegmentedControl
+                aria-label={t("Version")}
+                value={currentVersion?.regionKey ?? versionPicker.regions[0]}
+                onChange={changeVersionDimension}
+                options={versionPicker.regions.map((region) => ({
+                  value: region,
+                  label: presetRegionLabel(region),
+                }))}
+              />
+            </FormField>
+          )}
+          {versionPicker?.kind === "list" && (
+            <FormField label={t("Version")}>
+              <SegmentedControl
+                aria-label={t("Version")}
+                value={presetId ?? ""}
+                onChange={handleVersionChange}
+                options={versionPicker.options.map((option) => ({
+                  value: option.id,
+                  label: option.label,
+                }))}
+              />
+            </FormField>
+          )}
           <FormField label={t("Display name")}>
             <Input
               value={displayName}
@@ -493,41 +720,24 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
               onChange={(event) => setDisplayName(event.target.value)}
             />
           </FormField>
-          <FormField label={t(profile.credentialLabel ?? "API key")} required={requiresApiKey}>
-            <div className="tw-flex tw-gap-2">
-              <PasswordInput
-                className="tw-flex-1"
-                value={apiKey}
-                disabled={saving}
-                onChange={(value) => {
-                  invalidateChatCheck();
-                  setApiKey(value);
-                }}
-                placeholder={
-                  profile.credentialPlaceholder
-                    ? t(profile.credentialPlaceholder)
-                    : state.mode === "edit"
-                      ? t("No API key set")
-                      : t("Paste your API key")
-                }
-              />
-              {state.mode === "edit" && apiKey.length > 0 && (
-                <Button
-                  variant="destructive"
-                  onClick={handleClearKey}
-                  data-testid="api-key-clear"
-                  disabled={saving}
-                >
-                  {t("Clear")}
-                </Button>
-              )}
-            </div>
-            {missingRequiredKey && (
-              <div className="tw-text-ui-smaller tw-leading-relaxed tw-text-muted">
-                {t("An API key is required for this provider.")}
-              </div>
-            )}
-          </FormField>
+          <ProviderCredentialField
+            label={t(profile.credentialLabel ?? "API key")}
+            required={requiresApiKey}
+            value={apiKey}
+            hasSavedKey={hasSavedKey}
+            clearRequested={clearKey}
+            editableExisting={state.mode === "edit"}
+            saving={saving}
+            placeholder={
+              profile.credentialPlaceholder ? t(profile.credentialPlaceholder) : undefined
+            }
+            onChange={(value) => {
+              invalidateChatCheck();
+              setApiKey(value);
+              if (value) setClearKey(false);
+            }}
+            onClear={handleClearKey}
+          />
           <FormField label={t("Base URL")} required={profile.requiresBaseUrl || nativeApiSelected}>
             <Input
               value={baseUrl}
@@ -573,22 +783,17 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
               setExtras((previous) => ({ ...previous, [key]: value }));
             }}
           />
-          <CorsCompatibilitySetting
-            checked={enableCors}
-            disabled={saving}
-            onCheckedChange={(value) => {
-              invalidateChatCheck();
-              setEnableCors(value);
-            }}
-          />
           <div className="tw-flex tw-flex-col tw-gap-2">
             <div className="tw-flex tw-flex-wrap tw-items-center tw-justify-between tw-gap-2">
               <div className="tw-text-sm tw-font-medium tw-text-normal">{t("Models")}</div>
               <Button
                 variant="secondary"
                 size="sm"
-                disabled={saving || pool.fetching || !canTest || !effectiveBaseUrl}
-                onClick={safeAsyncHandler(pool.fetchModels)}
+                disabled={saving}
+                onClick={safeAsyncHandler(async () => {
+                  setModelPickerOpen(true);
+                  await pool.fetchModels();
+                })}
               >
                 {t("Fetch models")}
               </Button>
@@ -598,28 +803,22 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
                 "Fetching models only reads the directory; it does not test a chat or confirm access to every model."
               )}
             </p>
-            <ModelChecklist
-              availableModels={pool.availableModels}
-              selected={pool.selectedWireIds}
-              onToggle={(id, next) => {
-                invalidateChatCheck();
-                pool.toggle(id, next);
-              }}
-              onAddId={(id) => {
-                invalidateChatCheck();
-                pool.addId(id);
-              }}
-              onRemoveId={(id) => {
-                invalidateChatCheck();
-                pool.removeId(id);
-              }}
-              customIds={pool.customIds}
-              query={modelQuery}
-              onQueryChange={setModelQuery}
-              modelInputHint={modelInputHint}
-              fetching={pool.fetching}
-              fetchError={pool.fetchError}
-            />
+            <div className="tw-flex tw-flex-col tw-gap-2">
+              <div className="tw-text-sm tw-font-medium tw-text-normal">{t("Selected models")}</div>
+              <SelectedModelList
+                availableModels={pool.availableModels}
+                selected={pool.selectedWireIds}
+                onToggle={handleModelToggle}
+                onEdit={
+                  state.mode === "edit"
+                    ? (model) => {
+                        const configured = existingModels.find((m) => m.info.id === model.id);
+                        if (configured) setEditingConfiguredId(configured.configuredModelId);
+                      }
+                    : undefined
+                }
+              />
+            </div>
           </div>
           <ProviderChatConnectionTest
             models={testModels}
@@ -675,10 +874,9 @@ const ConfigureProviderBody: React.FC<ConfigureProviderBodyProps> = ({
 interface SaveEditArgs {
   providerId: string;
   apiKey: string;
-  initialApiKey: string | null;
+  clearKey: boolean;
   displayName: string;
   effectiveBaseUrl: string;
-  enableCors: boolean;
   extras: Record<string, unknown>;
   existingModels: readonly ConfiguredModel[];
   selectedWireIds: ReadonlySet<string>;
@@ -689,24 +887,20 @@ interface SaveEditArgs {
 async function saveProviderEdit({
   providerId,
   apiKey,
-  initialApiKey,
+  clearKey,
   displayName,
   effectiveBaseUrl,
-  enableCors,
   extras,
   existingModels,
   selectedWireIds,
   selectedInfos,
   api,
 }: SaveEditArgs): Promise<void> {
-  if (apiKey !== (initialApiKey ?? "")) {
-    if (apiKey.trim().length > 0) await api.providerRegistry.setApiKey(providerId, apiKey);
-    else await api.providerRegistry.clearApiKey(providerId);
-  }
+  if (apiKey.trim().length > 0) await api.providerRegistry.setApiKey(providerId, apiKey);
+  else if (clearKey) await api.providerRegistry.clearApiKey(providerId);
   await api.providerRegistry.update(providerId, {
     displayName,
     baseUrl: effectiveBaseUrl || undefined,
-    enableCors,
     extras: Object.keys(extras).length > 0 ? extras : undefined,
   });
 

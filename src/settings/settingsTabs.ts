@@ -1,10 +1,12 @@
 export const SCRIBE_SETTINGS_TAB_IDS = [
   "basic",
   "quickActions",
-  "agents",
+  "myCommands",
   "skills",
   "command",
   "subagents",
+  "mcp",
+  "about",
 ] as const;
 
 export type ScribeSettingsTabId = (typeof SCRIBE_SETTINGS_TAB_IDS)[number];

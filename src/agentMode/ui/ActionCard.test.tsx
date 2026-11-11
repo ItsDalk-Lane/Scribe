@@ -24,6 +24,70 @@ function readTool(overrides: Partial<ToolCallPart> = {}): ToolCallPart {
 
 describe("ActionCard", () => {
   describe("ActionCard", () => {
+    it("keeps dedicated diff text outside Markdown interpretation https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const { container } = render(
+        <ActionCard
+          part={readTool({
+            output: [{ type: "diff", path: "note.md", oldText: "old line", newText: "new line" }],
+          })}
+          open
+          onToggle={jest.fn()}
+        />
+      );
+      expect(
+        Array.from(container.querySelectorAll("pre")).some(
+          (element) => element.textContent === "- old line\n+ new line"
+        )
+      ).toBe(true);
+    });
+    it("shows separate complete input and output sections without changing the raw JSON integer https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      render(
+        <ActionCard
+          part={readTool({
+            input: '{"id":900719925474099312345}',
+            output: [{ type: "text", text: "line one\nline two" }],
+          })}
+          open
+          onToggle={jest.fn()}
+        />
+      );
+      expect(screen.getByRole("region", { name: "Input" }).textContent).toContain(
+        "900719925474099312345"
+      );
+      expect(screen.getByRole("region", { name: "Output" }).textContent).toContain(
+        "line one\nline two"
+      );
+    });
+    it("animates only an executing title and keeps waiting and ended states static https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const { rerender, container } = render(
+        <ActionCard part={readTool({ status: "in_progress" })} open={false} onToggle={jest.fn()} />
+      );
+      expect(container.querySelector(".scribe-shimmer-text")).not.toBeNull();
+      for (const status of ["pending", "completed", "failed", "cancelled"] as const) {
+        rerender(<ActionCard part={readTool({ status })} open={false} onToggle={jest.fn()} />);
+        expect(container.querySelector(".scribe-shimmer-text")).toBeNull();
+      }
+    });
+    it.each([undefined, "research-child"])(
+      "uses the actual running file-search title in the main or child trace: %s https://github.com/ItsDalk-Lane/Scribe/issues/52",
+      (parentToolCallId) => {
+        const { container } = render(
+          <ActionCard
+            part={readTool({
+              vendorToolName: "search_content",
+              status: "in_progress",
+              parentToolCallId,
+              input: { query: "meeting" },
+            })}
+            open={false}
+            onToggle={jest.fn()}
+          />
+        );
+        expect(container.querySelector(".scribe-shimmer-text")?.textContent).toBe(
+          'Searching files · "meeting"'
+        );
+      }
+    );
     it("links only the file path of a completed read, keeping the verb as plain text", () => {
       render(<ActionCard part={readTool()} open={false} onToggle={jest.fn()} />);
 
@@ -91,7 +155,7 @@ describe("ActionCard", () => {
         <ActionCard part={readTool({ status: "in_progress" })} open={false} onToggle={jest.fn()} />
       );
 
-      expect(screen.getByText("Reading notes/today.md")).toBeTruthy();
+      expect(screen.getByText("Reading files notes/today.md")).toBeTruthy();
       expect(screen.queryByRole("link")).toBeNull();
     });
   });

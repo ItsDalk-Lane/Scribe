@@ -1,13 +1,12 @@
+import { isMap, isSeq, isScalar } from "yaml";
+import { sha256 } from "@/utils/hash";
 import { logWarn } from "@/logger";
 import { basename, joinPosix } from "@/utils/pathUtils";
-import { getBuiltinSkillVersion } from "./builtin/builtinOwnership";
-import { BUILTIN_SKILLS } from "@/builtinSkills/builtinSkills";
 import { mapWithConcurrency } from "./concurrency";
 import { parseSkillFile, SkillFormatError } from "./skillFormat";
 import type { RejectedSkill, Skill, SkillDiscoveryResult } from "./types";
 
 const DISCOVERY_CONCURRENCY = 16;
-const BUILTIN_NAMES = new Set(BUILTIN_SKILLS.map((skill) => skill.name));
 
 export interface SkillsFsAdapter {
   exists(relPath: string): Promise<boolean>;
@@ -33,14 +32,25 @@ export async function discoverManagedSkills(
   const listing = await adapter.list(skillsFolderRelPath);
 
   const results = await mapWithConcurrency(
-    [...listing.folders].sort(),
+    [...listing.folders].filter((folder) => !basename(folder).startsWith(".")).sort(),
     DISCOVERY_CONCURRENCY,
     async (folderPath): Promise<Skill | RejectedSkill | null> => {
       const dirName = basename(folderPath);
-      const skillMdRelPath = joinPosix(folderPath, "SKILL.md");
+      const childListing = await adapter.list(folderPath).catch(() => ({ files: [], folders: [] }));
+      const documents = childListing.files.filter(
+        (path) => basename(path).toLowerCase() === "skill.md"
+      );
+      const skillMdRelPath = documents[0] ?? joinPosix(folderPath, "SKILL.md");
       const absDir =
         skillsFolderAbsPath !== null ? joinPosix(skillsFolderAbsPath, dirName) : folderPath;
-      const absFile = joinPosix(absDir, "SKILL.md");
+      const absFile = joinPosix(absDir, basename(skillMdRelPath));
+      if (documents.length > 1)
+        return {
+          name: dirName,
+          filePath: absFile,
+          dirPath: absDir,
+          reason: "Multiple SKILL.md files were found. Keep a single description file.",
+        };
 
       let content: string;
       try {
@@ -68,14 +78,37 @@ export async function discoverManagedSkills(
       }
 
       const fm = parsed.frontmatter;
+      const metadata = parsed.doc.get("metadata");
+      const metaValue = (key: string) =>
+        parsed.doc.get(key) ?? (isMap(metadata) ? metadata.get(key) : undefined);
+      const author = metaValue("author");
+      const version = metaValue("version");
+      const rawTags = metaValue("tags");
+      const tags = isSeq(rawTags)
+        ? rawTags.items.map((item) => (isScalar(item) ? item.value : item))
+        : rawTags;
 
       return {
-        builtin: BUILTIN_NAMES.has(fm.name) && getBuiltinSkillVersion(content) !== null,
         name: fm.name,
         description: fm.description,
         filePath: absFile,
         dirPath: absDir,
         body: parsed.body,
+        contentHash: sha256(content),
+        author: typeof author === "string" ? author : undefined,
+        version:
+          typeof version === "string" || typeof version === "number" || typeof version === "bigint"
+            ? String(version)
+            : undefined,
+        tags:
+          typeof tags === "string"
+            ? tags
+                .split(",")
+                .map((tag) => tag.trim())
+                .filter(Boolean)
+            : Array.isArray(tags)
+              ? tags.filter((tag): tag is string => typeof tag === "string")
+              : undefined,
         license: fm.license,
         compatibility: fm.compatibility,
         allowedTools: fm.allowedTools,
@@ -83,6 +116,8 @@ export async function discoverManagedSkills(
         disableModelInvocation: fm.disableModelInvocation,
         userInvocable: fm.userInvocable,
         enabledAgents: fm.enabledAgents,
+        dependencies: fm.dependencies,
+        uiMetadata: fm.uiMetadata,
         location: { kind: "canonical" },
       };
     }

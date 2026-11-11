@@ -81,6 +81,16 @@ describe("taskDisplay", () => {
   });
 
   describe("runningTasks", () => {
+    it("keeps waiting and stopping children managed without counting interrupted runs as active https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      expect(
+        runningTasks([
+          makeTask({ taskId: "queued", subagentStatus: "queued" }),
+          makeTask({ taskId: "waiting", subagentStatus: "awaiting_input" }),
+          makeTask({ taskId: "stopping", subagentStatus: "stopping" }),
+          makeTask({ taskId: "ended", subagentStatus: "interrupted" }),
+        ]).map((task) => task.taskId)
+      ).toEqual(["queued", "waiting", "stopping"]);
+    });
     it(`counts running subagents and background commands and leaves out ended tasks`, () => {
       const tasks = [
         makeTask(),
@@ -94,6 +104,30 @@ describe("taskDisplay", () => {
   });
 
   describe("taskDisplayStatus", () => {
+    it("shows queued, waiting, stopping and task budget limits as distinct states https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      for (const status of ["queued", "awaiting_input", "awaiting_approval", "stopping"] as const)
+        expect(taskDisplayStatus(makeTask({ subagentStatus: status }), [])).toBe(status);
+      expect(taskDisplayStatus(makeTask({ stopReason: "max_task_requests" }), [])).toBe(
+        "max_task_requests"
+      );
+      expect(taskStatusLabel("max_task_requests")).toBe("Task request limit reached");
+      expect(taskBadgeStatus("queued")).toBe("pending");
+    });
+    it.each([
+      ["max_turn_requests", "Step limit reached"],
+      ["quota_exhausted", "Service quota exhausted"],
+      ["authentication_error", "Authentication failed"],
+      ["context_limit", "Context limit reached"],
+      ["request_error", "Model request failed"],
+    ] as const)(
+      "identifies %s on ended child tasks (https://github.com/ItsDalk-Lane/Scribe/issues/31)",
+      (stopReason, label) => {
+        expect(taskDisplayStatus(makeTask({ status: "failed", stopReason }), [])).toBe(stopReason);
+        expect(taskStatusLabel(stopReason)).toBe(label);
+        expect(taskBadgeStatus(stopReason)).toBe("failed");
+      }
+    );
+
     it("labels an unreconnected task as interrupted instead of successfully completed", () => {
       expect(taskDisplayStatus(makeTask({ status: "stopped", interrupted: true }), [])).toBe(
         "interrupted"
@@ -117,6 +151,19 @@ describe("taskDisplay", () => {
   });
 
   describe("permissionRequesterName", () => {
+    it("keeps the child and run source visible after old task cards are pruned https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      expect(
+        permissionRequesterName(
+          permission({
+            taskId: "old",
+            subagentId: "child-1",
+            runId: "run-2",
+            subagentName: "资料整理",
+          }),
+          []
+        )
+      ).toBe('Subagent "资料整理" · run-2');
+    });
     it(`names the task that asked for a permission`, () => {
       expect(permissionRequesterName(permission({ taskId: "task-1" }), [makeTask()])).toBe(
         'general-purpose "Count words in Welcome"'

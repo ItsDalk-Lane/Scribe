@@ -1,10 +1,11 @@
 export const componentTranslations: Record<string, string> = {
+  "Failed to save project context. Check the result and try again.":
+    "项目参考内容保存失败，请检查结果后重试。",
   "System prompt": "系统提示词",
   Projects: "项目",
   "Custom commands": "自定义指令",
+  Custom: "自定义",
   "Failed to send message. Please try again.": "发送消息失败，请重试。",
-  "Failed to save chat as note. Check the Scribe log for details.":
-    "将聊天保存为笔记失败，请查看 Scribe 日志。",
   "Cannot regenerate the first message.": "无法重新生成第一条消息。",
   "Message not found.": "未找到消息。",
   "Failed to regenerate message. Please try again.": "重新生成消息失败，请重试。",
@@ -28,8 +29,6 @@ export const componentTranslations: Record<string, string> = {
   "Please select some text first. Selected text is required for quick commands.":
     "请先选中一些文字，再使用快捷指令。",
   "Quick Command": "快捷指令",
-  "All Scribe caches cleared successfully": "已清除 Scribe 的所有缓存",
-  "Failed to clear Scribe caches": "清除 Scribe 缓存失败",
   "Failed to create Scribe log file.": "创建 Scribe 日志文件失败。",
   "Scribe log cleared.": "已清除 Scribe 日志。",
   "Failed to clear Scribe log file.": "清除 Scribe 日志文件失败。",
@@ -54,7 +53,6 @@ export const componentTranslations: Record<string, string> = {
   Prompt: "提示词",
   "Enter command prompt": "输入指令提示词",
   "Show in context menu": "在右键菜单中显示",
-  "Show in slash menu": "在斜杠菜单中显示",
   Cancel: "取消",
   Save: "保存",
   "Edit command": "编辑指令",
@@ -106,22 +104,28 @@ export const componentTranslations: Record<string, string> = {
   Auto: "自动",
   "Uses the agent's Auto permissions for tools and edits.":
     "按照代理的自动权限使用工具和编辑文件。",
-  Plan: "规划",
+  Plan: "计划",
   "Drafts a plan and waits for your approval before editing.": "先拟定计划，等待你批准后再编辑。",
   Default: "默认",
   "Allows edits under the agent's approval rules.": "按代理的批准规则允许编辑。",
+  Full: "完全",
+  "Runs every tool action without asking, including commands and files outside the vault.":
+    "所有工具操作均免确认执行，包括系统命令与库外文件。",
+  "Switch to Full mode": "切换到完全模式",
+  "Switch to Full": "切换到完全",
+  "In Full mode the agent runs every action without asking, including:\n- system commands\n- writes outside the vault\n- changes to the Obsidian config folder\nUse it only when you trust the task.":
+    "在完全模式下，代理执行任何操作前都不再询问，包括：\n- 运行系统命令\n- 写入库外文件\n- 修改 Obsidian 配置目录\n请仅在你完全信任当前任务时使用。",
   Mode: "模式",
   "Model failed to load": "模型加载失败",
   "Select model": "选择模型",
   "Clear search": "清空搜索",
-  "Model · effort": "模型与思考强度",
+  "Model · effort": "模型与推理强度",
   Model: "模型",
-  Effort: "思考强度",
+  Effort: "推理强度",
   "Show less": "收起",
   "Show more": "展开",
   Chat: "聊天",
   "New chat": "新建聊天",
-  "Save chat as note": "将聊天保存为笔记",
   "Chat history": "聊天历史",
   "Advanced settings": "高级设置",
   "Auto-accept edits": "自动接受修改",
@@ -261,14 +265,14 @@ export const componentTranslations: Record<string, string> = {
     "请前往设置 → Scribe → 快捷操作 → 工具配置配置模型，然后重新运行指令。",
   "Cannot replace.": "无法替换。",
   "Prompt is required": "请输入提示词",
-  "This name matches the built-in /compact command, so this command never appears in the slash menu.":
-    "此名称与内建 /compact 指令同名，因此永远不会出现在斜杠菜单中。",
+  "This name matches the built-in /compact command, so this command stays hidden from the slash menu while the built-in command is enabled.":
+    "此名称与内建 /compact 指令同名：在内建命令开启时，它不会出现在斜杠菜单中；关闭内建命令后恢复显示。",
   "Your AI assistant for Obsidian • @ to add context • / for custom prompts":
     "你的 Obsidian AI 助手 • 输入 @ 添加参考内容 • 输入 / 使用自定义指令",
   "Thought for a while": "思考了一会儿",
   "YouTube Video": "YouTube 视频",
   "Free model. The provider may log or train on your prompts. Review their privacy terms before sending sensitive content.":
-    "免费模型。提供商可能记录你的提示词或用来训练模型。发送敏感内容前，请查看其隐私条款。",
+    "免费模型。供应商可能记录你的提示词或用来训练模型。发送敏感内容前，请查看其隐私条款。",
   "Search models…": "搜索模型…",
   "This model does not support image inputs.": "此模型不支持图片输入。",
   "Current Note": "当前笔记",
@@ -307,14 +311,13 @@ export const componentTranslations: Record<string, string> = {
   Thinking: "正在思考",
   Today: "今天",
   Yesterday: "昨天",
-  Advanced: "高级",
+  Advanced: "高级设置",
   Selection: "选中文字",
   Continue: "继续",
   "Reset Settings": "重置设置",
   "{count} selected": "已选择 {count} 项",
-  'Resetting settings will restore the default values. API keys are not cleared by this action — use "Delete All Keys" in Common → Others → API Key Storage if you also want to remove them. Are you sure you want to continue?':
-    "重置设置将恢复默认值，但不会清除 API 密钥。如需清除密钥，请使用通用 → 其他 → API 密钥存储中的“删除所有密钥”。确定继续吗？",
-  "Clear Scribe cache": "清除 Scribe 缓存",
+  'Resetting settings will restore the default values. API keys are not cleared by this action — use "Delete All Keys" in About → API key storage if you also want to remove them. Are you sure you want to continue?':
+    "重置设置将恢复默认值，但不会清除 API 密钥。如需清除密钥，请使用关于 → API 密钥存储中的“删除所有密钥”。确定继续吗？",
   "Count total tokens in your vault": "统计库中的词元总数",
   "Count words and tokens in selection": "统计选中文字的单词和词元数量",
   "New Scribe Agent Chat": "新建 Scribe 代理聊天",
@@ -361,14 +364,20 @@ export const componentTranslations: Record<string, string> = {
   "Recover the projects from {folder}.": "请从 {folder} 恢复项目。",
   'Migrated "{promptName}" and set it as the default system prompt.':
     "已迁移“{promptName}”并将其设为默认系统提示词。",
-  "The prompt was preserved, but its migrated content could not be verified.":
-    "提示词已保留，但无法验证迁移后的内容。",
-  "The prompt migration failed, but the original content was preserved.":
-    "提示词迁移失败，但原始内容已保留。",
-  "The prompt could not be migrated. It remains in settings and will be retried.":
-    "提示词无法迁移，已保留在设置中，稍后将重试。",
-  "Review {path}, then move it to {folder} to make the prompt available.":
-    "请检查 {path}，然后将其移至 {folder} 以使用该提示词。",
+  "The migrated prompt could not be verified. A recovery file was created, but the old settings value was cleared from memory during this run. The setting on disk has not been verified.":
+    "无法核实迁移后的提示词。已创建恢复文件，但本次运行中，旧设置值已从内存中清空。尚未核实磁盘上的设置。",
+  "The prompt migration failed. A recovery file was created, but the old settings value was cleared from memory during this run. The setting on disk has not been verified.":
+    "提示词迁移失败。已创建恢复文件，但本次运行中，旧设置值已从内存中清空。尚未核实磁盘上的设置。",
+  "The prompt could not be migrated and no recovery file could be confirmed. The setting on disk has not been verified.":
+    "提示词无法迁移，无法确认已创建恢复文件。尚未核实磁盘上的设置。",
+  "Recovery file: {path}. Its contents were not verified and may not be the prompt currently used; review it after disabling Scribe.":
+    "恢复文件：{path}。内容尚未核实，不一定是当前生效的提示词；请停用 Scribe 后再检查。",
+  "Do not restart yet. Securely back up your existing files, including Scribe settings and prompt files, and keep the backups safe; they may contain private content.":
+    "请暂时不要重新启动。请安全备份现有文件，包括 Scribe 设置和提示词文件，并妥善保管；这些文件可能包含私人内容。",
+  "Securely back up your existing files, including the recovery file, and keep the backups safe before disabling Scribe.":
+    "请先安全备份现有文件，包括恢复文件，并妥善保管，然后再停用 Scribe。",
+  "Disable Scribe until file safety issues are fixed. Saves already queued may still finish while disabling.":
+    "请停用 Scribe，直到文件安全问题修复。停用期间，已排队的保存可能仍会完成。",
   "Check folder permissions and available disk space for {folder}.":
     "请检查 {folder} 的文件夹权限和可用磁盘空间。",
   "{validCount} to add": "待添加 {validCount} 项",

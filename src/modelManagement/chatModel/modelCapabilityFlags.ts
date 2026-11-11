@@ -27,5 +27,6 @@ export function capabilityListFromModelInfo(info: ModelInfo): ModelCapability[] 
 }
 
 export function capabilitiesFromConfiguredInfo(info: ModelInfo): ModelCapability[] | undefined {
-  return info.modalities ? capabilityListFromModelInfo(info) : undefined;
+  // 只有非空输入类型能证明图片能力，输出元数据或空列表不能当作明确的纯文本声明。https://github.com/ItsDalk-Lane/Scribe/issues/56
+  return info.modalities?.input?.length ? capabilityListFromModelInfo(info) : undefined;
 }

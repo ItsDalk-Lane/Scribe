@@ -37,7 +37,7 @@ jest.mock("@/modelManagement", () => ({
   }),
 }));
 jest.mock("@/settings/model", () => ({ settingsStore: {} }));
-jest.mock("@/services/keychainService", () => ({ KeychainService: { getInstance: jest.fn() } }));
+jest.mock("@/services/secretStore", () => ({ SecretStore: { getInstance: jest.fn() } }));
 
 describe("useResolvedChatBackendModel", () => {
   describe("useResolvedChatBackendModel", () => {

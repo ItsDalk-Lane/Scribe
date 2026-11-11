@@ -30,11 +30,10 @@ const groups: readonly AgentExtensionGroup[] = [
         capabilities: { edit: true, delete: true, toggle: true },
       },
       {
-        id: "builtin",
-        name: "obsidian-markdown",
-        description: "内置技能保留独立的加载状态，不能单独修改。",
+        id: "runtime-skill",
+        name: "shared-review",
+        description: "由当前环境提供的技能。",
         source: "runtime",
-        builtin: true,
         readOnly: true,
         availability: "not_listed",
       },
@@ -51,7 +50,7 @@ const groups: readonly AgentExtensionGroup[] = [
   },
 ];
 const args: AgentExtensionsPanelProps = {
-  agentName: "Claude Code",
+  agentName: "Test agent",
   groups,
   loading: false,
   forceExpanded: true,
@@ -185,7 +184,7 @@ export const PluginAvailability: StoryObj<AgentExtensionsPanelProps> = {
       {
         kind: "plugin",
         status: "partial",
-        warnings: [],
+        warnings: ["The agent reported plugin errors; details for each plugin were not provided."],
         items: [
           {
             id: "notes@community",
@@ -239,7 +238,6 @@ export const ConfirmedBuiltin: StoryObj<AgentExtensionsPanelProps> = {
             name: "help",
             source: "runtime",
             kind: "command",
-            builtin: true,
             availability: "loaded",
           },
         ],

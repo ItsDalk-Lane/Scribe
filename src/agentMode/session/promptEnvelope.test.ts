@@ -78,16 +78,10 @@ describe("promptEnvelope", () => {
     it("keeps inherited text and image blocks before the new message and its attachments", () => {
       const image = { type: "image" as const, mimeType: "image/png", data: "AQID" };
       expect(
-        buildPromptBlocks(
-          "continue",
-          undefined,
-          [image],
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          [{ type: "text", text: "all prior turns" }, image]
-        )
+        buildPromptBlocks("continue", undefined, [image], undefined, undefined, [
+          { type: "text", text: "all prior turns" },
+          image,
+        ])
       ).toEqual([
         { type: "text", text: "all prior turns" },
         image,
@@ -101,7 +95,7 @@ describe("promptEnvelope", () => {
       expect(buildPromptBlocks("hello", { notes: [] })).toEqual([{ type: "text", text: "hello" }]);
     });
 
-    it("wraps the message with note paths offered as context to open when needed", () => {
+    it("identifies attached paths relative to the vault without declaring the command working directory https://github.com/ItsDalk-Lane/Scribe/issues/71", () => {
       const blocks = buildPromptBlocks("summarize them", {
         notes: [makeFile("daily/2026-04-28.md"), makeFile("projects/scribe.md")],
       });
@@ -111,7 +105,8 @@ describe("promptEnvelope", () => {
       expect(text).toContain("<scribe-context>");
       expect(text).toContain("- daily/2026-04-28.md");
       expect(text).toContain("- projects/scribe.md");
-      expect(text).toContain("open them if you need their contents");
+      expect(text).toContain("File tool paths are relative to the vault root.");
+      expect(text).toContain("Open attached notes if you need their contents.");
       expect(text).not.toContain("use the Read tool");
       expect(text).toContain("</scribe-context>");
       expect(text).toContain("<user-message>\nsummarize them\n</user-message>");
@@ -241,52 +236,6 @@ describe("promptEnvelope", () => {
       expect(envelopePos).toBeLessThan(selectionPos);
       expect(selectionPos).toBeLessThan(webTabPos);
       expect(webTabPos).toBeLessThan(messagePos);
-    });
-
-    it("prepends the project-context block ahead of the attached context and message", () => {
-      const projectContextBlock =
-        "<project_context>\n## Included folders\n- `/vault/Papers`\n</project_context>";
-      const blocks = buildPromptBlocks(
-        "go",
-        { notes: [makeFile("a.md")] },
-        undefined,
-        undefined,
-        projectContextBlock
-      );
-      const text = (blocks[0] as { type: "text"; text: string }).text;
-      expect(text).toContain("<project_context>");
-      expect(text).toContain("`/vault/Papers`");
-      expect(text.indexOf("<project_context>")).toBeLessThan(text.indexOf("<scribe-context>"));
-      expect(text.indexOf("<scribe-context>")).toBeLessThan(text.indexOf("<user-message>"));
-    });
-
-    it("injects the project-context-updates note after the manifest, before the message", () => {
-      const updatesBlock =
-        "<project_context_updates>\nsources may have changed\n</project_context_updates>";
-      const blocks = buildPromptBlocks(
-        "go",
-        { notes: [makeFile("a.md")] },
-        undefined,
-        undefined,
-        "<project_context>\nmanifest\n</project_context>",
-        undefined,
-        updatesBlock
-      );
-      const text = (blocks[0] as { type: "text"; text: string }).text;
-      expect(text).toContain("<project_context_updates>");
-      expect(text.indexOf("<project_context>")).toBeLessThan(
-        text.indexOf("<project_context_updates>")
-      );
-      expect(text.indexOf("<project_context_updates>")).toBeLessThan(
-        text.indexOf("<user-message>")
-      );
-    });
-
-    it("omits the project-context and updates blocks when none are provided (later turns)", () => {
-      const blocks = buildPromptBlocks("go", { notes: [makeFile("a.md")] });
-      const text = (blocks[0] as { type: "text"; text: string }).text;
-      expect(text).not.toContain("<project_context>");
-      expect(text).not.toContain("<project_context_updates>");
     });
   });
 

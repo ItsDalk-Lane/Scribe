@@ -7,7 +7,6 @@ const command: CommandEditorFormProps["command"] = {
   enabled: true,
   modelKey: "review-model",
   showInContextMenu: true,
-  showInSlashMenu: true,
   order: 0,
   lastUsedMs: 0,
 };
@@ -30,6 +29,9 @@ export const SaveError: StoryObj<CommandEditorFormProps> = {
   args: { error: "无法保存指令，请检查文件权限后重试。填写的内容已保留。" },
 };
 export const UnavailableModel: StoryObj<CommandEditorFormProps> = { args: { modelOptions: [] } };
+export const TemplatingOff: StoryObj<CommandEditorFormProps> = {
+  args: { command: { ...command, enableTemplating: false } },
+};
 export const ShadowedBuiltinName: StoryObj<CommandEditorFormProps> = {
   args: { command: { ...command, title: "compact" } },
 };

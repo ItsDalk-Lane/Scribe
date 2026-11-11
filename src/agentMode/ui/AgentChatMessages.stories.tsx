@@ -116,7 +116,6 @@ const actionRailArgs: AgentChatMessagesProps = {
   pendingAskUserQuestions: questions,
   chatBackend: {} as AgentChatBackend,
   isLoading: true,
-  feedbackOffer: null,
 };
 
 const meta = {
@@ -126,6 +125,30 @@ const meta = {
   parameters: { gallery: { host: "leaf", layout: "padded" } },
 } satisfies Meta<AgentChatMessagesProps>;
 export default meta;
+
+export const LongHistoryPaging: StoryObj<AgentChatMessagesProps> = {
+  args: {
+    ...actionRailArgs,
+    isLoading: false,
+    pendingAskUserQuestions: [],
+    pendingToolPermissions: [],
+    messages: Array.from({ length: 65 }, (_, index) => [
+      {
+        ...message,
+        id: `history-user-${index}`,
+        sender: "user",
+        message: `第 ${index + 1} 轮：整理本周笔记。`,
+      },
+      {
+        ...message,
+        id: `history-reply-${index}`,
+        message: `第 ${index + 1} 轮已整理完成，原始内容已保留。`,
+        turnStopReason: "end_turn" as const,
+      },
+    ]).flat(),
+  },
+  render: (props) => <QueuedActionsDemo {...actionRailArgs} {...props} />,
+};
 
 export const QueuedActions: StoryObj<AgentChatMessagesProps> = {
   render: () => <QueuedActionsDemo {...actionRailArgs} />,
@@ -342,157 +365,23 @@ export const PlanResponses: StoryObj<AgentChatMessagesProps> = {
   render: (props) => <QueuedActionsDemo {...actionRailArgs} {...props} />,
 };
 
-export const FeedbackAfterFileChanges: StoryObj<AgentChatMessagesProps> = {
+export const ChildNoticeDuringReasoning: StoryObj<AgentChatMessagesProps> = {
   args: {
     ...actionRailArgs,
     pendingToolPermissions: [],
     pendingAskUserQuestions: [],
+    isLoading: true,
     messages: [
-      { ...message, id: "edit-request", sender: "user", message: "Tidy the launch brief." },
       {
         ...message,
-        id: "edit-response",
+        id: "live-main",
         message: "",
-        turnDurationMs: 14_000,
-        turnStopReason: "end_turn",
         parts: [
-          {
-            kind: "tool_call",
-            id: "edit-brief",
-            title: "Edit launch brief.md",
-            status: "completed",
-            vendorToolName: "Edit",
-            input: { file_path: "Projects/launch brief.md" },
-          },
-          { kind: "text", text: "Tightened the intro and fixed the headings." },
-        ],
-        fileChanges: [
-          {
-            path: "Projects/launch brief.md",
-            status: "modified",
-            before: "before\n",
-            after: "after\n",
-            additions: 6,
-            deletions: 9,
-          },
+          { kind: "thought", text: "正在结合两个子代理的结果继续思考。", startedAtMs: Date.now() },
         ],
       },
-      {
-        ...message,
-        id: "complaint",
-        sender: "user",
-        message: "Why did you delete my whole second section? I only asked you to tidy it.",
-      },
-      {
-        ...message,
-        id: "apology",
-        message: "",
-        turnDurationMs: 9_000,
-        turnStopReason: "end_turn",
-        parts: [
-          {
-            kind: "tool_call",
-            id: "restore-brief",
-            title: "Edit launch brief.md",
-            status: "completed",
-            vendorToolName: "Edit",
-            input: { file_path: "Projects/launch brief.md" },
-          },
-          { kind: "text", text: "Sorry, I removed it by mistake. The second section is back." },
-        ],
-        fileChanges: [
-          {
-            path: "Projects/launch brief.md",
-            status: "modified",
-            before: "before\n",
-            after: "after\n",
-            additions: 14,
-            deletions: 0,
-          },
-        ],
-      },
+      { ...message, id: "child-notice", synthetic: true, message: "子代理A已完成自己的部分。" },
     ],
-    feedbackOffer: {
-      trigger: "agent",
-      draft: {
-        title: "Deleted a section when asked to tidy a note",
-        whatHappened: "Asked to tidy a note, the agent removed its whole second section.",
-        userSaid: "Why did you delete my whole second section? I only asked you to tidy it.",
-        repro: "1. Ask the agent to tidy a note with several sections. 2. Compare the result.",
-      },
-      evidence: {
-        backendId: "claude",
-        model: "claude-opus-5-5",
-        sessionId: "gallery-session",
-        raisedAt: "2026-10-12T17:00:00.000Z",
-      },
-      afterUserMessageId: "complaint",
-      status: "open",
-    },
-    isLoading: false,
   },
   render: (props) => <QueuedActionsDemo {...actionRailArgs} {...props} />,
-};
-
-const EveryTurnDurationDemo = () => {
-  const app = useApp();
-  const [forked, setForked] = useState<string | null>(null);
-  const messages: AgentChatMessage[] = [
-    {
-      ...message,
-      id: "plain-reply",
-      message: "A completed reply with no tool activity.",
-      turnDurationMs: 8_000,
-      timestamp: { epoch: 1, display: "2026/10/31 20:00:00", fileName: "" },
-    },
-    {
-      ...message,
-      id: "structured-reply",
-      message: "The second completed reply.",
-      turnDurationMs: 18_000,
-      turnStopReason: "end_turn",
-      timestamp: { epoch: 2, display: "2026/10/31 20:01:00", fileName: "" },
-      parts: [
-        {
-          kind: "tool_call",
-          id: "read",
-          title: "Read",
-          vendorToolName: "Read",
-          status: "completed",
-          locations: [{ path: "Example.md" }],
-        },
-        { kind: "thought", text: "Read and compare.", durationMs: 6_000 },
-        { kind: "text", text: "The second completed reply." },
-      ],
-    },
-    {
-      ...message,
-      id: "third-reply",
-      message: "The third completed reply keeps its own timing.",
-      turnDurationMs: 12_000,
-      turnStopReason: "end_turn",
-      timestamp: { epoch: 3, display: "2026/10/31 20:02:00", fileName: "" },
-      parts: [{ kind: "text", text: "The third completed reply keeps its own timing." }],
-    },
-  ];
-  return (
-    <TooltipProvider>
-      <div className="tw-h-96">
-        <AgentChatMessages
-          {...actionRailArgs}
-          plugin={{ app, manifest: actionRailArgs.plugin.manifest }}
-          messages={messages}
-          isLoading={false}
-          pendingToolPermissions={[]}
-          pendingAskUserQuestions={[]}
-          onForkMessage={async (id) => setForked(id)}
-        />
-      </div>
-      {forked ? <div role="status">Fork conversation: {forked}</div> : null}
-    </TooltipProvider>
-  );
-};
-
-export const EveryTurnDurationAndFork: StoryObj<AgentChatMessagesProps> = {
-  render: EveryTurnDurationDemo,
 };

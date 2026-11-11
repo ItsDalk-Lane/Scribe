@@ -1,11 +1,52 @@
 import type { BackendId } from "@/agentMode/session/types";
+import type { SkillDependency, SkillUiMetadata } from "@/agentMode/skills/skillFormat";
 
 export type { BackendId };
+export type { SkillDependency, SkillUiMetadata };
 
 export type SkillLocation = { kind: "canonical" } | { kind: "project"; agentDirs: BackendId[] };
 
+export type SkillSourceKind = "builtin" | "agent" | "system" | "local";
+
+export interface SkillSource {
+  kind: SkillSourceKind;
+  origin?: string;
+  displayPath?: string;
+  version?: string;
+}
+
+export interface SkillPackageFile {
+  path: string;
+  data: Uint8Array;
+}
+
+// 导入暂存区自动修复的逐行差异；安装的始终是确认后的修复副本。
+// https://github.com/ItsDalk-Lane/Scribe/issues/44
+export interface SkillImportRepairChange {
+  before: string;
+  after: string;
+}
+
+export interface SkillPackage {
+  name: string;
+  files: SkillPackageFile[];
+  source: SkillSource;
+  repair?: SkillImportRepairChange[];
+}
+
+export interface SkillImportCandidate {
+  id: string;
+  name: string;
+  description: string;
+  path: string;
+  sources: string[];
+  status: "available" | "installed" | "conflict";
+  error?: string;
+  renamedFrom?: string;
+  repair?: SkillImportRepairChange[];
+}
+
 export interface Skill {
-  builtin?: boolean;
   name: string;
   description: string;
   filePath: string;
@@ -21,6 +62,12 @@ export interface Skill {
   location: SkillLocation;
   contentHash?: string;
   displayNameSuffix?: string;
+  source?: SkillSource;
+  author?: string;
+  version?: string;
+  tags?: string[];
+  dependencies?: SkillDependency[];
+  uiMetadata?: SkillUiMetadata;
 }
 
 export interface RejectedSkill {
@@ -29,6 +76,7 @@ export interface RejectedSkill {
   dirPath: string;
   reason: string;
   offendingText?: string;
+  source?: SkillSource;
 }
 
 export interface SkillDiscoveryResult<T> {

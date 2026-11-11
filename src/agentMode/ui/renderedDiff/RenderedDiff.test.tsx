@@ -107,32 +107,39 @@ describe("RenderedDiff", () => {
       expect(roots[0]).toBe(container.firstElementChild);
     });
 
-    it("drops the list margins between segments that split one list so a removed middle item sits as close as its siblings", async () => {
+    it("puts continuation spacing on the actual rendered lists so split list items remain adjacent https://github.com/ItsDalk-Lane/Scribe/issues/72", async () => {
+      jest.mocked(renderMarkdown).mockImplementation(async (_app, markdown, target) => {
+        target.createEl("ul").createEl("li", { text: markdown });
+      });
       const { container } = render(diffElement(REMOVED_LIST_ITEM));
 
-      await waitFor(() => expect(container.querySelector("[data-change=deleted]")).not.toBeNull());
-      const [first, deleted, last] = Array.from(container.firstElementChild!.children, (segment) =>
-        segment.hasAttribute("data-change") ? segment.firstElementChild! : segment
-      );
-      expect([first, deleted, last].map(listEdges)).toEqual([
+      await waitFor(() => expect(container.querySelectorAll("ul")).toHaveLength(3));
+      const hosts = Array.from(container.querySelectorAll("ul"), (list) => list.parentElement!);
+      expect(hosts.map(listEdges)).toEqual([
         ["[&>:last-child]:tw-mb-0"],
         ["[&>:first-child]:tw-mt-0", "[&>:last-child]:tw-mb-0"],
         ["[&>:first-child]:tw-mt-0"],
       ]);
     });
 
-    it("moves a lone table's margins onto the container Obsidian scrolls it in, so they fall outside the highlight instead of padding it", async () => {
+    it("puts table margin rules on the actual render host so they follow Obsidian's scrolling container https://github.com/ItsDalk-Lane/Scribe/issues/72", async () => {
+      jest.mocked(renderMarkdown).mockImplementation(async (_app, markdown, target) => {
+        target
+          .createEl("table")
+          .createEl("tbody")
+          .createEl("tr")
+          .createEl("td", { text: markdown });
+      });
       const { container } = render(diffElement(TABLE_COLUMN_ADDED));
 
-      await waitFor(() => expect(container.querySelector("[data-change=inserted]")).not.toBeNull());
-      const blocks = Array.from(
-        container.querySelectorAll("div[data-change] > div"),
-        (block) => block.classList
+      await waitFor(() => expect(container.querySelectorAll("table")).toHaveLength(2));
+      const hosts = Array.from(
+        container.querySelectorAll("table"),
+        (table) => table.parentElement!
       );
-      expect(blocks).toHaveLength(2);
-      for (const classes of blocks) {
-        expect(classes).toContain("[&[style*=overflow-x]>table]:tw-my-0");
-        expect(classes).toContain("[&[style*=overflow-x]]:tw-my-[var(--p-spacing)]");
+      for (const host of hosts) {
+        expect(host.classList).toContain("[&[style*=overflow-x]>table]:tw-my-0");
+        expect(host.classList).toContain("[&[style*=overflow-x]]:tw-my-[var(--p-spacing)]");
       }
     });
 

@@ -1,6 +1,6 @@
 import { t } from "@/lib/i18n";
 import { resolveEffort } from "@/lib/model-effort";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import * as SliderPrimitive from "@radix-ui/react-slider";
 import { Button } from "@/components/ui/button";
@@ -57,23 +57,6 @@ export function ModelEffortPicker({ override, className }: ModelEffortPickerProp
   const currentEffortLabel = effort?.options.find((o) => o.value === effort.value)?.label ?? null;
   const activeEffortValue = effort?.value ?? null;
 
-  useEffect(() => {
-    if (open) {
-      /* eslint-disable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- seed the editable draft from props when the popover opens; drafts are committed on close, so this can't be pure derived state */
-      const initial = value && enabledKeys.includes(value) ? value : (enabledKeys[0] ?? null);
-      setHighlightKey(initial);
-      setDraftModelKey(initial);
-      const initialOpts = initial ? (effortOptionsByModelKey[initial] ?? []) : [];
-      const initialEffort = resolveEffort(
-        initial === value ? activeEffortValue : null,
-        initialOpts
-      );
-      setDraftEffort(initialEffort);
-      initialRef.current = { model: value, effort: activeEffortValue };
-      /* eslint-enable @eslint-react/hooks-extra/no-direct-set-state-in-use-effect -- resume checking after draft initialization */
-    }
-  }, [open, value, enabledKeys, activeEffortValue, effortOptionsByModelKey]);
-
   const draftOptions: EffortOpt[] = useMemo(
     () => (draftModelKey ? (effortOptionsByModelKey[draftModelKey] ?? []) : []),
     [draftModelKey, effortOptionsByModelKey]
@@ -92,12 +75,13 @@ export function ModelEffortPicker({ override, className }: ModelEffortPickerProp
 
   const pickDraft = useCallback(
     (key: string) => {
-      setDraftModelKey(key);
       setHighlightKey(key);
+      if (key === draftModelKey) return;
+      setDraftModelKey(key);
       const rowOpts = effortOptionsByModelKey[key] ?? [];
       setDraftEffort(resolveEffort(key === value ? activeEffortValue : draftEffort, rowOpts));
     },
-    [effortOptionsByModelKey, draftEffort, value, activeEffortValue]
+    [effortOptionsByModelKey, draftModelKey, draftEffort, value, activeEffortValue]
   );
 
   const stepDraftEffort = useCallback(
@@ -143,6 +127,12 @@ export function ModelEffortPicker({ override, className }: ModelEffortPickerProp
 
   const handleOpenChange = (next: boolean) => {
     if (next) {
+      const initial = value && enabledKeys.includes(value) ? value : (enabledKeys[0] ?? null);
+      setHighlightKey(initial);
+      setDraftModelKey(initial);
+      const initialOpts = initial ? (effortOptionsByModelKey[initial] ?? []) : [];
+      setDraftEffort(resolveEffort(initial === value ? activeEffortValue : null, initialOpts));
+      initialRef.current = { model: value, effort: activeEffortValue };
       setOpen(true);
       return;
     }

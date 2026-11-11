@@ -50,7 +50,7 @@ describe("createModelManagement", () => {
 
   describe("ModelManagementCoordinator", () => {
     describe("removeProvider()", () => {
-      it("removes the provider, its models, their backend refs, and its stored API key", async () => {
+      it("removes the provider, its models, current and retired backend refs, and its stored API key", async () => {
         const providerId = await providers.add({
           providerType: "anthropic",
           displayName: "Anthropic",
@@ -66,6 +66,7 @@ describe("createModelManagement", () => {
           info: { id: "claude-opus-4-5", displayName: "Opus" },
         });
         await backends.setEnabledModels("chat", [id1, id2]);
+        await backends.setEnabledModels("native", [id1]);
         await backends.setEnabledModels("claude", [id2]);
 
         await coordinator.removeProvider(providerId);
@@ -73,8 +74,9 @@ describe("createModelManagement", () => {
         expect(providers.get(providerId)).toBeUndefined();
         expect(models.listByProvider(providerId)).toHaveLength(0);
         expect(backends.get("chat").enabledModels).toEqual([]);
+        expect(backends.get("native").enabledModels).toEqual([]);
         expect(backends.get("claude").enabledModels).toEqual([]);
-        expect(await providers.getApiKey(providerId)).toBeNull();
+        expect(await providers.withApiKey(providerId, async (key) => key)).toBeNull();
       });
 
       it("keeps other providers, their models, and their backend refs", async () => {
@@ -118,7 +120,7 @@ describe("createModelManagement", () => {
     });
 
     describe("removeConfiguredModel()", () => {
-      it("removes the model and its refs from every backend while keeping the provider and sibling models", async () => {
+      it("removes the model and current and retired backend refs while keeping the provider and sibling models", async () => {
         const providerId = await providers.add({
           providerType: "anthropic",
           displayName: "Anthropic",
@@ -133,6 +135,7 @@ describe("createModelManagement", () => {
           info: { id: "claude-opus-4-5", displayName: "Opus" },
         });
         await backends.setEnabledModels("chat", [id1, id2]);
+        await backends.setEnabledModels("native", [id1]);
         await backends.setEnabledModels("claude", [id1]);
 
         await coordinator.removeConfiguredModel(id1);
@@ -140,6 +143,7 @@ describe("createModelManagement", () => {
         expect(models.get(id1)).toBeUndefined();
         expect(models.get(id2)).toBeDefined();
         expect(backends.get("chat").enabledModels).toEqual([id2]);
+        expect(backends.get("native").enabledModels).toEqual([]);
         expect(backends.get("claude").enabledModels).toEqual([]);
         expect(providers.get(providerId)).toBeDefined();
       });

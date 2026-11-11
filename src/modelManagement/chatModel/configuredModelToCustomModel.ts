@@ -1,11 +1,7 @@
 import { CustomModel } from "@/aiParams";
-import {
-  ChatModelProviders,
-  DEFAULT_MAX_OUTPUT_TOKENS,
-  ModelCapability,
-  ProviderInfo,
-} from "@/constants";
+import { ChatModelProviders, DEFAULT_MAX_OUTPUT_TOKENS, ProviderInfo } from "@/constants";
 import { logWarn } from "@/logger";
+import { capabilitiesFromConfiguredInfo } from "@/modelManagement/chatModel/modelCapabilityFlags";
 import { providerNeedsResolvedApiKey } from "@/modelManagement/providers/providerRequiresApiKey";
 import type { ConfiguredModel, Provider } from "@/modelManagement/types/persisted";
 import { resolveProviderConnection } from "@/modelManagement/chatModel/resolveProviderConnection";
@@ -65,7 +61,7 @@ function extraString(extras: Record<string, unknown>, key: string): string | und
 export function configuredModelToCustomModel(params: {
   provider: Provider;
   configuredModel: ConfiguredModel;
-  apiKey: string | null;
+  apiKey?: string | null;
 }): CustomModel {
   const { provider, configuredModel, apiKey } = params;
   const info = configuredModel.info;
@@ -81,17 +77,15 @@ export function configuredModelToCustomModel(params: {
       : connection.npm === "@ai-sdk/google"
         ? ChatModelProviders.GOOGLE
         : mapProviderTypeToChatModelProvider(provider);
+  // 产品默认只是预算偏好，不能覆盖目录声明的模型能力上限。https://github.com/ItsDalk-Lane/Scribe/issues/56
   const maxTokens =
     chatProvider === ChatModelProviders.ANTHROPIC && info.limits?.output
-      ? DEFAULT_MAX_OUTPUT_TOKENS
+      ? Math.min(info.limits.output, DEFAULT_MAX_OUTPUT_TOKENS)
       : undefined;
-
-  const capabilities: ModelCapability[] = [];
-  if (info.reasoning) capabilities.push(ModelCapability.REASONING);
-  if (info.modalities?.input?.includes("image")) capabilities.push(ModelCapability.VISION);
 
   return {
     configuredModelId: configuredModel.configuredModelId,
+    providerDisplayName: provider.displayName,
     providerCatalogId:
       provider.origin.kind === "byok" ? provider.origin.catalogProviderId : undefined,
     providerNpm: connection.npm,
@@ -103,9 +97,19 @@ export function configuredModelToCustomModel(params: {
     enabled: true,
     baseUrl: connection.baseUrl,
     apiKey: trimmedKey,
+    credentialRef: trimmedKey ? undefined : (provider.apiKeyRef ?? undefined),
     requiresApiKey,
-    enableCors: provider.enableCors ?? true,
-    capabilities,
+    // 与界面共用能力判断，缺少输入类型时保留未知，不静默移除附图。https://github.com/ItsDalk-Lane/Scribe/issues/56
+    capabilities: capabilitiesFromConfiguredInfo(info),
+    reasoning: info.reasoning,
+    reasoningEfforts: info.reasoningEfforts,
+    // 能力契约只透传给运行时读取；具体业务由后续迭代逐项接入。https://github.com/ItsDalk-Lane/Scribe/issues/67
+    attachment: info.attachment,
+    toolCall: info.toolCall,
+    structuredOutput: info.structuredOutput,
+    temperatureSupport: info.temperature,
+    defaultTemperature: info.temperatureValue,
+    cost: info.cost,
     maxTokens,
     openAIOrgId: extraString(extras, "openAIOrgId"),
     numCtx: info.limits?.context,

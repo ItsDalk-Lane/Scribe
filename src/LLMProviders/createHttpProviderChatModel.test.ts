@@ -1,5 +1,9 @@
 import { createProviderChatModel } from "@/LLMProviders/createProviderChatModel";
-import { createHttpProviderChatModel } from "@/LLMProviders/createHttpProviderChatModel";
+import {
+  clearProviderResolverCaches,
+  createHttpProviderChatModel,
+} from "@/LLMProviders/createHttpProviderChatModel";
+import { clearProviderTokenCaches } from "@/LLMProviders/providerTransport";
 import { collectText, collectReply, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import type { CustomModel } from "@/aiParams";
 import * as obsidianModule from "obsidian";
@@ -21,6 +25,17 @@ Object.defineProperty(window, "TextDecoderStream", {
 });
 
 jest.mock("@/logger");
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
+
+beforeEach(() => {
+  clearProviderResolverCaches();
+  clearProviderTokenCaches();
+  jest.mocked(isDesktopRuntime).mockReturnValue(false);
+});
+
 jest.mock("@/utils/desktopRuntime", () => ({ isDesktopRuntime: jest.fn(() => true) }));
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidianModule as unknown as {
   __setRequestUrlImpl: (impl: unknown) => void;
@@ -169,7 +184,7 @@ describe("createHttpProviderChatModel", () => {
       expect(requests[0].body).not.toHaveProperty("max_tokens");
     });
 
-    it("honors explicitly selected native fetch for Google", async () => {
+    it("uses the desktop streaming connection for Google without a per-model switch (https://github.com/ItsDalk-Lane/Scribe/issues/51)", async () => {
       const originalFetch = window.fetch;
       let usedObsidian = false;
       setRequestUrlImpl(async () => {
@@ -201,9 +216,10 @@ describe("createHttpProviderChatModel", () => {
           }) as Response
       );
       window.fetch = nativeFetch;
+      jest.mocked(isDesktopRuntime).mockReturnValue(true);
       try {
         const client = await createProviderChatModel(
-          model("@ai-sdk/google", { name: "gemini-2.0-flash", enableCors: false })
+          model("@ai-sdk/google", { name: "gemini-2.0-flash" })
         );
         expect(await collectText(client, "Fixture input")).toBe("Native fixture reply");
         expect(nativeFetch).toHaveBeenCalledTimes(1);
@@ -213,7 +229,7 @@ describe("createHttpProviderChatModel", () => {
       }
     });
 
-    it("uses mobile WebCrypto authorization through provider transport and ignores a credential token_uri", async () => {
+    it("uses mobile WebCrypto authorization through provider transport and ignores a credential token_uri, sharing the resolver across calls (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
       const pair = generateKeyPairSync("rsa", { modulusLength: 2048 });
       const privateKey = pair.privateKey.export({ type: "pkcs8", format: "pem" }).toString();
       const originalSubtle = Object.getOwnPropertyDescriptor(window.crypto, "subtle");
@@ -394,6 +410,63 @@ describe("createHttpProviderChatModel", () => {
       }
     );
 
+    it("keeps SAP routes and resource groups isolated across models sharing credentials (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
+      const requests: Array<{ url: string; headers?: Record<string, string> }> = [];
+      setRequestUrlImpl(async (request: { url: string; headers?: Record<string, string> }) => {
+        requests.push(request);
+        const token = request.url.endsWith("/oauth/token");
+        const payload = token ? { access_token: "sap-token", expires_in: 3600 } : {};
+        const text = token
+          ? JSON.stringify(payload)
+          : `data: ${JSON.stringify({ final_result: { choices: [{ delta: { content: "answer" }, finish_reason: "stop" }] } })}\n\ndata: [DONE]\n\n`;
+        return {
+          status: 200,
+          text,
+          json: payload,
+          headers: { "content-type": token ? "application/json" : "text/event-stream" },
+          arrayBuffer: new ArrayBuffer(0),
+        };
+      });
+      const apiKey = JSON.stringify({
+        clientid: "client",
+        clientsecret: "secret",
+        url: "https://auth.fixture.invalid",
+        serviceurls: { AI_API_URL: "https://api.fixture.invalid" },
+      });
+      const first = await createProviderChatModel(
+        model("@jerome-benoit/sap-ai-provider-v2", {
+          apiKey,
+          name: "first",
+          baseUrl: "https://first.fixture.invalid",
+          providerOptions: {
+            AICORE_RESOURCE_GROUP: "first-group",
+            AICORE_DEPLOYMENT_ID: "first-deployment",
+          },
+        })
+      );
+      const second = await createProviderChatModel(
+        model("@jerome-benoit/sap-ai-provider-v2", {
+          apiKey,
+          name: "second",
+          baseUrl: "https://second.fixture.invalid",
+          providerOptions: {
+            AICORE_RESOURCE_GROUP: "second-group",
+            AICORE_DEPLOYMENT_ID: "second-deployment",
+          },
+        })
+      );
+      expect(await collectText(first, "hi")).toBe("answer");
+      expect(await collectText(second, "hi")).toBe("answer");
+      const inference = requests.filter((request) => !request.url.endsWith("/oauth/token"));
+      expect(inference.map((request) => request.url)).toEqual([
+        "https://first.fixture.invalid/v2/inference/deployments/first-deployment/v2/completion",
+        "https://second.fixture.invalid/v2/inference/deployments/second-deployment/v2/completion",
+      ]);
+      expect(
+        inference.map((request) => new Headers(request.headers).get("AI-Resource-Group"))
+      ).toEqual(["first-group", "second-group"]);
+    });
+
     it.each(["@jerome-benoit/sap-ai-provider-v2", "gitlab-ai-provider"])(
       "returns normal and streaming replies for %s on mobile without a Node runtime",
       async (npm) => {
@@ -484,7 +557,9 @@ describe("createHttpProviderChatModel", () => {
             apiKey: secret,
             providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
           })
-        ).catch((reason: unknown) => reason);
+        )
+          .then((client) => collectText(client, "Credential validation"))
+          .catch((reason: unknown) => reason);
         expect(error).toBeInstanceOf(Error);
         expect((error as Error).message).toBe("The provider credentials must be valid JSON.");
         expect((error as Error).message).not.toContain("DO-NOT-LOG-THIS");
@@ -504,7 +579,16 @@ describe("createHttpProviderChatModel", () => {
             providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
           })
         )
-      ).rejects.toThrow("requires client_email and private_key");
+      ).resolves.toBeDefined();
+      const client = await createProviderChatModel(
+        model("@ai-sdk/google-vertex", {
+          apiKey: '{"client_email":"fixture@example.invalid"}',
+          providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
+        })
+      );
+      await expect(collectText(client, "Credential validation")).rejects.toThrow(
+        "requires client_email and private_key"
+      );
     });
     it("rejects missing Vertex credentials before a request can be attempted", async () => {
       await expect(
@@ -514,7 +598,16 @@ describe("createHttpProviderChatModel", () => {
             providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
           })
         )
-      ).rejects.toThrow("requires service-account JSON or an OAuth access token");
+      ).resolves.toBeDefined();
+      const client = await createProviderChatModel(
+        model("@ai-sdk/google-vertex", {
+          apiKey: "",
+          providerOptions: { GOOGLE_VERTEX_PROJECT: "fixture-project" },
+        })
+      );
+      await expect(collectText(client, "Credential validation")).rejects.toThrow(
+        "requires service-account JSON or an OAuth access token"
+      );
     });
     it.each([
       "[]",
@@ -522,10 +615,12 @@ describe("createHttpProviderChatModel", () => {
       '{"clientid":"fixture-id","clientsecret":"secret","url":"https://auth.example.invalid"}',
     ])("rejects incomplete SAP service credentials %s", async (apiKey) => {
       await expect(
-        createProviderChatModel(model("@jerome-benoit/sap-ai-provider-v2", { apiKey }))
+        createProviderChatModel(model("@jerome-benoit/sap-ai-provider-v2", { apiKey })).then(
+          (client) => collectText(client, "Credential validation")
+        )
       ).rejects.toThrow(/JSON object|requires clientid|requires serviceurls/);
     });
-    it("uses public GitLab direct access with a browser-safe Anthropic child and cached tokens", async () => {
+    it("uses public GitLab direct access with a browser-safe Anthropic child and shares the connection token across requests (https://github.com/ItsDalk-Lane/Scribe/issues/61)", async () => {
       const requests: Array<{ url: string; headers: Record<string, string>; body: string }> = [];
       setRequestUrlImpl(async (request: (typeof requests)[number]) => {
         requests.push(request);

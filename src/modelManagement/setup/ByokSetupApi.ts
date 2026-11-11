@@ -13,7 +13,6 @@ export interface SetupProviderInput {
   providerType: ProviderType;
   displayName: string;
   baseUrl?: string;
-  enableCors?: boolean;
   apiKey?: string;
   extras?: Record<string, unknown>;
   requiresApiKey?: boolean;
@@ -46,7 +45,6 @@ export class ByokSetupApi {
       providerType: input.providerType,
       displayName: input.displayName,
       baseUrl: input.baseUrl,
-      enableCors: input.enableCors,
       requiresApiKey: input.requiresApiKey ?? true,
       origin: {
         kind: "byok",

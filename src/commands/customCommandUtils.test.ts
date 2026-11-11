@@ -9,10 +9,7 @@ import {
   getNotesFromTags,
 } from "@/utils";
 import { App, Notice, TFile, Vault } from "obsidian";
-import * as settingsModelModule from "@/settings/model";
-import { PromptSortStrategy } from "@/types";
 import { sortSlashCommands } from "@/commands/customCommandUtils";
-import { DEFAULT_SETTINGS } from "@/constants";
 import { logWarn } from "@/logger";
 import { mockTFile } from "@/__tests__/mockObsidian";
 
@@ -78,7 +75,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is a {variable} and {}.",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -108,7 +104,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is a {variable1} and {variable2}.",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -143,6 +138,21 @@ describe("customCommandUtils", () => {
       expect(result.includedFiles).toContain(mockNote2);
     });
 
+    it("sends the prompt unchanged when its command turns templating off", async () => {
+      const result = await processPrompt(
+        mockApp,
+        "Summarize {#tag}",
+        "",
+        mockVault,
+        null,
+        false,
+        false
+      );
+      expect(result.processedPrompt).toBe("Summarize {#tag}\n\n");
+      expect(result.includedFiles).toEqual([]);
+      expect(extractTemplateNoteFiles).not.toHaveBeenCalled();
+    });
+
     it("leaves {} as literal text when skipEmptyBraces is true", async () => {
       const customPrompt = "Rewrite the following text {}";
       const selectedText = "here is some selected text 12345";
@@ -167,7 +177,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is the active note: {activenote}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -198,7 +207,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is the active note: {activeNote}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -217,7 +225,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is a test prompt with no variables.",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -442,7 +449,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is the active note: {activeNote}. And again: {activeNote}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -474,7 +480,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "Summarize this: {}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -502,7 +507,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "Summarize this: {}. Additional info: {activeNote}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -533,7 +537,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "Analyze this: {}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -561,7 +564,6 @@ describe("customCommandUtils", () => {
         title: "test-prompt",
         content: "This is a test prompt with {invalidVariable} name and {activeNote}",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -700,7 +702,6 @@ describe("customCommandUtils", () => {
         title: "Beta",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: true,
         order: 2,
         modelKey: "",
         lastUsedMs: 100,
@@ -709,7 +710,6 @@ describe("customCommandUtils", () => {
         title: "Alpha",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: true,
         order: 1,
         modelKey: "",
         lastUsedMs: 150,
@@ -718,7 +718,6 @@ describe("customCommandUtils", () => {
         title: "Gamma",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: true,
         order: 3,
         modelKey: "",
         lastUsedMs: 200,
@@ -729,48 +728,16 @@ describe("customCommandUtils", () => {
       jest.clearAllMocks();
     });
 
-    it("sorts by recency (TIMESTAMP)", () => {
-      jest.spyOn(settingsModelModule, "getSettings").mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        promptSortStrategy: PromptSortStrategy.TIMESTAMP,
-      });
-
+    it("orders commands by the manual order shown in the settings list", () => {
       const sorted = sortSlashCommands(sampleCommands);
-      expect(sorted.map((c: { title: string }) => c.title)).toEqual(["Gamma", "Alpha", "Beta"]);
-    });
-
-    it("sorts alphabetically (ALPHABETICAL)", () => {
-      jest.spyOn(settingsModelModule, "getSettings").mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        promptSortStrategy: PromptSortStrategy.ALPHABETICAL,
-      });
-
-      const sorted = sortSlashCommands(sampleCommands);
-      expect(sorted.map((c: { title: string }) => c.title)).toEqual(["Alpha", "Beta", "Gamma"]);
-    });
-
-    it("sorts by manual order (MANUAL)", () => {
-      jest.spyOn(settingsModelModule, "getSettings").mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        promptSortStrategy: PromptSortStrategy.MANUAL,
-      });
-      const sorted = sortSlashCommands(sampleCommands);
-      expect(sorted.map((c: { title: string }) => c.title)).toEqual(["Alpha", "Beta", "Gamma"]);
-    });
-
-    it("returns original order for unknown strategy", () => {
-      jest.spyOn(settingsModelModule, "getSettings").mockReturnValue({
-        ...DEFAULT_SETTINGS,
-        promptSortStrategy: "UNKNOWN",
-      });
-      const sorted = sortSlashCommands(sampleCommands);
-      expect(sorted).toEqual(sampleCommands);
+      expect(sorted.map((command) => command.title)).toEqual(["Alpha", "Beta", "Gamma"]);
     });
   });
 
   describe("parseCustomCommandFile()", () => {
     interface MockFrontmatter {
       "scribe-command-enabled"?: boolean;
+      "scribe-command-enable-templating"?: boolean;
       "scribe-command-context-menu-enabled"?: boolean;
       "scribe-command-slash-enabled"?: boolean;
       "scribe-command-context-menu-order"?: number;
@@ -781,7 +748,7 @@ describe("customCommandUtils", () => {
       frontmatter: MockFrontmatter;
     }
     interface MockAppLike {
-      vault: { read: jest.Mock };
+      vault: { adapter: { read: jest.Mock } };
       metadataCache: { getFileCache: jest.Mock };
     }
     type AppRef = { app: unknown };
@@ -803,11 +770,14 @@ describe("customCommandUtils", () => {
       mockMetadata = { frontmatter: mockFrontmatter };
       const mockedApp: MockAppLike = {
         vault: {
-          read: jest
-            .fn()
-            .mockResolvedValue(
-              "---\nscribe-command-context-menu-enabled: true\nscribe-command-slash-enabled: false\nscribe-command-context-menu-order: 42\nscribe-command-model-key: gpt-4\nscribe-command-last-used: 1234567890\n---\nPrompt content here."
+          adapter: {
+            read: jest.fn(
+              async () =>
+                `---\n${Object.entries(mockFrontmatter)
+                  .map(([key, value]) => `${key}: ${value}`)
+                  .join("\n")}\n---\nPrompt content here.`
             ),
+          },
         },
         metadataCache: {
           getFileCache: jest.fn().mockReturnValue(mockMetadata),
@@ -831,28 +801,40 @@ describe("customCommandUtils", () => {
       expect(result).toEqual({
         title: "Test Command",
         enabled: true,
+        enableTemplating: true,
         modelKey: "gpt-4",
         content: "Prompt content here.",
         showInContextMenu: true,
-        showInSlashMenu: false,
         order: 42,
         lastUsedMs: 1234567890,
       });
-      expect(app.vault.read).toHaveBeenCalledWith(mockFile);
-      expect(app.metadataCache.getFileCache).toHaveBeenCalledWith(mockFile);
+      expect(app.vault.adapter.read).toHaveBeenCalledWith(mockFile.path);
+      expect(app.metadataCache.getFileCache).not.toHaveBeenCalled();
     });
 
-    it("preserves a disabled command and both saved menu preferences", async () => {
+    it("preserves a disabled command and its saved context-menu preference", async () => {
       mockFrontmatter["scribe-command-enabled"] = false;
       const { parseCustomCommandFile } = await import("@/commands/customCommandUtils");
       const result = await parseCustomCommandFile(window.app, mockFile);
       expect(result.enabled).toBe(false);
       expect(result.showInContextMenu).toBe(true);
-      expect(result.showInSlashMenu).toBe(false);
+    });
+
+    it("ignores the retired slash-menu frontmatter key left by older versions", async () => {
+      const { parseCustomCommandFile } = await import("@/commands/customCommandUtils");
+      const result = await parseCustomCommandFile(window.app, mockFile);
+      expect("showInSlashMenu" in result).toBe(false);
+    });
+
+    it("keeps variable templating off when the command file says so", async () => {
+      mockFrontmatter["scribe-command-enable-templating"] = false;
+      const { parseCustomCommandFile } = await import("@/commands/customCommandUtils");
+      const result = await parseCustomCommandFile(window.app, mockFile);
+      expect(result.enableTemplating).toBe(false);
     });
 
     it("uses EMPTY_COMMAND defaults if frontmatter is missing", async () => {
-      (window.app.vault as unknown as { read: jest.Mock }).read.mockResolvedValue(
+      (window.app.vault.adapter as unknown as { read: jest.Mock }).read.mockResolvedValue(
         "Prompt content only, no frontmatter."
       );
       (
@@ -863,10 +845,10 @@ describe("customCommandUtils", () => {
       expect(result).toEqual({
         title: "Test Command",
         enabled: true,
+        enableTemplating: true,
         modelKey: "",
         content: "Prompt content only, no frontmatter.",
         showInContextMenu: true,
-        showInSlashMenu: true,
         order: 0,
         lastUsedMs: 0,
       });
@@ -879,7 +861,6 @@ describe("customCommandUtils", () => {
         title: "Command One",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -888,7 +869,6 @@ describe("customCommandUtils", () => {
         title: "Command Two",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,
@@ -897,7 +877,6 @@ describe("customCommandUtils", () => {
         title: "Another Command",
         content: "",
         showInContextMenu: false,
-        showInSlashMenu: false,
         order: 0,
         modelKey: "",
         lastUsedMs: 0,

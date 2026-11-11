@@ -18,11 +18,20 @@ jest.mock("@/agentMode/ui/AgentTrailView", () => ({
   AgentTrail: ({
     parts,
     isStreaming,
+    messageId,
+    sourcePath,
   }: {
     parts: Array<{ kind: string; title?: string; text?: string }>;
     isStreaming: boolean;
+    messageId?: string;
+    sourcePath?: string;
   }) => (
-    <div data-testid="trail" data-streaming={String(isStreaming)}>
+    <div
+      data-testid="trail"
+      data-streaming={String(isStreaming)}
+      data-message-id={messageId}
+      data-source-path={sourcePath}
+    >
       {parts.map((p) => p.title ?? p.text).join(" | ")}
     </div>
   ),
@@ -104,6 +113,19 @@ describe("TaskDetailView", () => {
     delete (window as { ResizeObserver?: unknown }).ResizeObserver;
   });
 
+  it("identifies its response by the source chat and task while resolving links from the vault root https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+    renderDetail({
+      task: makeTask({ toolCallId: "current-task" }),
+      messages: SUBAGENT_MESSAGES,
+      chatId: "source-chat",
+    });
+
+    expect(screen.getByTestId("trail").getAttribute("data-message-id")).toBe(
+      "source-chat/current-task"
+    );
+    expect(screen.getByTestId("trail").getAttribute("data-source-path")).toBe("");
+  });
+
   it(`shows a subagent's title and model, that it runs only by its spinner, its task as the first user message, then its work, live while it runs`, () => {
     renderDetail({
       task: makeTask({ prompt: "Count the words in Welcome.md", model: "claude-haiku-9" }),
@@ -135,6 +157,27 @@ describe("TaskDetailView", () => {
 
     expect(screen.getByTestId("trail").textContent).toBe("Welcome.md has 9 words.");
     expect(screen.queryByText("No activity")).toBeNull();
+  });
+
+  it("keeps a legacy summary-only task readable without offering to restore an original child context https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+    renderDetail({
+      task: {
+        taskId: "legacy-task-1",
+        toolCallId: "legacy-call-1",
+        kind: "subagent",
+        status: "completed",
+        description: "旧版资料整理",
+        prompt: "整理三份笔记",
+        summary: "已整理三份笔记，尚待用户核对来源。",
+      },
+      messages: [],
+    });
+    expect(screen.getByText("旧版资料整理")).toBeTruthy();
+    expect(screen.getByTestId("message-user").textContent).toBe("整理三份笔记");
+    expect(screen.getByTestId("trail").textContent).toBe("已整理三份笔记，尚待用户核对来源。");
+    expect(screen.getByTestId("trail").getAttribute("data-streaming")).toBe("false");
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it(`lists the files an ended subagent changed below its work and opens a file's diff from its row`, () => {
@@ -253,24 +296,6 @@ describe("TaskDetailView", () => {
     contentResized();
 
     expect(geometry.scrollTop).toBe(20);
-  });
-
-  it("closes only the task details from its close button", () => {
-    const { onBack } = renderDetail({});
-
-    fireEvent.click(screen.getByRole("button", { name: "Close task details" }));
-
-    expect(onBack).toHaveBeenCalled();
-  });
-
-  it("focuses its close button on open and leaves Escape handling to its native modal host", () => {
-    const { onBack } = renderDetail({});
-    const back = screen.getByRole("button", { name: "Close task details" });
-
-    expect(back.ownerDocument.activeElement).toBe(back);
-    fireEvent.keyDown(back, { key: "Escape" });
-
-    expect(onBack).not.toHaveBeenCalled();
   });
 
   it(`points back to the chat while the chat waits for a permission answer, which it shows only there`, () => {

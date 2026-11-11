@@ -5,6 +5,12 @@ import { EMPTY_COMMAND } from "@/commands/constants";
 import type { CustomCommand } from "@/commands/type";
 import { CommandSettings } from "./CommandSettings";
 
+jest.mock("@/commands/customCommandUtils", () => ({
+  ...jest.requireActual<typeof import("@/commands/customCommandUtils")>(
+    "@/commands/customCommandUtils"
+  ),
+  loadAllCustomCommands: jest.fn().mockResolvedValue([]),
+}));
 let mockCommands: CustomCommand[] = [];
 const mockUpdate = jest.fn().mockResolvedValue(undefined);
 jest.mock("@/commands/state", () => ({
@@ -37,48 +43,48 @@ describe("CommandSettings", () => {
           title: "Review",
           content: "Read the note",
           showInContextMenu: true,
-          showInSlashMenu: true,
         },
       ];
       mockUpdate.mockClear();
     });
-    it("filters shared commands with the parent page's search and appends plugin sections", () => {
+    it("lists every command without a header row or search field and appends plugin sections", () => {
       mockCommands.push({
         ...EMPTY_COMMAND,
         title: "Translate",
         content: "Translate selected text",
       });
       render(
-        <CommandSettings embedded query="review">
+        <CommandSettings>
           <div>Plugin commands</div>
         </CommandSettings>
       );
-      expect(screen.getByText("My commands")).toBeTruthy();
-      expect(screen.queryByText("Translate")).toBeNull();
+      expect(screen.getByText("Review")).toBeTruthy();
+      expect(screen.getByText("Translate")).toBeTruthy();
+      expect(screen.queryByPlaceholderText("Search commands…")).toBeNull();
+      expect(screen.queryByText("Custom commands")).toBeNull();
       expect(screen.getByText("Plugin commands")).toBeTruthy();
       expect(screen.queryByRole("tablist")).toBeNull();
     });
-    it("shows collapsed command options above one grouped command row instead of separate desktop and mobile lists", () => {
-      render(<CommandSettings embedded />);
-      expect(screen.queryByRole("table")).toBeNull();
+    it("keeps only the list controls, with default generation beside adding a command", () => {
+      const { container } = render(<CommandSettings />);
       expect(screen.getAllByRole("switch", { name: "Enable Review" })).toHaveLength(1);
-      const options = screen.getByText("Command options").closest("details");
-      expect(options?.open).toBe(false);
-      const heading = screen.getByText("My commands");
-      expect(
-        options!.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING
-      ).toBeTruthy();
+      expect(screen.queryByText("Command templating")).toBeNull();
+      expect(screen.queryByText("Command sort order")).toBeNull();
+      expect(container.querySelector("details")).toBeNull();
+      const generate = screen.getByRole("button", { name: "Generate defaults" });
+      const add = screen.getByRole("button", { name: "Add command" });
+      expect(generate.parentElement).toBe(add.parentElement);
+      expect(screen.queryByRole("tablist")).toBeNull();
     });
 
-    it("turns off the whole command while retaining both menu preferences", async () => {
-      render(<CommandSettings embedded />);
+    it("turns off the whole command while retaining the context-menu preference", async () => {
+      render(<CommandSettings />);
       fireEvent.click(screen.getByRole("switch", { name: "Enable Review" }));
       await waitFor(() =>
         expect(mockUpdate).toHaveBeenCalledWith(
           expect.objectContaining({
             enabled: false,
             showInContextMenu: true,
-            showInSlashMenu: true,
           }),
           "Review",
           false,

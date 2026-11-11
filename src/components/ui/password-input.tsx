@@ -10,6 +10,7 @@ interface PasswordInputProps {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  ariaLabel?: string;
 }
 
 export function PasswordInput({
@@ -18,6 +19,7 @@ export function PasswordInput({
   placeholder,
   disabled,
   className,
+  ariaLabel,
 }: PasswordInputProps) {
   const [showPassword, setShowPassword] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -30,6 +32,7 @@ export function PasswordInput({
     <div className={cn("tw-relative", className)}>
       <Input
         ref={inputRef}
+        aria-label={ariaLabel}
         type={showPassword ? "text" : "password"}
         onChange={(e) => onChange?.(e.target.value)}
         placeholder={placeholder}

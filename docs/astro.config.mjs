@@ -24,7 +24,7 @@ const sidebar = [
   {
     label: "Models",
     items: [
-      { label: "Providers and BYOK", link: "/llm-providers/" },
+      { label: "Models and providers", link: "/llm-providers/" },
       { label: "Model selection", link: "/models-and-parameters/" },
     ],
   },

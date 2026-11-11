@@ -3,6 +3,10 @@ import { collectText, fixtureSse } from "@/LLMProviders/testing/piFixtures";
 import * as obsidianModule from "obsidian";
 
 jest.mock("@/logger");
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () =>
+    jest.requireActual<typeof import("@/utils")>("@/utils").safeFetchNoThrow,
+}));
 
 const { __setRequestUrlImpl: setRequestUrlImpl } = obsidianModule as unknown as {
   __setRequestUrlImpl: (impl: unknown) => void;
@@ -110,7 +114,6 @@ describe("resolveProviderConnection", () => {
           apiShape: connection.shape,
           baseUrl: connection.baseUrl,
           apiKey: "fixture-not-real",
-          enableCors: true,
           enabled: true,
           stream: false,
         });

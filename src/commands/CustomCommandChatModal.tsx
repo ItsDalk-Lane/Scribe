@@ -1,5 +1,8 @@
+import { ProviderRequestError } from "@/LLMProviders/providerRequestFailure";
 import { isCustomCommandEnabled } from "@/commands/state";
+import { useChatBackendModelOptions } from "@/hooks/useChatBackendModelOptions";
 import { t } from "@/lib/i18n";
+import { SecretStore } from "@/services/secretStore";
 import { processCommandPrompt } from "@/commands/customCommandUtils";
 import { MenuCommandModal, type ContentState } from "@/components/command-ui";
 import { useApp } from "@/context";
@@ -122,9 +125,9 @@ export function CustomCommandChatModalContent({
   const [followUpValue, setFollowUpValue] = useState("");
 
   const settings = useSettingsValue();
+  const { options: modelOptions } = useChatBackendModelOptions();
   const [pickedModelKey, setPickedModelKey] = useState<string>();
-  const userSelectedModelKey =
-    pickedModelKey ?? (command.modelKey || settings.quickCommandModelKey);
+  const userSelectedModelKey = pickedModelKey ?? (command.modelKey || modelOptions[0]?.value);
 
   const [includeNoteContext, setIncludeNoteContext] = useState(
     () => settings.quickCommandIncludeNoteContext
@@ -151,6 +154,7 @@ export function CustomCommandChatModalContent({
     reset: resetSession,
     getLatestStreamingText,
   } = useStreamingChatSession({
+    app,
     model: resolvedModel,
     systemPrompt: systemPrompt || "",
     excludeThinking: true,
@@ -158,18 +162,25 @@ export function CustomCommandChatModalContent({
       new Notice(
         command.modelKey
           ? t(
-              "This command's model is unavailable. Edit the command in Settings → Scribe → Quick actions → Tool configuration to choose another, then rerun."
+              "This command's model is unavailable. Edit it in Settings → Scribe → My commands to choose another model, then rerun."
             )
-          : t(
-              "Configure a model in Settings → Scribe → Quick actions → Tool configuration, then rerun the command."
-            )
+          : t("Configure a model in Settings → Scribe → Models, then rerun the command.")
       );
       setIsLoading(false);
     },
     onNonAbortError: (error) => {
       logError("Error generating response:", error);
-      new Notice(t("Error generating response. Please try again."));
+      new Notice(
+        error instanceof ProviderRequestError && error.failure.kind === "context"
+          ? error.message
+          : t("Error generating response. Please try again.")
+      );
       setIsLoading(false);
+    },
+    onTruncated: () => {
+      new Notice(
+        t("The answer reached the model's output limit and may be incomplete. Ask to continue.")
+      );
     },
   });
 
@@ -199,16 +210,19 @@ export function CustomCommandChatModalContent({
   const [firstInstruction, setFirstInstruction] = useState<string | null>(null);
 
   const runPrompt = useCallback(
-    async (getPrompt: (ctx: StreamingChatTurnContext) => Promise<string>) => {
+    async (getPrompt: (ctx: StreamingChatTurnContext) => Promise<string>): Promise<boolean> => {
       if (!isCustomCommandEnabled(command)) {
         setIsLoading(false);
         new Notice(t("This command is disabled."));
-        return;
+        return false;
       }
-      setFinalText("");
-      setEditedText("");
       setIsLoading(true);
       try {
+        if (resolvedModel?.credentialRef)
+          await SecretStore.getInstance(app).withSecret(
+            resolvedModel.credentialRef,
+            async () => undefined
+          );
         const result = await runTurn(async (ctx: StreamingChatTurnContext) => {
           if (ctx.signal.aborted) return "";
           const prompt = await getPrompt(ctx);
@@ -218,29 +232,36 @@ export function CustomCommandChatModalContent({
 
         if (isMountedRef.current && result) {
           setFinalText(result);
+          setEditedText(result);
           lastInputPromptRef.current = "";
         }
+        return !!result;
       } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return false;
         logError("Error running command prompt:", error);
         if (isMountedRef.current) {
           new Notice(t("Failed to send message. Please try again."));
         }
+        return false;
       } finally {
         if (isMountedRef.current) {
           setIsLoading(false);
         }
       }
     },
-    [command, runTurn]
+    [app, command, resolvedModel, runTurn]
   );
 
+  const enableTemplating = command.enableTemplating !== false;
   const buildFirstPrompt = (instruction: string) =>
     processCommandPrompt(
       app,
       behavior.firstSubmitTransform
         ? behavior.firstSubmitTransform(instruction, includeNoteContext)
         : instruction,
-      originalText
+      originalText,
+      false,
+      enableTemplating
     );
 
   const didAutoExecuteRef = useRef(false);
@@ -250,8 +271,10 @@ export function CustomCommandChatModalContent({
     if (didAutoExecuteRef.current) return;
     didAutoExecuteRef.current = true;
 
-    void runPrompt(() => processCommandPrompt(app, command.content, originalText));
-  }, [app, behavior.autoExecuteOnOpen, command.content, originalText, runPrompt]);
+    void runPrompt(() =>
+      processCommandPrompt(app, command.content, originalText, false, enableTemplating)
+    );
+  }, [app, behavior.autoExecuteOnOpen, command.content, originalText, runPrompt, enableTemplating]);
 
   const handleFollowUpSubmit = async () => {
     if (!followUpValue.trim()) return;
@@ -266,14 +289,21 @@ export function CustomCommandChatModalContent({
     followUpSubmitLockRef.current = true;
 
     const inputValue = followUpValue;
-    setFollowUpValue("");
 
     try {
-      await runPrompt(async (ctx) => {
-        if (!ctx.isFirstTurn) return processCommandPrompt(app, inputValue, originalText, true);
+      const accepted = await runPrompt(async (ctx) => {
+        if (!ctx.isFirstTurn)
+          return processCommandPrompt(app, inputValue, originalText, true, enableTemplating);
         setFirstInstruction(inputValue);
         return buildFirstPrompt(inputValue);
       });
+      // 超长请求在本地拒绝后不能清掉追问，保留原文让用户调整后再试。https://github.com/ItsDalk-Lane/Scribe/issues/64
+      if (accepted) setFollowUpValue((current) => (current === inputValue ? "" : current));
+    } catch (error) {
+      if (!(error instanceof Error && error.name === "AbortError"))
+        new Notice(
+          error instanceof Error ? error.message : t("Failed to send message. Please try again.")
+        );
     } finally {
       followUpSubmitLockRef.current = false;
     }
@@ -338,7 +368,7 @@ export function CustomCommandChatModalContent({
       onSelectModel={chatPicker.onChange}
       models={chatPicker.models}
       needsModel={!resolvedModel}
-      onOpenModelSettings={(ownerWindow) => openScribeSettings(app, ownerWindow, "basic")}
+      onOpenModelSettings={(ownerWindow) => openScribeSettings(app, ownerWindow, "quickActions")}
       onStop={handleStop}
       onRunAgain={handleRunAgain}
       onCopy={safeAsyncHandler(handleCopy)}

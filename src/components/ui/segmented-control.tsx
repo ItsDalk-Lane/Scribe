@@ -8,7 +8,7 @@ export interface SegmentedControlOption<T extends string> {
 }
 
 interface SegmentedControlProps<T extends string> {
-  options: SegmentedControlOption<T>[];
+  options: readonly SegmentedControlOption<T>[];
   value: T;
   onChange: (value: T) => void;
   disabled?: boolean;
@@ -93,7 +93,7 @@ export function SegmentedControl<T extends string>({
               index > 0 && "tw-border-l tw-border-solid tw-border-border",
               isSelected
                 ? "!tw-bg-interactive-accent !tw-text-on-accent"
-                : "!tw-bg-secondary tw-text-muted hover:!tw-bg-modifier-hover hover:tw-text-normal",
+                : "!tw-bg-transparent tw-text-muted hover:!tw-bg-modifier-hover hover:tw-text-normal",
               isDisabled && "tw-cursor-not-allowed tw-opacity-50"
             )}
           >

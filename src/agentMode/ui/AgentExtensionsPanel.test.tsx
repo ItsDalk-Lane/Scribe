@@ -2,12 +2,43 @@ import {
   AgentExtensionsPanel,
   resetExpandedExtensionSectionsForTests,
 } from "@/agentMode/ui/AgentExtensionsPanel";
+import { mergeExtensionRuntime } from "@/agentMode/session/mergeExtensionRuntime";
+import { setInterfaceLocale } from "@/lib/i18n";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import React from "react";
 
 describe("AgentExtensionsPanel", () => {
   describe("AgentExtensionsPanel", () => {
     beforeEach(() => resetExpandedExtensionSectionsForTests());
+    afterEach(() => setInterfaceLocale("en"));
+
+    it.each([
+      ["en", "The agent reported plugin errors; details for each plugin were not provided."],
+      ["zh-CN", "代理报告了插件错误，但未提供每个插件的具体原因。"],
+    ] as const)("shows the agent's plugin warning in %s", (locale, expected) => {
+      setInterfaceLocale(locale);
+      const groups = mergeExtensionRuntime(
+        [{ kind: "plugin", status: "partial", warnings: [], items: [] }],
+        {
+          commands: null,
+          skills: null,
+          plugins: [],
+          failedPlugins: null,
+          mcpServers: null,
+          pluginErrorCount: 2,
+        }
+      );
+      render(
+        <AgentExtensionsPanel
+          agentName="Test agent"
+          loading={false}
+          onRefresh={jest.fn()}
+          groups={groups}
+        />
+      );
+      expect(screen.getByText(expected)).toBeTruthy();
+    });
+
     it("groups plugin entries by their recorded owner and allows management only for user entries", () => {
       const open = jest.fn(),
         toggle = jest.fn(),
@@ -22,7 +53,7 @@ describe("AgentExtensionsPanel", () => {
       };
       render(
         <AgentExtensionsPanel
-          agentName="Claude Code"
+          agentName="Test agent"
           loading={false}
           forceExpanded
           onRefresh={jest.fn()}
@@ -72,7 +103,7 @@ describe("AgentExtensionsPanel", () => {
     it("shows a plugin's version beside its name without opening the details view", () => {
       render(
         <AgentExtensionsPanel
-          agentName="Claude Code"
+          agentName="Test agent"
           loading={false}
           forceExpanded
           onRefresh={jest.fn()}
@@ -110,7 +141,7 @@ describe("AgentExtensionsPanel", () => {
       (enabled, reason) => {
         render(
           <AgentExtensionsPanel
-            agentName="Claude Code"
+            agentName="Test agent"
             loading={false}
             forceExpanded
             onRefresh={jest.fn()}
@@ -146,7 +177,7 @@ describe("AgentExtensionsPanel", () => {
     it("does not equate discovered or unreported entries with successfully loaded extensions", () => {
       render(
         <AgentExtensionsPanel
-          agentName="Claude Code"
+          agentName="Test agent"
           loading={false}
           forceExpanded
           onRefresh={jest.fn()}
@@ -211,12 +242,12 @@ describe("AgentExtensionsPanel", () => {
     it("shows loading, failure and an empty subagent list as distinct states", () => {
       const refresh = jest.fn();
       const { rerender } = render(
-        <AgentExtensionsPanel agentName="Claude Code" loading groups={null} onRefresh={refresh} />
+        <AgentExtensionsPanel agentName="Test agent" loading groups={null} onRefresh={refresh} />
       );
       expect(screen.getByRole("status")).toBeTruthy();
       rerender(
         <AgentExtensionsPanel
-          agentName="Claude Code"
+          agentName="Test agent"
           loading={false}
           groups={null}
           error
@@ -228,7 +259,7 @@ describe("AgentExtensionsPanel", () => {
       expect(refresh).toHaveBeenCalledTimes(1);
       rerender(
         <AgentExtensionsPanel
-          agentName="Claude Code"
+          agentName="Test agent"
           loading={false}
           groups={[{ kind: "subagent", status: "partial", warnings: [], items: [] }]}
           onRefresh={refresh}
@@ -258,7 +289,7 @@ describe("AgentExtensionsPanel", () => {
     it("collapses every section by default and expands it from its whole header row", () => {
       render(
         <AgentExtensionsPanel
-          agentName="Claude Code"
+          agentName="Test agent"
           loading={false}
           onRefresh={jest.fn()}
           groups={skillGroup}
@@ -278,7 +309,7 @@ describe("AgentExtensionsPanel", () => {
     it("keeps an expanded section open when the panel remounts within the same session", () => {
       const first = render(
         <AgentExtensionsPanel
-          agentName="Claude Code"
+          agentName="Test agent"
           loading={false}
           onRefresh={jest.fn()}
           groups={skillGroup}
@@ -289,7 +320,7 @@ describe("AgentExtensionsPanel", () => {
 
       render(
         <AgentExtensionsPanel
-          agentName="Claude Code"
+          agentName="Test agent"
           loading={false}
           onRefresh={jest.fn()}
           groups={skillGroup}
@@ -300,7 +331,7 @@ describe("AgentExtensionsPanel", () => {
     it("forces every section open while a search query filters the list", () => {
       render(
         <AgentExtensionsPanel
-          agentName="Claude Code"
+          agentName="Test agent"
           loading={false}
           forceExpanded
           onRefresh={jest.fn()}

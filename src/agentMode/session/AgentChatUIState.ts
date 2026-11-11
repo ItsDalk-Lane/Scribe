@@ -1,3 +1,4 @@
+import type { SubagentMessagePayload } from "@/agentMode/session/subagentTypes";
 import { logError, logWarn } from "@/logger";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
 import type { AgentSession, AgentTask } from "@/agentMode/session/AgentSession";
@@ -16,7 +17,11 @@ import type {
   SessionUsage,
 } from "@/agentMode/session/types";
 import type { MessageContext } from "@/types/message";
-import type { FeedbackOffer } from "@/agentMode/session/feedback/feedbackOffer";
+import type {
+  SubagentDispatchResult,
+  SubagentSendMode,
+  SubagentSessionSnapshot,
+} from "@/agentMode/session/subagentTypes";
 
 export class AgentChatUIState implements AgentChatBackend {
   private listeners = new Set<() => void>();
@@ -134,6 +139,50 @@ export class AgentChatUIState implements AgentChatBackend {
     return this.session.stopTask(taskId);
   }
 
+  getSubagentSessions(): readonly SubagentSessionSnapshot[] {
+    return this.session.getSubagentSessions();
+  }
+
+  startIndependentTask(): Promise<void> {
+    return this.session.startIndependentTask();
+  }
+
+  continueTaskBudget(taskGenerationId?: string, requestId?: string): Promise<void> {
+    return this.session.continueTaskBudget(taskGenerationId, requestId);
+  }
+
+  confirmSubagentRecovery(subagentId: string): Promise<void> {
+    return this.session.confirmSubagentRecovery(subagentId);
+  }
+
+  refreshSubagentSessions(): Promise<void> {
+    return this.session.refreshSubagentSessions();
+  }
+
+  sendSubagentMessage(
+    subagentId: string,
+    text: string,
+    mode: SubagentSendMode,
+    messageId?: string,
+    payload?: SubagentMessagePayload
+  ): Promise<SubagentDispatchResult> {
+    return payload
+      ? this.session.sendSubagentMessage(subagentId, text, mode, messageId, payload)
+      : this.session.sendSubagentMessage(subagentId, text, mode, messageId);
+  }
+
+  stopSubagent(subagentId: string): Promise<void> {
+    return this.session.stopSubagent(subagentId);
+  }
+
+  setSubagentArchived(subagentId: string, archived: boolean): Promise<void> {
+    return this.session.setSubagentArchived(subagentId, archived);
+  }
+
+  deleteSubagentSession(subagentId: string): Promise<void> {
+    return this.session.deleteSubagentSession(subagentId);
+  }
+
   isStarting(): boolean {
     return this.session.getStatus() === "starting";
   }
@@ -189,16 +238,15 @@ export class AgentChatUIState implements AgentChatBackend {
     return this.session.getCurrentTodoList();
   }
 
-  getFeedbackOffer(): FeedbackOffer | null {
-    return this.session.getFeedbackOffer();
+  getMessageUsageMetrics(
+    message: AgentChatMessage,
+    child = false
+  ): AgentChatMessage["turnMetrics"] {
+    return this.session.getMessageUsageMetrics(message, child);
   }
 
-  dismissFeedbackOffer(): void {
-    this.session.dismissFeedbackOffer();
-  }
-
-  markFeedbackReported(report: { reportId: string; issueUrl: string }): void {
-    this.session.markFeedbackReported(report);
+  getSubagentUsage(subagentId: string): SessionUsage | null {
+    return this.session.getSubagentUsage(subagentId);
   }
 
   getSessionUsage(): SessionUsage | null {

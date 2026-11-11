@@ -79,14 +79,17 @@ export function resolveAgentSelectCta(row: AgentSelectRow): AgentSelectCta {
   if (row.status === "installed") {
     return { label: t("Start chat"), note: null, action: "start" };
   }
-  // 配置驱动型后端（如原生 Scribe）不存在"本机未安装"，缺的是已启用的模型。
+  // 配置驱动型后端（如原生 Scribe）不存在"本机未安装"，缺的是可运行的模型。
   // https://github.com/ItsDalk-Lane/Scribe/issues/21
   if (row.status === "absent" && row.usesConfiguredModels) {
     return {
       label: t("Configure"),
-      note: t("No chat model is enabled for {p0} yet. Add a provider and enable a model first.", {
-        p0: row.name,
-      }),
+      note: t(
+        "No runnable chat model is configured for {p0} yet. Add a provider and model in Models.",
+        {
+          p0: row.name,
+        }
+      ),
       action: "configure",
     };
   }

@@ -35,7 +35,7 @@ const meta = {
         providerType: "openai-compatible",
         defaultBaseUrl: "http://localhost:11434/v1",
         requiresApiKey: false,
-        modelInputHint: "本地模型 ID",
+        modelInputHint: "本机模型 ID",
       },
     ],
     customTemplate: {
@@ -52,3 +52,24 @@ const meta = {
 export default meta;
 
 export const AllProviderFamilies: StoryObj<AddProviderContentProps> = {};
+
+export const CatalogWithPresetCoveredEndpoints: StoryObj<AddProviderContentProps> = {
+  args: {
+    catalogProviders: [
+      {
+        id: "deepseek",
+        displayName: "DeepSeek",
+        providerType: "openai-compatible",
+        defaultBaseUrl: "https://api.deepseek.com/v1",
+        models: {},
+      },
+      {
+        id: "groq",
+        displayName: "Groq",
+        providerType: "openai-compatible",
+        defaultBaseUrl: "https://api.groq.com/openai/v1",
+        models: {},
+      },
+    ],
+  },
+};

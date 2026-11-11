@@ -14,9 +14,10 @@ import { $createActiveNotePillNode } from "@/components/chat-components/pills/Ac
 import { $createFolderPillNode } from "@/components/chat-components/pills/FolderPillNode";
 import { $createWebTabPillNode } from "@/components/chat-components/pills/WebTabPillNode";
 import { $createActiveWebTabPillNode } from "@/components/chat-components/pills/ActiveWebTabPillNode";
+import { $createCommandPillNode } from "@/components/chat-components/pills/CommandPillNode";
 import { logInfo } from "@/logger";
 
-export type PillType = "notes" | "folders" | "active-note" | "webTabs" | "activeWebTab";
+export type PillType = "notes" | "folders" | "active-note" | "webTabs" | "activeWebTab" | "command";
 
 export type ParsedContentType = "text" | "note-pill" | "active-note-pill" | "folder-pill";
 
@@ -53,6 +54,11 @@ function $createPillNode(pillData: PillData) {
       break;
     case "activeWebTab":
       return $createActiveWebTabPillNode();
+    case "command":
+      if (title && typeof data === "string") {
+        return $createCommandPillNode(title, data);
+      }
+      break;
   }
 
   throw new Error(`Invalid pill data: ${JSON.stringify(pillData)}`);
@@ -358,6 +364,32 @@ export function $insertTextWithPills(app: App, text: string): void {
   if (nodes.length > 0) {
     selection.insertNodes(nodes);
   }
+}
+
+export function $replaceTriggeredTextWithText(triggerChar: string, replacement: string): void {
+  const selection = $getSelection();
+  if (!$isRangeSelection(selection)) return;
+
+  const anchor = selection.anchor;
+  const anchorNode = anchor.getNode();
+
+  if (!(anchorNode instanceof TextNode)) return;
+
+  const textContent = anchorNode.getTextContent();
+  const cursorOffset = anchor.offset;
+
+  const triggerIndex = textContent.lastIndexOf(triggerChar, cursorOffset);
+
+  if (triggerIndex === -1) return;
+
+  const { beforeText, afterText } = splitTextAtRange(textContent, triggerIndex, cursorOffset);
+  const replacementNode = $createTextNode(beforeText + replacement);
+  anchorNode.replace(replacementNode);
+  if (afterText) {
+    const afterNode = $createTextNode(afterText);
+    replacementNode.insertAfter(afterNode);
+  }
+  replacementNode.selectEnd();
 }
 
 export function $replaceTriggeredTextWithPill(

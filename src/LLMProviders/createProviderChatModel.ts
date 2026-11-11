@@ -1,12 +1,20 @@
 import type { Api, Model, StreamOptions } from "@earendil-works/pi-ai";
 import type { CustomModel } from "@/aiParams";
-import { ChatModelProviders, ModelCapability, ProviderInfo, ReasoningEffort } from "@/constants";
+import {
+  ChatModelProviders,
+  DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
+  ModelCapability,
+  ProviderInfo,
+  ReasoningEffort,
+} from "@/constants";
 import { createProviderFetch } from "@/LLMProviders/providerTransport";
 import { createPiChatModel, type ProviderChatModel } from "@/LLMProviders/piChatModel";
 import { createHttpProviderChatModel } from "@/LLMProviders/createHttpProviderChatModel";
 import { anthropicHostBaseUrl, groqHostBaseUrl } from "@/utils/providerBaseUrl";
 import { isRecord } from "@/utils/obsidianInternals";
 import { t } from "@/lib/i18n";
+import { withModelCredentials } from "@/LLMProviders/modelCredentials";
+import { resolveModelThinking } from "@/LLMProviders/modelThinking";
 
 const LEGACY_PROTOCOLS: Record<ChatModelProviders, string> = {
   [ChatModelProviders.OPENAI]: "@ai-sdk/openai",
@@ -60,7 +68,6 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
       (legacy && provider !== ChatModelProviders.OPENAI_FORMAT
         ? ProviderInfo[provider]?.curlBaseURL
         : undefined),
-    enableCors: input.enableCors ?? !legacy,
   };
   if (legacy && provider === ChatModelProviders.GROQ)
     model.baseUrl = `${groqHostBaseUrl(model.baseUrl)}/openai/v1`;
@@ -95,15 +102,20 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
               : "openai-completions";
   const openRouterOptions =
     openRouter || (legacy && provider === ChatModelProviders.LM_STUDIO && !responses);
+  const thinking = resolveModelThinking(model, api);
   const descriptor: Model<Api> = {
     id: model.name,
     name: model.displayName || model.name,
     api,
     provider: model.providerCatalogId || (openRouter ? "openrouter" : model.provider),
     baseUrl: model.baseUrl || "",
-    input: ["text", "image"],
-    reasoning: model.capabilities?.includes(ModelCapability.REASONING) ?? false,
-    thinkingLevelMap: { off: null },
+    // 能力未知的来源（手填、无目录元数据）保持宽松；已声明无视觉能力的模型必须如实声明，让下层降级历史图片。https://github.com/ItsDalk-Lane/Scribe/issues/56
+    input:
+      model.capabilities === undefined || model.capabilities.includes(ModelCapability.VISION)
+        ? ["text", "image"]
+        : ["text"],
+    reasoning: thinking.reasoning,
+    thinkingLevelMap: thinking.thinkingLevelMap,
     contextWindow: model.numCtx ?? 0,
     maxTokens:
       model.maxTokens ??
@@ -114,19 +126,27 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
           : 0),
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     compat: {
+      // SDK 按目录中的协议能力选择自适应思考，不能在工厂里丢掉能力再退回旧式预算。https://github.com/ItsDalk-Lane/Scribe/issues/56
+      ...thinking.compat,
       supportsDeveloperRole: api === "openai-responses" && npm === "@ai-sdk/openai",
       supportsStore: false,
       supportsUsageInStreaming: openRouterOptions || (model.streamUsage ?? false),
-      supportsReasoningEffort: false,
+      supportsReasoningEffort: thinking.compat?.supportsReasoningEffort ?? false,
       maxTokensField: "max_tokens",
-      thinkingFormat: "openai",
+      thinkingFormat: thinking.compat?.thinkingFormat ?? "openai",
     },
   };
   const defaults: StreamOptions = {
-    apiKey: model.apiKey || "keyless-endpoint",
-    fetch: createProviderFetch(model),
     maxRetries: 3,
-    cacheRetention: "none",
+    cacheRetention:
+      anthropic &&
+      (model.enablePromptCaching ??
+        (npm === "@ai-sdk/google-vertex/anthropic" ||
+          new URL(descriptor.baseUrl).hostname === "api.anthropic.com"))
+        ? "short"
+        : "none",
+    // SDK 的默认请求超时在此显式固化；SDK 的计时只保护到响应头，流空闲期限由统一调用层补足。https://github.com/ItsDalk-Lane/Scribe/issues/59
+    timeoutMs: DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
     ...((api === "openai-responses" || npm === "gitlab-ai-provider") && model.reasoningEffort
       ? { reasoningEffort: model.reasoningEffort }
       : {}),
@@ -161,7 +181,6 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
 
   const headers: Record<string, string> = {};
   if (model.openAIOrgId) headers["OpenAI-Organization"] = model.openAIOrgId;
-  if (anthropic) headers["x-api-key"] = model.apiKey || "";
   if (openRouter) {
     headers["HTTP-Referer"] = "https://obsidiancopilot.com";
     headers["X-Title"] = "Obsidian Scribe";
@@ -196,8 +215,30 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
       : api === "openai-responses"
         ? await import("@earendil-works/pi-ai/api/openai-responses")
         : await import("@earendil-works/pi-ai/api/openai-completions");
-  return createPiChatModel(descriptor, async () => ({
-    stream: implementation.stream,
-    options: defaults,
-  }));
+  return createPiChatModel(
+    descriptor,
+    async (options) => {
+      options.signal?.throwIfAborted();
+      return withModelCredentials(model, async (requestModel) => {
+        options.signal?.throwIfAborted();
+        const redactionValues = [requestModel.apiKey ?? ""];
+        return {
+          redactionValues,
+          observesDispatch: true,
+          stream: implementation.stream,
+          options: {
+            ...defaults,
+            apiKey: defaults.apiKey ?? requestModel.apiKey ?? "keyless-endpoint",
+            fetch: createProviderFetch(requestModel, redactionValues, options.onProviderDispatch),
+            headers: {
+              ...headers,
+              ...(anthropic ? { "x-api-key": requestModel.apiKey || "" } : {}),
+            },
+          },
+        };
+      });
+    },
+    model.configuredModelId,
+    model.providerDisplayName
+  );
 }

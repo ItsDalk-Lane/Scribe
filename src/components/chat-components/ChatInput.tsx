@@ -59,6 +59,7 @@ export interface ChatInputProps {
     webTabs?: WebTabContext[];
   }) => void;
   isGenerating: boolean;
+  sendDisabled?: boolean;
   onStopGenerating: () => void;
   app: App;
   contextNotes: TFile[];
@@ -74,6 +75,7 @@ export interface ChatInputProps {
   onAddImage: (files: File[]) => void;
   setSelectedImages: React.Dispatch<React.SetStateAction<File[]>>;
   disableModelSwitch?: boolean;
+  showModelPicker?: boolean;
   modelPickerOverride?: {
     models: ModelSelectorEntry[];
     value: string;
@@ -121,6 +123,7 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
     setInputMessage,
     handleSendMessage,
     isGenerating,
+    sendDisabled = false,
     onStopGenerating,
     app,
     contextNotes,
@@ -136,6 +139,7 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
     onAddImage,
     setSelectedImages,
     disableModelSwitch,
+    showModelPicker = true,
     modelPickerOverride,
     modePickerOverride,
     selectedTextContexts,
@@ -183,6 +187,8 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
   const showsStop = isGenerating && inputMessage.trim().length === 0 && selectedImages.length === 0;
 
   const onSendMessage = () => {
+    // 发送受限时保留停止与模型选择入口。https://github.com/ItsDalk-Lane/Scribe/issues/21
+    if (sendDisabled) return;
     const webTabsFromEditor = getWebTabsFromEditorSnapshot();
     const allWebTabs = mergeWebTabContexts([...contextWebTabs, ...webTabsFromEditor]);
 
@@ -467,7 +473,7 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
         "tw-flex tw-w-full tw-flex-col tw-gap-0.5 tw-rounded-md tw-border tw-border-solid tw-border-border tw-px-1 tw-pb-1 tw-pt-2 tw-@container/chat-input",
         modePickerOverride?.value === "plan" &&
           "tw-shadow-[0_0_10px_rgba(var(--color-blue-rgb),0.18)] tw-border-blue/60",
-        modePickerOverride?.value === "auto" &&
+        modePickerOverride?.value === "full" &&
           "tw-shadow-[0_0_10px_rgba(var(--color-red-rgb),0.18)] tw-border-red/60"
       )}
       ref={containerRef}
@@ -537,31 +543,32 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
             currentActiveFile={currentActiveNote}
             lexicalEditorRef={lexicalEditorRef}
           />
-          {modelPickerOverride?.effortOptionsByModelKey && modelPickerOverride.commitSelection ? (
-            <ModelEffortPicker
-              override={{
-                models: modelPickerOverride.models,
-                value: modelPickerOverride.value,
-                disabled: modelPickerOverride.disabled,
-                effort: modelPickerOverride.effort,
-                effortOptionsByModelKey: modelPickerOverride.effortOptionsByModelKey,
-                commitSelection: modelPickerOverride.commitSelection,
-              }}
-              className="tw-min-w-0 tw-max-w-full tw-truncate"
-            />
-          ) : (
-            <ModelSelector
-              variant="ghost2"
-              size="fit"
-              disabled={
-                modelPickerOverride?.disabled ?? (disableModelSwitch || !modelPickerOverride)
-              }
-              value={modelPickerOverride?.value ?? ""}
-              models={modelPickerOverride?.models ?? NO_MODELS}
-              onChange={modelPickerOverride?.onChange ?? NOOP}
-              className="tw-min-w-0 tw-max-w-full tw-truncate"
-            />
-          )}
+          {showModelPicker &&
+            (modelPickerOverride?.effortOptionsByModelKey && modelPickerOverride.commitSelection ? (
+              <ModelEffortPicker
+                override={{
+                  models: modelPickerOverride.models,
+                  value: modelPickerOverride.value,
+                  disabled: modelPickerOverride.disabled,
+                  effort: modelPickerOverride.effort,
+                  effortOptionsByModelKey: modelPickerOverride.effortOptionsByModelKey,
+                  commitSelection: modelPickerOverride.commitSelection,
+                }}
+                className="tw-min-w-0 tw-max-w-full tw-truncate"
+              />
+            ) : (
+              <ModelSelector
+                variant="ghost2"
+                size="fit"
+                disabled={
+                  modelPickerOverride?.disabled ?? (disableModelSwitch || !modelPickerOverride)
+                }
+                value={modelPickerOverride?.value ?? ""}
+                models={modelPickerOverride?.models ?? NO_MODELS}
+                onChange={modelPickerOverride?.onChange ?? NOOP}
+                className="tw-min-w-0 tw-max-w-full tw-truncate"
+              />
+            ))}
         </div>
 
         <div className="tw-flex tw-items-center tw-gap-1">
@@ -579,6 +586,7 @@ const ChatInput = React.forwardRef<ChatInputHandle, ChatInputProps>(function Cha
             <ChatSendButton
               inputMessage={inputMessage}
               imageCount={selectedImages.length}
+              disabled={sendDisabled}
               onSend={() => onSendMessage()}
             />
           )}

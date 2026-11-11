@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders, DEFAULT_MAX_OUTPUT_TOKENS } from "@/constants";
 import { getSettings, setSettings } from "@/settings/model";
@@ -95,7 +96,6 @@ function wireModel(overrides: Partial<CustomModel> = {}): CustomModel {
     name: "test-model",
     provider: ChatModelProviders.OPENAI_FORMAT,
     enabled: true,
-    enableCors: true,
     stream: false,
     apiKey: "test-key",
     baseUrl: "https://provider.invalid/v1",
@@ -130,6 +130,13 @@ async function sendWithTools(model: CustomModel): Promise<void> {
 }
 
 describe("chatModelManager", () => {
+  beforeEach(() => {
+    Platform.isMobile = true;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   describe("ChatModelManager", () => {
     describe("createModelInstanceFromBridged", () => {
       const originalOpenAIOrgId = getSettings().openAIOrgId;

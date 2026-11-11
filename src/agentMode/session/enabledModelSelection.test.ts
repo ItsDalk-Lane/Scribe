@@ -71,7 +71,7 @@ describe("enabledModelSelection", () => {
   describe("noEnabledModelError", () => {
     it("names the agent and points the user to Scribe's model settings", () => {
       expect(noEnabledModelError("opencode").message).toBe(
-        "None of the models enabled for opencode are available. Check them in Scribe's model settings."
+        "No configured model for opencode is available. Check the model and its credentials in Models."
       );
     });
   });

@@ -12,8 +12,9 @@ jest.mock(
 );
 
 import { getCachedProjectRecordById } from "@/projects/state";
-import { shouldIndexFile } from "@/search/searchUtils";
+import { createPatternSettingsValue, shouldIndexFile } from "@/search/searchUtils";
 import {
+  buildCurrentProjectContext,
   buildProjectContext,
   buildProjectContextBlock,
   MAX_MANIFEST_ENTRIES,
@@ -40,12 +41,21 @@ function sources(over: Partial<ManifestSources> = {}): ManifestSources {
     documents: [],
     webUrls: [],
     youtubeUrls: [],
+    exclusions: [],
     ...over,
   };
 }
 
-function record(contextSource: Record<string, string | undefined>, id = "p1") {
-  return { project: { id, contextSource }, filePath: "Proj/AGENTS.md", folderName: "Proj" };
+function record(
+  contextSource: Record<string, string | undefined>,
+  id = "p1",
+  workspacePath = "Proj"
+) {
+  return {
+    project: { id, contextSource, workspacePath },
+    filePath: "Proj/AGENTS.md",
+    folderName: "Proj",
+  };
 }
 
 function fakeApp(files: Array<{ path: string; ext: string }> = [], folders: string[] = []): App {
@@ -77,7 +87,116 @@ beforeEach(() => {
 });
 
 describe("manifestBuilder", () => {
+  describe("buildCurrentProjectContext()", () => {
+    it("uses the current project sources and explicitly replaces prior declarations without granting permissions", () => {
+      getRecord.mockReturnValue(record({ webUrls: "https://current.example" }));
+      const block = buildCurrentProjectContext(fakeApp(), "p1");
+      expect(block).toContain("https://current.example");
+      expect(block).toContain("replaces all earlier project source declarations");
+      expect(block).toContain("regardless of their position in retained history or summaries");
+      expect(block).toContain("do not grant permission");
+    });
+
+    it("reports an unavailable project without replacing the last known sources or claiming an empty selection", () => {
+      getRecord.mockReturnValue(undefined);
+      const block = buildCurrentProjectContext(fakeApp(), "missing");
+      expect(block).toContain("could not be loaded");
+      expect(block).toContain("not an empty selection");
+      expect(block).not.toContain("replaces all earlier project source declarations");
+      expect(block).not.toContain("No context sources are configured");
+    });
+
+    it("reminds the model to re-read source contents instead of treating previously read material as current", () => {
+      getRecord.mockReturnValue(record({ webUrls: "https://current.example" }));
+      expect(buildCurrentProjectContext(fakeApp(), "p1")).toContain(
+        "Previously read source contents may be outdated; re-read sources before relying on their current contents."
+      );
+    });
+
+    it("rebuilds replaced and cleared source selections instead of retaining earlier sources", () => {
+      getRecord.mockReturnValue(record({ webUrls: "https://old.example" }));
+      expect(buildCurrentProjectContext(fakeApp(), "p1")).toContain("https://old.example");
+      getRecord.mockReturnValue(record({ webUrls: "https://new.example" }));
+      const replaced = buildCurrentProjectContext(fakeApp(), "p1");
+      expect(replaced).toContain("https://new.example");
+      expect(replaced).not.toContain("https://old.example");
+      getRecord.mockReturnValue(record({}));
+      const cleared = buildCurrentProjectContext(fakeApp(), "p1");
+      expect(cleared).toContain("No context sources are configured");
+      expect(cleared).not.toContain("https://new.example");
+      expect(cleared).toContain("replaces all earlier project source declarations");
+    });
+  });
+
   describe("buildProjectContext", () => {
+    it("includes the original exclusion selection alongside the current source selection", () => {
+      getRecord.mockReturnValue(
+        record({
+          inclusions: "Notes",
+          exclusions: ["Notes/private", "#restricted", "[[Draft]]"]
+            .map(encodeURIComponent)
+            .join(","),
+        })
+      );
+      const block = buildProjectContext(fakeApp(), "p1");
+      expect(block).toContain(
+        "## Excluded source selections\n- Notes/private\n- #restricted\n- [[Draft]]"
+      );
+    });
+
+    it("decodes saved exclusion selections without splitting Chinese, comma or newline characters inside a path", () => {
+      const selections = ["私有/项目", "Notes/Review, Later", "Notes/Line\nBreak"];
+      getRecord.mockReturnValue(
+        record({
+          inclusions: "Notes",
+          exclusions: createPatternSettingsValue({ folderPatterns: selections }),
+        })
+      );
+      const block = buildProjectContext(fakeApp(), "p1");
+      expect(block).toContain(
+        `## Excluded source selections\n${selections.map((selection) => `- ${selection}`).join("\n")}`
+      );
+      expect(block).not.toContain("%2F");
+      expect(block).not.toContain("%2C");
+      expect(block).not.toContain("%0A");
+    });
+
+    it("retains exclusions when no inclusion is configured", () => {
+      getRecord.mockReturnValue(record({ exclusions: "Private" }));
+      expect(buildProjectContext(fakeApp(), "p1")).toContain(
+        "## Excluded source selections\n- Private"
+      );
+    });
+
+    it("resolves fifty selected titles in one vault scan while preserving every selected note", () => {
+      const noteCount = 10_000;
+      const selectedTitles = Array.from({ length: 50 }, (_, index) => `Topic${index}`);
+      getRecord.mockReturnValue(
+        record({ inclusions: selectedTitles.map((title) => `[[${title}]]`).join(",") })
+      );
+      const app = fakeApp(
+        Array.from({ length: noteCount }, (_, index) => ({
+          path: `Notes/Topic${index}.md`,
+          ext: "md",
+        }))
+      );
+      let basenameReads = 0;
+      for (const file of app.vault.getFiles()) {
+        const basename = file.basename;
+        Object.defineProperty(file, "basename", {
+          get: () => {
+            basenameReads++;
+            return basename;
+          },
+        });
+      }
+      const listFiles = jest.spyOn(app.vault, "getFiles");
+      const block = buildProjectContext(app, "p1");
+      for (const title of selectedTitles) expect(block).toContain(`\`/vault/Notes/${title}.md\``);
+      expect(basenameReads).toBe(noteCount);
+      expect(listFiles).toHaveBeenCalledTimes(1);
+    });
+
     it("lists included notes by absolute path in the context block", () => {
       getRecord.mockReturnValue(record({ inclusions: "[[Spec]]" }));
       const app = fakeApp([{ path: "Notes/Spec.md", ext: "md" }]);
@@ -86,6 +205,24 @@ describe("manifestBuilder", () => {
 
       expect(block).toContain("## Included notes");
       expect(block).toContain("`/vault/Notes/Spec.md`");
+    });
+
+    it("rebuilds selected note paths after a move or rename without retaining a prior lookup", () => {
+      getRecord.mockReturnValue(record({ inclusions: "[[Spec]]" }));
+      const app = fakeApp([{ path: "Drafts/Spec.md", ext: "md" }]);
+      const note = app.vault.getFiles()[0];
+      expect(buildProjectContext(app, "p1")).toContain("`/vault/Drafts/Spec.md`");
+      note.path = "Published/Spec.md";
+      const moved = buildProjectContext(app, "p1");
+      expect(moved).toContain("`/vault/Published/Spec.md`");
+      expect(moved).not.toContain("Drafts/Spec.md");
+      note.path = "Published/Outline.md";
+      note.basename = "Outline";
+      const renamed = buildProjectContext(app, "p1");
+      expect(renamed).toContain("`[[Spec]]`");
+      expect(renamed).not.toContain("Published/Spec.md");
+      getRecord.mockReturnValue(record({ inclusions: "[[Outline]]" }));
+      expect(buildProjectContext(app, "p1")).toContain("`/vault/Published/Outline.md`");
     });
 
     it("splits the saved web and YouTube URL settings into one link per line", () => {
@@ -110,6 +247,26 @@ describe("manifestBuilder", () => {
 
       expect(block).toContain("`/vault/A/Spec.md`");
       expect(block).toContain("`/vault/B/Spec.md`");
+    });
+
+    it("does not advertise a selected title in an excluded folder as an included source https://github.com/ItsDalk-Lane/Scribe/issues/71", () => {
+      indexFile.mockImplementation(
+        jest.requireActual<typeof import("@/search/searchUtils")>("@/search/searchUtils")
+          .shouldIndexFile
+      );
+      getRecord.mockReturnValue(record({ inclusions: "[[Spec]]", exclusions: "Private" }));
+      const app = fakeApp([
+        { path: "Shared/Spec.md", ext: "md" },
+        { path: "Private/Spec.md", ext: "md" },
+      ]);
+      const block = buildProjectContext(app, "p1");
+      expect(block).toContain("`/vault/Shared/Spec.md`");
+      expect(block).not.toContain("/vault/Private/Spec.md");
+
+      getRecord.mockReturnValue(record({ inclusions: "[[Spec]]", exclusions: "[[Spec]]" }));
+      const entirelyExcluded = buildProjectContext(app, "p1");
+      expect(entirelyExcluded).not.toContain("## Included notes");
+      expect(entirelyExcluded).toContain("## Excluded source selections\n- [[Spec]]");
     });
 
     it("counts a property-only inclusion as a source and enumerates matching notes by absolute path", () => {
@@ -183,7 +340,8 @@ describe("manifestBuilder", () => {
       const block = buildProjectContext(app, "p1");
 
       expect(block).toContain("`/vault/Proj/a.pdf`");
-      expect(block).not.toContain("secret.pdf");
+      expect(block).not.toContain("`/vault/Proj/secret.pdf`");
+      expect(block).toContain("## Excluded source selections\n- Proj/secret.pdf");
     });
 
     it("lists a document picked as a file once, under Included notes, so it does not spend a second manifest entry", () => {
@@ -232,6 +390,19 @@ describe("manifestBuilder", () => {
       getRecord.mockReturnValue(record({}));
 
       expect(buildProjectContext(fakeApp(), "p1")).toContain("No context sources are configured");
+    });
+
+    it("gives vault file tools the exact project output path even with no selected sources https://github.com/ItsDalk-Lane/Scribe/issues/71", () => {
+      getRecord.mockReturnValue(record({}, "p1", "Projects/Research"));
+      const block = buildProjectContext(fakeApp(), "p1");
+      expect(block).toContain(
+        'Default output path for vault file tools: "Projects/Research/outputs/".'
+      );
+      expect(block).toContain("Vault file tools resolve relative paths from the vault root.");
+      getRecord.mockReturnValue(record({ inclusions: "Sources" }, "p1", ""));
+      expect(buildProjectContext(fakeApp(), "p1")).toContain(
+        'Default output path for vault file tools: "outputs/".'
+      );
     });
 
     it("returns the unavailable-context block when the project is unknown", () => {
@@ -336,13 +507,47 @@ describe("manifestBuilder", () => {
       expect(md).not.toContain("not listed");
     });
 
-    it("reports how many sources are left out and points the agent at the listed sources when sources exceed the entry cap", () => {
+    it("keeps every explicit source category and exclusion even when declarations alone exceed the expansion cap", () => {
       const folders = Array.from({ length: MAX_MANIFEST_ENTRIES + 25 }, (_, i) =>
         abs(`Folder${i}`)
       );
-      const md = buildProjectContextBlock(sources({ folders }));
+      const md = buildProjectContextBlock(
+        sources({
+          folders,
+          properties: ["[Subject:]"],
+          notes: [abs("Last.md")],
+          extensions: ["*.pdf"],
+          tags: ["#research"],
+          webUrls: ["https://current.example"],
+          youtubeUrls: ["https://youtu.be/current"],
+          exclusions: ["Private"],
+        })
+      );
+      for (const folder of folders) expect(md).toContain(`\`${folder.vaultPath}\``);
+      for (const value of [
+        "[Subject:]",
+        "Last.md",
+        "*.pdf",
+        "#research",
+        "https://current.example",
+        "https://youtu.be/current",
+        "Private",
+      ])
+        expect(md).toContain(value);
+      expect(md).not.toContain("not listed");
+    });
 
-      expect(md).toContain("> 25 more sources are not listed; search the sources above for them.");
+    it("limits automatically expanded entries and reports their exact omitted count", () => {
+      const documents = Array.from({ length: MAX_MANIFEST_ENTRIES + 25 }, (_, i) =>
+        abs(`p${i}.pdf`)
+      );
+      const md = buildProjectContextBlock(sources({ documents }));
+      expect(documents.filter((entry) => md.includes(`\`${entry.vaultPath}\``))).toHaveLength(
+        MAX_MANIFEST_ENTRIES
+      );
+      expect(md).toContain(
+        "> 25 more expanded sources are not listed; search the declared sources above for them."
+      );
     });
 
     it("keeps every declared source when property-matched notes overflow the entry cap", () => {
@@ -387,7 +592,7 @@ describe("manifestBuilder", () => {
       expect(md).toContain("`/vault/Papers`");
     });
 
-    it("spends the leftover budget on expansions and counts the trimmed ones as omitted", () => {
+    it("gives expanded entries their own limit independently of explicit source declarations", () => {
       const many = Array.from({ length: 120 }, (_, i) => abs(`n${i}.md`));
       const md = buildProjectContextBlock(
         sources({
@@ -401,8 +606,8 @@ describe("manifestBuilder", () => {
       );
 
       const listed = many.filter((note) => md.includes(`\`${note.vaultPath}\``));
-      expect(listed).toHaveLength(MAX_MANIFEST_ENTRIES - 5);
-      expect(md).toContain("25 more sources are not listed");
+      expect(listed).toHaveLength(MAX_MANIFEST_ENTRIES);
+      expect(md).toContain("20 more expanded sources are not listed");
     });
   });
 });

@@ -1,14 +1,11 @@
+import { RequestRedactor } from "@/LLMProviders/requestRedaction";
 import { t } from "@/lib/i18n";
 import type { App } from "obsidian";
 import { v4 as uuidv4 } from "uuid";
 
 import { providerNeedsResolvedApiKey } from "@/modelManagement/providers/providerRequiresApiKey";
 import { logError } from "@/logger";
-import {
-  KeychainService,
-  isScribeOwnedSecret,
-  providerKeychainName,
-} from "@/services/keychainService";
+import { SecretStore, type SecretStatus } from "@/services/secretStore";
 import { getSettings, setSettings } from "@/settings/model";
 import { frozenOr, sliceMemo, sliceMemoByKey } from "@/utils/sliceCache";
 
@@ -67,13 +64,13 @@ export class ProviderRegistry {
     return this.#byOrigin(getSettings().providers, originKind);
   }
 
-  async add(input: Omit<Provider, "providerId" | "addedAt" | "apiKeyKeychainId">): Promise<string> {
+  async add(input: Omit<Provider, "providerId" | "addedAt" | "apiKeyRef">): Promise<string> {
     const providerId = uuidv4();
     const row: Provider = {
       ...input,
       providerId,
       addedAt: Date.now(),
-      apiKeyKeychainId: null,
+      apiKeyRef: null,
     };
     setSettings((cur) => ({
       providers: { ...cur.providers, [providerId]: row },
@@ -85,7 +82,7 @@ export class ProviderRegistry {
   async update(
     providerId: string,
     patch: Partial<
-      Omit<Provider, "providerId" | "addedAt" | "apiKeyKeychainId" | "providerType" | "origin">
+      Omit<Provider, "providerId" | "addedAt" | "apiKeyRef" | "providerType" | "origin">
     >
   ): Promise<void> {
     const existing = getSettings().providers[providerId];
@@ -97,7 +94,7 @@ export class ProviderRegistry {
     const safePatch = { ...patch } as Record<string, unknown>;
     delete safePatch.providerId;
     delete safePatch.addedAt;
-    delete safePatch.apiKeyKeychainId;
+    delete safePatch.apiKeyRef;
     delete safePatch.providerType;
     delete safePatch.origin;
     for (const key of Object.keys(safePatch)) {
@@ -106,23 +103,22 @@ export class ProviderRegistry {
       }
     }
     if (Object.keys(safePatch).length === 0) return;
-    const affectsAgentProviderConfig = Object.keys(safePatch).some((key) => key !== "enableCors");
     const next: Provider = { ...existing, ...(safePatch as Partial<Provider>) };
     setSettings((cur) => ({
       providers: { ...cur.providers, [providerId]: next },
     }));
-    if (affectsAgentProviderConfig) this.#emit(providerId);
+    this.#emit(providerId);
   }
 
-  #setApiKeyKeychainId(providerId: string, apiKeyKeychainId: string | null): void {
+  #setApiKeyRef(providerId: string, apiKeyRef: string | null): void {
     const existing = getSettings().providers[providerId];
     if (!existing) return;
-    if (existing.apiKeyKeychainId === apiKeyKeychainId) return;
+    if (existing.apiKeyRef === apiKeyRef) return;
     setSettings((cur) => {
       const current = cur.providers[providerId];
       if (!current) return {};
       return {
-        providers: { ...cur.providers, [providerId]: { ...current, apiKeyKeychainId } },
+        providers: { ...cur.providers, [providerId]: { ...current, apiKeyRef } },
       };
     });
   }
@@ -130,17 +126,8 @@ export class ProviderRegistry {
   async remove(providerId: string): Promise<void> {
     const existing = getSettings().providers[providerId];
     if (!existing) return;
-    if (existing.apiKeyKeychainId) {
-      // 只清理本插件命名的条目；指针指向其他插件的钥匙串条目时只删行，不动那个条目。
-      // https://github.com/ItsDalk-Lane/Scribe/issues/25
-      if (isScribeOwnedSecret(existing.apiKeyKeychainId)) {
-        try {
-          KeychainService.getInstance(this.#app).deleteSecretById(existing.apiKeyKeychainId);
-        } catch (err) {
-          logError(`[modelManagement] ProviderRegistry.remove: failed to clear keychain`, err);
-        }
-      }
-    }
+    if (existing.apiKeyRef)
+      await SecretStore.getInstance(this.#app).deleteSecret(existing.apiKeyRef);
     setSettings((cur) => {
       const next = { ...cur.providers };
       delete next[providerId];
@@ -149,45 +136,39 @@ export class ProviderRegistry {
     this.#emit(providerId);
   }
 
-  async getApiKey(providerId: string): Promise<string | null> {
-    const row = getSettings().providers[providerId];
-    if (!row || !row.apiKeyKeychainId) return null;
-    return KeychainService.getInstance(this.#app).getSecretById(row.apiKeyKeychainId);
+  getApiKeyStatus(providerId: string): SecretStatus {
+    const reference = getSettings().providers[providerId]?.apiKeyRef;
+    return reference ? SecretStore.getInstance(this.#app).getStatus(reference) : "missing";
+  }
+
+  async withApiKey<T>(
+    providerId: string,
+    execute: (apiKey: string | null) => Promise<T>,
+    options?: { interactive?: boolean }
+  ): Promise<T> {
+    const reference = getSettings().providers[providerId]?.apiKeyRef;
+    if (!reference) return execute(null);
+    return SecretStore.getInstance(this.#app).withSecret(reference, execute, options);
   }
 
   async setApiKey(providerId: string, apiKey: string): Promise<void> {
     const row = getSettings().providers[providerId];
-    if (!row) {
+    if (!row)
       throw new Error(
         `[modelManagement] ProviderRegistry.setApiKey: unknown providerId ${providerId}`
       );
-    }
-    const keychain = KeychainService.getInstance(this.#app);
-    const keychainId =
-      row.apiKeyKeychainId ??
-      providerKeychainName(keychain.getVaultId(), row, getSettings().providers);
-    if (row.apiKeyKeychainId === keychainId && keychain.getSecretById(keychainId) === apiKey) {
-      return;
-    }
-    if (row.apiKeyKeychainId !== keychainId) {
-      this.#setApiKeyKeychainId(providerId, keychainId);
-    }
-    keychain.setSecretById(keychainId, apiKey);
+    const reference = row.apiKeyRef ?? uuidv4();
+    await SecretStore.getInstance(this.#app).setSecret(reference, apiKey);
+    this.#setApiKeyRef(providerId, reference);
     this.#emit(providerId);
   }
 
   async clearApiKey(providerId: string): Promise<void> {
     const row = getSettings().providers[providerId];
-    if (!row) return;
-    if (row.apiKeyKeychainId) {
-      try {
-        KeychainService.getInstance(this.#app).deleteSecretById(row.apiKeyKeychainId);
-      } catch (err) {
-        logError(`[modelManagement] ProviderRegistry.clearApiKey: failed to delete keychain`, err);
-      }
-      this.#setApiKeyKeychainId(providerId, null);
-      this.#emit(providerId);
-    }
+    if (!row?.apiKeyRef) return;
+    await SecretStore.getInstance(this.#app).deleteSecret(row.apiKeyRef);
+    this.#setApiKeyRef(providerId, null);
+    this.#emit(providerId);
   }
 
   async verify(providerId: string): Promise<VerificationResult> {
@@ -197,8 +178,8 @@ export class ProviderRegistry {
         `[modelManagement] ProviderRegistry.verify: unknown providerId ${providerId}`
       );
     }
-    const apiKey = await this.getApiKey(providerId);
-    if (providerNeedsResolvedApiKey(provider) && !apiKey?.trim()) {
+    const status = this.getApiKeyStatus(providerId);
+    if (providerNeedsResolvedApiKey(provider) && status === "missing") {
       return {
         ok: false,
         code: "missing_api_key",
@@ -206,10 +187,36 @@ export class ProviderRegistry {
         checkedAt: Date.now(),
       };
     }
-    return this.#adapters.verifyCredentials(provider.providerType, {
-      provider,
-      apiKey,
-      extras: provider.extras ?? {},
-    });
+    // 自动检查不打扰用户输主密码，但会先尝试设备解锁包的静默恢复，恢复成功即真实验证。
+    // https://github.com/ItsDalk-Lane/Scribe/issues/37
+    const restored =
+      status === "locked" && (await SecretStore.getInstance(this.#app).tryDeviceUnlock());
+    if ((status === "locked" && !restored) || status === "unavailable")
+      return {
+        ok: false,
+        code: "credentials_locked",
+        message: t("Unlock your saved key with a connection test before checking this provider."),
+        checkedAt: Date.now(),
+      };
+    return this.withApiKey(
+      providerId,
+      async (apiKey) => {
+        const redactor = new RequestRedactor([apiKey ?? ""]);
+        try {
+          const result = await this.#adapters.verifyCredentials(provider.providerType, {
+            provider,
+            apiKey,
+            extras: provider.extras ?? {},
+          });
+          return {
+            ...result,
+            ...(result.message ? { message: redactor.redact(result.message) } : {}),
+          };
+        } catch (error) {
+          throw redactor.error(error);
+        }
+      },
+      { interactive: false }
+    );
   }
 }

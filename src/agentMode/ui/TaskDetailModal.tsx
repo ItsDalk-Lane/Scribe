@@ -74,8 +74,13 @@ const TaskDetailModalContent: React.FC<TaskDetailModalContentProps> = ({
   onOpenTask,
   onOpenChat,
 }) => {
-  const { tasks, pendingToolPermissions, pendingAskUserQuestions } =
-    useAgentChatRuntimeState(backend);
+  const { tasks, pendingToolPermissions, pendingAskUserQuestions, messages } =
+    useAgentChatRuntimeState(backend, (current) => ({
+      tasks: current.getTasks(),
+      pendingToolPermissions: current.getPendingToolPermissions(),
+      pendingAskUserQuestions: current.getPendingAskUserQuestions(),
+      messages: current.getTaskMessages(toolCallId),
+    }));
   const task = tasks.find((entry) => entry.toolCallId === toolCallId);
   if (!task)
     return (
@@ -87,7 +92,7 @@ const TaskDetailModalContent: React.FC<TaskDetailModalContentProps> = ({
         <TaskDetailView
           task={task}
           status={taskDisplayStatus(task, pendingToolPermissions)}
-          messages={backend.getTaskMessages(toolCallId)}
+          messages={messages}
           app={app}
           chatId={chatId}
           onBack={onClose}

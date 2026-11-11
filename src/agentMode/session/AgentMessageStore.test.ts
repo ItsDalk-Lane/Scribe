@@ -51,6 +51,115 @@ describe("AgentMessageStore", () => {
     });
   });
 
+  describe("setTurnMetrics()", () => {
+    it("retains optional round facts across loading and avoids replacing an unchanged display projection https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const store = new AgentMessageStore();
+      const metrics = { roundId: "r", totalTokens: 10, partial: true, sources: [] };
+      const id = store.addMessage({ ...placeholder(), turnMetrics: metrics });
+      expect(store.getMessage(id)?.turnMetrics).toBe(metrics);
+      const displayed = store.getMessage(id);
+      store.setTurnMetrics(id, { ...metrics });
+      expect(store.getMessage(id)).toBe(displayed);
+      store.setTurnMetrics(id, { ...metrics, totalTokens: 20 });
+      expect(store.getMessage(id)?.turnMetrics?.totalTokens).toBe(20);
+      const restored = new AgentMessageStore();
+      restored.loadMessages(store.getDisplayMessages());
+      expect(restored.getMessage(id)?.turnMetrics?.totalTokens).toBe(20);
+      expect(() => store.setTurnMetrics("missing", metrics)).not.toThrow();
+    });
+  });
+
+  describe("withRecordedTime()", () => {
+    it("uses recorded event times for thought start and duration independently of the current clock", () => {
+      const clock = jest.spyOn(Date, "now").mockReturnValue(900_000);
+      try {
+        const store = new AgentMessageStore();
+        const id = store.addMessage(placeholder());
+        store.withRecordedTime(1000, () => store.appendAgentThought(id, "Thinking"));
+        store.withRecordedTime(6000, () => store.appendAgentText(id, "Answer"));
+        expect(store.getMessage(id)?.parts?.[0]).toMatchObject({
+          kind: "thought",
+          startedAtMs: 1000,
+          durationMs: 5000,
+        });
+      } finally {
+        clock.mockRestore();
+      }
+    });
+
+    it("returns the operation result and restores the previous clock after nested operations fail", () => {
+      const clock = jest.spyOn(Date, "now").mockReturnValue(900_000);
+      try {
+        const store = new AgentMessageStore();
+        const id = store.addMessage(placeholder());
+        const result = store.withRecordedTime(1000, () => {
+          expect(() =>
+            store.withRecordedTime(2000, () => {
+              throw new Error("failed update");
+            })
+          ).toThrow("failed update");
+          store.appendAgentThought(id, "Recorded thought");
+          return "applied";
+        });
+        expect(result).toBe("applied");
+        store.appendAgentText(id, "Answer");
+        expect(store.getMessage(id)?.parts?.[0]).toMatchObject({
+          startedAtMs: 1000,
+          durationMs: 899000,
+        });
+      } finally {
+        clock.mockRestore();
+      }
+    });
+  });
+
+  describe("finishAgentThought()", () => {
+    it("freezes the identified thought at its end event and keeps other segments and later thoughts untouched https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.withRecordedTime(1000, () => store.appendAgentThought(id, "First", 11, false, 10, 0));
+      expect(store.withRecordedTime(3000, () => store.finishAgentThought(id, 10, 0))).toBe(true);
+      expect(store.getMessage(id)?.parts?.[0]).toMatchObject({ durationMs: 2000 });
+      const frozen = store.getMessage(id);
+      expect(store.withRecordedTime(8000, () => store.finishAgentThought(id, 10, 0))).toBe(false);
+      expect(store.getMessage(id)).toBe(frozen);
+      store.withRecordedTime(9000, () => store.appendAgentThought(id, "Second", 13, false, 10, 1));
+      expect(store.withRecordedTime(10000, () => store.finishAgentThought(id, 10, 0))).toBe(false);
+      expect(store.finishAgentThought(id, 999)).toBe(false);
+      expect(store.finishAgentThought("missing", 10)).toBe(false);
+      expect(store.getMessage(id)?.parts?.[1]).not.toHaveProperty("durationMs");
+      expect(store.withRecordedTime(12000, () => store.finishAgentThought(id, 10))).toBe(true);
+      expect(store.getMessage(id)?.parts?.[1]).toMatchObject({ durationMs: 3000 });
+      store.withRecordedTime(15000, () => store.markTurnComplete(id, "end_turn"));
+      store.withRecordedTime(20000, () =>
+        store.appendAgentThought(id, " confirmed", 14, false, 10, 1)
+      );
+      store.withRecordedTime(25000, () =>
+        store.finalizeAgentSegment(id, 10, [
+          { kind: "thought", text: "First", contentIndex: 0 },
+          { kind: "thought", text: "Second confirmed", contentIndex: 1 },
+        ])
+      );
+      expect(store.getMessage(id)?.parts?.[1]).toMatchObject({
+        text: "Second confirmed",
+        durationMs: 3000,
+        endedAtMs: 12000,
+      });
+      const restored = new AgentMessageStore();
+      restored.loadMessages(store.getDisplayMessages());
+      restored.withRecordedTime(30000, () =>
+        restored.finalizeAgentSegment(id, 10, [
+          { kind: "thought", text: "First", contentIndex: 0 },
+          { kind: "thought", text: "Second confirmed", contentIndex: 1 },
+        ])
+      );
+      expect(restored.getMessage(id)?.parts?.[1]).toMatchObject({
+        durationMs: 3000,
+        endedAtMs: 12000,
+      });
+    });
+  });
+
   describe("appendDisplayText", () => {
     it("accumulates streaming chunks", () => {
       const store = new AgentMessageStore();
@@ -67,6 +176,41 @@ describe("AgentMessageStore", () => {
   });
 
   describe("appendAgentText", () => {
+    it("updates repeated-looking text blocks only by their segment and content positions", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.startAgentSegment(id, 10);
+      store.appendAgentText(id, "same", 11, false, 10, 0);
+      store.appendAgentText(id, "same", 12, false, 10, 1);
+      const untouched = store.getMessage(id)?.parts?.[1];
+      store.appendAgentText(id, "+", 13, false, 10, 0);
+      expect(
+        store.getMessage(id)?.parts?.map((part) => (part.kind === "text" ? part.text : ""))
+      ).toEqual(["same+", "same"]);
+      expect(store.getMessage(id)?.parts?.[1]).toBe(untouched);
+    });
+    it("replaces only the changing block and preserves previously published content", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.appendAgentText(id, "Before");
+      store.upsertAgentPart(id, {
+        kind: "tool_call",
+        id: "read",
+        title: "Read",
+        status: "completed",
+      });
+      store.appendAgentText(id, "After");
+      const before = store.getMessage(id)!;
+
+      store.appendAgentText(id, " more");
+      const after = store.getMessage(id)!;
+
+      expect(before.parts?.[2]).toEqual({ kind: "text", text: "After" });
+      expect(after.parts?.[2]).toEqual({ kind: "text", text: "After more" });
+      expect(after.parts).not.toBe(before.parts);
+      expect(after.parts?.[0]).toBe(before.parts?.[0]);
+      expect(after.parts?.[1]).toBe(before.parts?.[1]);
+    });
     it("folds successive chunks into one trailing text part", () => {
       const store = new AgentMessageStore();
       const id = store.addMessage(placeholder());
@@ -208,6 +352,15 @@ describe("AgentMessageStore", () => {
   });
 
   describe("markTurnComplete", () => {
+    it("preserves the stopped task identity through display save and reload so budget actions cannot target another task https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.markTurnComplete(id, "max_task_requests", 100, "old-generation");
+      expect(store.getMessage(id)?.taskGenerationId).toBe("old-generation");
+      const restored = new AgentMessageStore();
+      restored.loadMessages(store.getDisplayMessages());
+      expect(restored.getMessage(id)?.taskGenerationId).toBe("old-generation");
+    });
     it("freezes a trailing thought when the turn completes", () => {
       jest.useFakeTimers();
       jest.setSystemTime(1_000);
@@ -321,6 +474,39 @@ describe("AgentMessageStore", () => {
         store.upsertAgentPart(id, { ...part, output: part.output?.map((o) => ({ ...o })) })
       ).toBe(false);
       expect(store.getMessage(id)?.parts).toHaveLength(1);
+    });
+
+    it("retains rich MCP blocks, skips exact repeats and detects changes in long result middles https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      const content = {
+        type: "resource",
+        resource: { uri: "fixture:data", text: "a".repeat(20000) + "middle" + "z".repeat(20000) },
+      };
+      const part: AgentMessagePart = {
+        kind: "tool_call",
+        id: "rich",
+        title: "MCP",
+        status: "completed",
+        output: [{ type: "content", content }],
+      };
+      expect(store.upsertAgentPart(id, part)).toBe(true);
+      expect(
+        store.upsertAgentPart(id, {
+          ...part,
+          output: [{ type: "content", content: { ...content, resource: { ...content.resource } } }],
+        })
+      ).toBe(false);
+      const changed = {
+        ...content,
+        resource: { ...content.resource, text: content.resource.text.replace("middle", "MIDDLE") },
+      };
+      expect(
+        store.upsertAgentPart(id, { ...part, output: [{ type: "content", content: changed }] })
+      ).toBe(true);
+      expect(store.getMessage(id)?.parts?.[0]).toMatchObject({
+        output: [{ type: "content", content: changed }],
+      });
     });
 
     it("treats a plan as a singleton (replace, not duplicate)", () => {
@@ -557,6 +743,23 @@ describe("AgentMessageStore", () => {
     });
   });
 
+  describe("findMessageIdWithCompaction()", () => {
+    it("finds a compression's owning reply after later messages while ignoring tool IDs https://github.com/ItsDalk-Lane/Scribe/issues/66", () => {
+      const store = new AgentMessageStore();
+      const owner = store.addMessage(placeholder());
+      store.upsertAgentPart(owner, compaction({ id: "compression" }));
+      const later = store.addMessage(placeholder());
+      store.upsertAgentPart(later, {
+        kind: "tool_call",
+        id: "compression",
+        title: "Search",
+        status: "completed",
+      });
+      expect(store.findMessageIdWithCompaction("compression")).toBe(owner);
+      expect(store.findMessageIdWithCompaction("missing")).toBeUndefined();
+    });
+  });
+
   describe("markMessageError", () => {
     it("flags the message and appends formatted error text", () => {
       const store = new AgentMessageStore();
@@ -571,6 +774,9 @@ describe("AgentMessageStore", () => {
       expect(msg?.isErrorMessage).toBe(true);
       expect(msg?.message).toContain("partial reply");
       expect(msg?.message).toContain("**Error:** boom");
+      expect(msg?.errorText).toBe("**Error:** boom");
+      store.loadMessages(store.getDisplayMessages());
+      expect(store.getMessage(id)?.errorText).toBe("**Error:** boom");
       expect(msg?.turnDurationMs).toBe(12_345);
     });
   });
@@ -795,6 +1001,150 @@ describe("AgentMessageStore", () => {
     it("returns false for an unknown message", () => {
       const store = new AgentMessageStore();
       expect(store.setFileChanges("nope", [change("notes/a.md")])).toBe(false);
+    });
+  });
+
+  describe("takeDisplayFacts()", () => {
+    it("returns only newly recorded presentation changes and consumes the batch", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.setFileChanges(id, [change("Notes/Brief.md")]);
+      expect(store.takeDisplayFacts()).toEqual([
+        {
+          kind: "message_metadata",
+          messageId: id,
+          metadata: { fileChanges: [change("Notes/Brief.md")] },
+        },
+      ]);
+      expect(store.takeDisplayFacts()).toEqual([]);
+    });
+  });
+
+  describe("restoreDisplayFacts()", () => {
+    it("restores a failed write batch before changes recorded after that write", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.setFileChanges(id, [change("Notes/First.md")]);
+      const first = store.takeDisplayFacts();
+      store.setFileChanges(id, [change("Notes/Second.md")]);
+      store.restoreDisplayFacts(first);
+      expect(store.takeDisplayFacts()).toEqual([
+        ...first,
+        {
+          kind: "message_metadata",
+          messageId: id,
+          metadata: { fileChanges: [change("Notes/Second.md")] },
+        },
+      ]);
+    });
+  });
+
+  describe("identifyMessage()", () => {
+    it("assigns the persisted turn identity and sequence without losing the streamed body", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.appendAgentText(id, "Saved reply");
+      store.identifyMessage(id, "assistant:prompt-1", 8);
+      expect(store.getMessage(id)).toBeUndefined();
+      expect(store.getMessage("assistant:prompt-1")).toMatchObject({
+        seq: 8,
+        message: "Saved reply",
+      });
+    });
+  });
+
+  describe("startAgentSegment()", () => {
+    it("records the exact owning message and updates that ownership when the message identity changes", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.startAgentSegment(id, 10);
+      store.identifyMessage(id, "assistant:request");
+      expect(store.findMessageIdWithSegment(10)).toBe("assistant:request");
+      store.startAgentSegment("missing", 20);
+      expect(store.findMessageIdWithSegment(20)).toBeUndefined();
+    });
+  });
+
+  describe("findMessageIdWithSegment()", () => {
+    it("returns no owner for an unknown segment", () => {
+      expect(new AgentMessageStore().findMessageIdWithSegment(99)).toBeUndefined();
+    });
+  });
+
+  describe("finalizeAgentSegment()", () => {
+    it("replaces a longer provisional segment with the exact confirmed blocks while preserving earlier text and tools", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.startAgentSegment(id, 1);
+      store.appendAgentText(id, "Earlier answer. ", 2, false, 1, 0);
+      store.finalizeAgentSegment(
+        id,
+        1,
+        [{ kind: "text", text: "Earlier answer. ", contentIndex: 0 }],
+        3
+      );
+      store.upsertAgentPart(id, {
+        kind: "tool_call",
+        id: "read",
+        title: "Read",
+        status: "completed",
+      });
+      const earlier = store.getMessage(id)!.parts!.slice();
+      store.startAgentSegment(id, 5);
+      store.appendAgentThought(id, "Reason", 6, false, 5, 0);
+      store.appendAgentText(id, "A much longer provisional answer", 7, false, 5, 1);
+      const thought = store.getMessage(id)!.parts![2];
+      store.finalizeAgentSegment(
+        id,
+        5,
+        [
+          { kind: "thought", text: "Reason", contentIndex: 0 },
+          { kind: "text", text: "Yes", contentIndex: 1 },
+          { kind: "text", text: ".", contentIndex: 2 },
+        ],
+        9
+      );
+      const message = store.getMessage(id)!;
+      expect(message.message).toBe("Earlier answer. Yes.");
+      expect(message.parts![0]).toBe(earlier[0]);
+      expect(message.parts![1]).toBe(earlier[1]);
+      expect(message.parts![2]).toBe(thought);
+      expect(message.parts![4]).toMatchObject({
+        kind: "text",
+        text: ".",
+        seq: 9,
+        segmentSeq: 5,
+        contentIndex: 2,
+      });
+    });
+
+    it("creates done-only blocks and preserves references when the confirmed content repeats", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage(placeholder());
+      store.startAgentSegment(id, 10);
+      const blocks = [{ kind: "text" as const, text: "Done-only answer", contentIndex: 0 }];
+      expect(store.finalizeAgentSegment(id, 10, blocks, 12)).toBe(true);
+      const before = store.getMessage(id)!;
+      expect(before.parts![0]).toMatchObject({ seq: 12, segmentSeq: 10, contentIndex: 0 });
+      expect(store.finalizeAgentSegment(id, 10, blocks, 13)).toBe(false);
+      expect(store.getMessage(id)).toBe(before);
+    });
+
+    it("clears only the finalized empty segment and keeps inherited content with overlapping source identities", () => {
+      const store = new AgentMessageStore();
+      const id = store.addMessage({
+        ...placeholder(),
+        message: "Inherited",
+        parts: [{ kind: "text", text: "Inherited", segmentSeq: 10, contentIndex: 0 }],
+      });
+      store.startAgentSegment(id, 10);
+      store.appendAgentText(id, "Provisional", 11, false, 10, 0);
+      store.finalizeAgentSegment(id, 10, [], 12);
+      expect(store.getMessage(id)?.message).toBe("Inherited");
+      expect(store.getMessage(id)?.parts).toEqual([
+        { kind: "text", text: "Inherited", segmentSeq: 10, contentIndex: 0 },
+      ]);
+      expect(store.finalizeAgentSegment("missing", 99, [], 100)).toBe(false);
     });
   });
 });

@@ -17,6 +17,43 @@ jest.mock("@/settings/model", () => ({
 }));
 
 describe("AgentChatUIState", () => {
+  describe("getMessageUsageMetrics()", () => {
+    it("forwards each child reply slice to the recorded message projection https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const metrics = { totalTokens: 20, partial: false, sources: [] };
+      const session = {
+        getMessageUsageMetrics: jest.fn(() => metrics),
+        subscribe: jest.fn(() => () => {}),
+      } as unknown as AgentSession;
+      const state = new AgentChatUIState(session);
+      const message = {
+        id: "slice",
+        sender: "ai",
+        message: "Second",
+        timestamp: null,
+        isVisible: true,
+      };
+      expect(state.getMessageUsageMetrics(message, true)).toBe(metrics);
+      expect(session.getMessageUsageMetrics).toHaveBeenCalledWith(message, true);
+    });
+  });
+
+  describe("getSubagentUsage()", () => {
+    it("forwards the stable child cumulative projection without rebuilding it https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
+      const usage = {
+        usedTokens: 0,
+        updatedAt: 1,
+        metrics: { totalTokens: 8, partial: true, sources: [] },
+      };
+      const session = {
+        getSubagentUsage: jest.fn(() => usage),
+        subscribe: jest.fn(() => () => {}),
+      } as unknown as AgentSession;
+      const state = new AgentChatUIState(session);
+      expect(state.getSubagentUsage("child")).toBe(usage);
+      expect(session.getSubagentUsage).toHaveBeenCalledWith("child");
+    });
+  });
+
   function planReview(
     feedbackDelivery?: "permission" | "next_turn",
     { permissionArrived = true }: { permissionArrived?: boolean } = {}
@@ -43,7 +80,7 @@ describe("AgentChatUIState", () => {
       },
       prompt: async (input: PromptInput) => {
         const emit = (update: SessionEvent["update"]) =>
-          emitUpdate!({ sessionId: "codex-session", update });
+          emitUpdate!({ sessionId: "test-session", update });
         emit({ sessionUpdate: "message_delivered", promptId: input.promptId });
         emit({ sessionUpdate: "turn_started", turnId: input.promptId });
         void prompt(input).then(
@@ -62,9 +99,9 @@ describe("AgentChatUIState", () => {
     const descriptor = { planFeedbackDelivery: feedbackDelivery } as unknown as BackendDescriptor;
     const session = new AgentSession({
       backend,
-      backendSessionId: "codex-session",
+      backendSessionId: "test-session",
       internalId: "plan-review",
-      backendId: "codex",
+      backendId: "test-backend",
       getDescriptor: () => descriptor,
     });
     session.completeResume({
@@ -78,7 +115,7 @@ describe("AgentChatUIState", () => {
     const chat = new AgentChatUIState(session);
     const firstTurn = chat.sendMessage("Draft a plan").turn;
     const request: PermissionPrompt = {
-      sessionId: "codex-session",
+      sessionId: "test-session",
       toolCall: {
         toolCallId: "plan-review-tool",
         title: "Implement this plan?",
@@ -93,7 +130,7 @@ describe("AgentChatUIState", () => {
       ],
     };
     emitUpdate!({
-      sessionId: "codex-session",
+      sessionId: "test-session",
       update: { sessionUpdate: "tool_call", ...request.toolCall },
     });
     const permission = permissionArrived
@@ -110,7 +147,7 @@ describe("AgentChatUIState", () => {
       prompt,
       firstTurn,
       finishFirstTurn: () => finishFirstTurn!({ stopReason: "end_turn" }),
-      failFirstTurn: () => failFirstTurn!(new Error("ACP transport closed")),
+      failFirstTurn: () => failFirstTurn!(new Error("test transport closed")),
     };
   }
 
@@ -161,7 +198,7 @@ describe("AgentChatUIState", () => {
       review.finishFirstTurn();
       await review.firstTurn;
     });
-    it("sends Codex feedback as a visible follow-up after its plan permission ends the turn", async () => {
+    it("sends next-turn feedback as a visible follow-up after plan permission ends the turn", async () => {
       const review = planReview("next_turn");
       const resolution = review.chat.resolvePlanProposal(
         review.plan.id,
@@ -193,13 +230,13 @@ describe("AgentChatUIState", () => {
       expect(review.prompt).toHaveBeenCalledTimes(1);
     });
 
-    it("does not send Codex feedback when the permission turn fails before a follow-up can begin", async () => {
+    it("does not send next-turn feedback when the permission turn fails before a follow-up can begin", async () => {
       const review = planReview("next_turn");
       const resolution = review.chat.resolvePlanProposal(review.plan.id, "feedback", "save it");
       await review.permission;
       review.failFirstTurn();
 
-      await expect(resolution).rejects.toThrow("ACP transport closed");
+      await expect(resolution).rejects.toThrow("test transport closed");
       expect(review.prompt).toHaveBeenCalledTimes(1);
       expect(review.chat.getMessages().some((message) => message.message === "save it")).toBe(
         false
@@ -242,7 +279,7 @@ describe("AgentChatUIState", () => {
     it("shows the selected answer in the transcript", async () => {
       const review = planReview();
       const answer = review.session.handleAskUserQuestion({
-        sessionId: "codex-session",
+        sessionId: "test-session",
         requestId: "question-one",
         questions: [{ question: "Format: choose one", options: [{ label: "Checklist" }] }],
       });
@@ -260,55 +297,6 @@ describe("AgentChatUIState", () => {
       }
       review.finishFirstTurn();
       await review.firstTurn;
-    });
-  });
-
-  function feedbackChat(): AgentChatUIState {
-    const session = new AgentSession({
-      backend: {
-        isRunning: () => true,
-        onExit: () => () => undefined,
-        registerSessionHandler: () => () => undefined,
-      } as unknown as BackendProcess,
-      backendSessionId: "s-1",
-      internalId: "feedback",
-      backendId: "claude",
-    });
-    session.completeResume(null);
-    const chat = new AgentChatUIState(session);
-    session.offerFeedback({ title: "t", whatHappened: "w", userSaid: "", repro: "r" });
-    return chat;
-  }
-
-  describe("getFeedbackOffer", () => {
-    it("serves the session's open feedback card", () => {
-      expect(feedbackChat().getFeedbackOffer()?.status).toBe("open");
-    });
-  });
-
-  describe("dismissFeedbackOffer", () => {
-    it("dismisses the session's open card and notifies the view", () => {
-      const chat = feedbackChat();
-      const listener = jest.fn();
-      chat.subscribe(listener);
-
-      chat.dismissFeedbackOffer();
-
-      expect(chat.getFeedbackOffer()?.status).toBe("dismissed");
-      expect(listener).toHaveBeenCalled();
-    });
-  });
-
-  describe("markFeedbackReported", () => {
-    it("records the sent report on the session's card", () => {
-      const chat = feedbackChat();
-
-      chat.markFeedbackReported({ reportId: "r1", issueUrl: "https://example.com" });
-
-      expect(chat.getFeedbackOffer()).toMatchObject({
-        status: "reported",
-        report: { reportId: "r1", issueUrl: "https://example.com" },
-      });
     });
   });
 
@@ -341,15 +329,15 @@ describe("AgentChatUIState", () => {
     } as unknown as BackendProcess;
     const session = new AgentSession({
       backend,
-      backendSessionId: "claude-session",
+      backendSessionId: "test-session",
       internalId: "live",
-      backendId: "claude",
+      backendId: "test-backend",
       getDescriptor: () => descriptor as BackendDescriptor,
     });
     session.completeResume(null);
     const chat = new AgentChatUIState(session);
     const emit = (update: SessionEvent["update"], taskToolCallId?: string) =>
-      handler!({ sessionId: "claude-session", update, taskToolCallId });
+      handler!({ sessionId: "test-session", update, taskToolCallId });
     return Object.assign(chat, { emit });
   }
 
@@ -396,7 +384,7 @@ describe("AgentChatUIState", () => {
 
       await chat.withdrawMessage(id);
 
-      expect(withdraw).toHaveBeenCalledWith({ sessionId: "claude-session", promptId: id });
+      expect(withdraw).toHaveBeenCalledWith({ sessionId: "test-session", promptId: id });
     });
   });
 
@@ -411,7 +399,7 @@ describe("AgentChatUIState", () => {
 
       await chat.sendWaitingNow();
 
-      expect(cancel).toHaveBeenCalledWith({ sessionId: "claude-session", keepUnread: true });
+      expect(cancel).toHaveBeenCalledWith({ sessionId: "test-session", keepUnread: true });
       expect(chat.getQueuedPrompts().map((p) => p.text)).toEqual(["only the first two"]);
     });
   });
@@ -499,7 +487,7 @@ describe("AgentChatUIState", () => {
 
       await chat.stopTask("task-1");
 
-      expect(stopTask).toHaveBeenCalledWith({ sessionId: "claude-session", taskId: "task-1" });
+      expect(stopTask).toHaveBeenCalledWith({ sessionId: "test-session", taskId: "task-1" });
     });
   });
 });

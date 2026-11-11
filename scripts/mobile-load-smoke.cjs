@@ -14,9 +14,14 @@ const loadCriticalFiles = [
   "src/settings/v2/SettingsMainV2.tsx",
   "src/settings/v2/components/AdvancedSettings.tsx",
   "src/settings/v2/components/BasicSettings.tsx",
-  "src/settings/v2/components/QuickToolsPanel.tsx",
-  "src/settings/v2/components/ChatModelEnableList.tsx",
-  "src/settings/v2/components/configuredModelGrouping.ts",
+  "src/settings/v2/components/AgentNotificationSettings.tsx",
+  "src/settings/v2/components/AboutSettingsPanel.tsx",
+  "src/services/secretStore.ts",
+  "src/services/ui/SecretUnlockForm.tsx",
+  "src/services/ui/SecretUnlockModal.tsx",
+  "src/modelManagement/ui/components/ProviderCredentialField.tsx",
+  "src/settings/v2/components/ui/AgentStepLimitSetting.tsx",
+  "src/modelManagement/ui/tabs/ModelsAndProvidersPanel.tsx",
   "src/components/chat-components/plugins/SlashCommandPlugin.tsx",
   "src/components/chat-components/plugins/slashMenuItems.ts",
 ];
@@ -472,71 +477,68 @@ async function runByokFirstUseSmoke() {
       raw: '{"message":{"content":"OK"},"done":true,"done_reason":"stop"}\n',
     },
   ];
-  for (const enableCors of [false, true]) {
-    for (const fixture of fixtures) {
-      let nativeCalls = 0;
-      let compatibleCalls = 0;
-      let api;
-      const respond = (url) => {
-        const address = String(url);
-        if (address.endsWith("/direct_access"))
-          return new Response(JSON.stringify({ token: "fixture-token", headers: {} }));
-        if (address.endsWith("/oauth/token") || address === "https://oauth2.googleapis.com/token")
-          return new Response(JSON.stringify({ access_token: "fixture-token", expires_in: 3600 }));
-        return new Response(fixture.raw ?? api.fixtureSse(fixture.payload), {
-          headers: { "content-type": "text/event-stream" },
-        });
-      };
-      const context = createMobileContext(
-        async (request) => {
-          compatibleCalls++;
-          const response = respond(request.url);
-          const text = await response.text();
-          return {
-            status: 200,
-            text,
-            json: text.startsWith("{") ? JSON.parse(text) : {},
-            headers: Object.fromEntries(response.headers),
-            arrayBuffer: new TextEncoder().encode(text).buffer,
-          };
-        },
-        async (url) => {
-          nativeCalls++;
-          return respond(url);
-        }
-      );
-      vm.runInNewContext(build.outputFiles[0].text, context, {
-        filename: "mobile-byok-smoke.js",
-        timeout: 5000,
+  for (const fixture of fixtures) {
+    let nativeCalls = 0;
+    let compatibleCalls = 0;
+    let api;
+    const respond = (url) => {
+      const address = String(url);
+      if (address.endsWith("/direct_access"))
+        return new Response(JSON.stringify({ token: "fixture-token", headers: {} }));
+      if (address.endsWith("/oauth/token") || address === "https://oauth2.googleapis.com/token")
+        return new Response(JSON.stringify({ access_token: "fixture-token", expires_in: 3600 }));
+      return new Response(fixture.raw ?? api.fixtureSse(fixture.payload), {
+        headers: { "content-type": "text/event-stream" },
       });
-      api = context.module.exports;
-      const model = await api.createProviderChatModel({
-        name: fixture.name ?? "private-model",
-        provider: "3rd party (openai-format)",
-        providerNpm: fixture.npm,
-        baseUrl: "https://fixture.invalid",
-        enabled: true,
-        enableCors,
-        apiKey: fixture.apiKey ?? "fixture-key",
-        providerOptions: fixture.providerOptions,
-      });
-      if (nativeCalls || compatibleCalls)
-        throw new Error(`${fixture.npm}: construction sent a request`);
-      let text = "";
-      let done = false;
-      for await (const event of model.stream(
-        {
-          messages: [{ role: "user", content: "Reply with OK.", timestamp: 0 }],
-        },
-        { maxRetries: 0 }
-      )) {
-        if (event.type === "text_delta") text += event.delta;
-        if (event.type === "done") done = true;
+    };
+    const context = createMobileContext(
+      async (request) => {
+        compatibleCalls++;
+        const response = respond(request.url);
+        const text = await response.text();
+        return {
+          status: 200,
+          text,
+          json: text.startsWith("{") ? JSON.parse(text) : {},
+          headers: Object.fromEntries(response.headers),
+          arrayBuffer: new TextEncoder().encode(text).buffer,
+        };
+      },
+      async (url) => {
+        nativeCalls++;
+        return respond(url);
       }
-      if (text !== "OK" || !done) throw new Error(`${fixture.npm}: first request did not complete`);
-      if (enableCors ? !compatibleCalls || nativeCalls : !nativeCalls || compatibleCalls)
-        throw new Error(`${fixture.npm}: first request used the wrong transport`);
+    );
+    vm.runInNewContext(build.outputFiles[0].text, context, {
+      filename: "mobile-byok-smoke.js",
+      timeout: 5000,
+    });
+    api = context.module.exports;
+    const model = await api.createProviderChatModel({
+      name: fixture.name ?? "private-model",
+      provider: "3rd party (openai-format)",
+      providerNpm: fixture.npm,
+      baseUrl: "https://fixture.invalid",
+      enabled: true,
+      apiKey: fixture.apiKey ?? "fixture-key",
+      providerOptions: fixture.providerOptions,
+    });
+    if (nativeCalls || compatibleCalls)
+      throw new Error(`${fixture.npm}: construction sent a request`);
+    let text = "";
+    let done = false;
+    for await (const event of model.stream(
+      {
+        messages: [{ role: "user", content: "Reply with OK.", timestamp: 0 }],
+      },
+      { maxRetries: 0 }
+    )) {
+      if (event.type === "text_delta") text += event.delta;
+      if (event.type === "done") done = true;
     }
+    if (text !== "OK" || !done) throw new Error(`${fixture.npm}: first request did not complete`);
+    if (!compatibleCalls || nativeCalls)
+      throw new Error(`${fixture.npm}: first request used the wrong transport`);
   }
 }
 
@@ -554,7 +556,9 @@ async function main() {
     process.exitCode = 1;
     return;
   }
-  console.log("Mobile load and BYOK first-use smoke tests passed (10 protocols, both transports).");
+  console.log(
+    "Mobile load and BYOK first-use smoke tests passed (10 protocols, automatic mobile transport)."
+  );
 }
 
 void main();

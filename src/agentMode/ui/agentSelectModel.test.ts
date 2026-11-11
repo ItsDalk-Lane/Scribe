@@ -184,7 +184,7 @@ describe("agentSelectModel", () => {
         )
       ).toEqual({
         label: "Configure",
-        note: "No chat model is enabled for Scribe yet. Add a provider and enable a model first.",
+        note: "No runnable chat model is configured for Scribe yet. Add a provider and model in Models.",
         action: "configure",
       });
     });

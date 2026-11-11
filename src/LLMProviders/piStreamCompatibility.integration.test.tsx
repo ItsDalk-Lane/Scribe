@@ -1,3 +1,4 @@
+import { Platform } from "obsidian";
 import { randomBytes } from "node:crypto";
 import { act, renderHook } from "@testing-library/react";
 import type { AssistantMessage, AssistantMessageEvent } from "@earendil-works/pi-ai";
@@ -7,6 +8,11 @@ import { configuredModelToCustomModel, type Provider, type ModelInfo } from "@/m
 import { useStreamingChatSession } from "@/hooks/use-streaming-chat-session";
 import { sse } from "@/LLMProviders/testing/piFixtures";
 import * as obsidian from "obsidian";
+
+jest.mock("@/utils/desktopStreamingFetch", () => ({
+  loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
+    window.fetch(input, init),
+}));
 
 const issue = "https://github.com/ItsDalk-Lane/Scribe/issues/8";
 const apiKey = randomBytes(24).toString("hex");
@@ -157,7 +163,8 @@ const cases = [
   },
 ];
 
-function configuration(anthropic: boolean, enableCors: boolean) {
+function configuration(anthropic: boolean, mobile: boolean) {
+  Platform.isMobile = mobile;
   const provider: Provider = {
     providerId: "synthetic-provider",
     providerType: anthropic ? "anthropic" : "openai-compatible",
@@ -165,7 +172,6 @@ function configuration(anthropic: boolean, enableCors: boolean) {
     baseUrl: "https://gateway.invalid/v1",
     origin: { kind: "byok", catalogProviderId: anthropic ? "anthropic" : "openrouter" },
     requiresApiKey: true,
-    enableCors,
     addedAt: 0,
   };
   const info: ModelInfo = {
@@ -201,13 +207,16 @@ async function readAnswer(events: AsyncIterable<AssistantMessageEvent>) {
 
 function controlledResponse() {
   let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const cancelled = jest.fn();
   const body = new ReadableStream<Uint8Array>({
     start(value) {
       controller = value;
     },
+    cancel: cancelled,
   });
   return {
     response: new Response(body, { headers: { "content-type": "text/event-stream" } }),
+    cancelled,
     send(events: unknown[]) {
       controller.enqueue(new TextEncoder().encode(sse(events)));
     },
@@ -229,6 +238,13 @@ function observePublished(text: string) {
 }
 
 describe("piChatModel stream compatibility", () => {
+  beforeEach(() => {
+    Platform.isMobile = false;
+  });
+  afterEach(() => {
+    Platform.isMobile = false;
+  });
+
   const originalFetch = window.fetch;
   let requests: Array<{ url: string; body: string }>;
   let response: string;
@@ -259,13 +275,11 @@ describe("piChatModel stream compatibility", () => {
   });
 
   describe("createPiChatModel", () => {
-    it.each(
-      cases.flatMap((fixture) => [false, true].map((enableCors) => ({ ...fixture, enableCors })))
-    )(
-      `delivers $name once through compatibility=$enableCors and preserves the completed message (${issue})`,
+    it.each(cases.flatMap((fixture) => [false, true].map((mobile) => ({ ...fixture, mobile }))))(
+      `delivers $name once on mobile=$mobile and preserves the completed message (https://github.com/ItsDalk-Lane/Scribe/issues/51; ${issue})`,
       async (fixture) => {
         response = sse(fixture.events, !fixture.anthropic);
-        const { model } = configuration(fixture.anthropic, fixture.enableCors);
+        const { model } = configuration(fixture.anthropic, fixture.mobile);
         const client = await createProviderChatModel(model);
         expect(
           await readAnswer(
@@ -407,7 +421,7 @@ describe("piChatModel stream compatibility", () => {
           );
           expect(onNonAbortError).toHaveBeenCalledTimes(outcome === "stop" ? 0 : 1);
         } finally {
-          if (outcome === "stop") reply.close();
+          if (outcome === "stop") expect(reply.cancelled).toHaveBeenCalled();
           unmount();
         }
       }

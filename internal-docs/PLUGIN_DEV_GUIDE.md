@@ -4,6 +4,10 @@ Obsidian-specific runtime concerns: how to reach the `app`, how to make network
 requests, and how to stay correct across pop-out windows. Read this when
 touching plugin runtime code rather than pure logic.
 
+## 保存插件资料
+
+任何新增文件、缓存、设置或凭据保存逻辑，必须先遵守 [数据保存合同](./DATA_STORAGE.md)。文件资料统一位于当前库根 `.scribe`，轻量设置使用插件 `data.json`；不得复制旧版电脑用户目录、临时目录、本地存储或系统钥匙串的保存方式。
+
 ## Accessing the Obsidian `app`
 
 Don't use the global `app`. It's a footgun in popout windows and hides dependencies from tests.

@@ -512,6 +512,7 @@ export default [
         { type: "session", pattern: "src/agentMode/session" },
         { type: "sdk", pattern: "src/agentMode/sdk" },
         { type: "backend", pattern: "src/agentMode/backends/*", capture: ["name"] },
+        { type: "mcp", pattern: "src/agentMode/mcp" },
         { type: "ui", pattern: "src/agentMode/ui" },
         { type: "skills", pattern: "src/agentMode/skills" },
         { type: "modelmgmt", pattern: "src/modelManagement" },
@@ -530,17 +531,18 @@ export default [
             {
               from: { type: "backend" },
               allow: [
-                { to: { type: ["sdk", "session", "skills", "modelmgmt", "host"] } },
+                { to: { type: ["sdk", "session", "skills", "mcp", "modelmgmt", "host"] } },
                 { to: { type: "backend", captured: { name: "{{from.captured.name}}" } } },
                 { to: { type: "backend", captured: { name: "shared" } } },
               ],
             },
+            { from: { type: "mcp" }, allow: { to: { type: ["mcp", "host"] } } },
             { from: { type: "registry" }, allow: { to: { type: ["backend", "session", "host"] } } },
             {
               from: { type: "ui" },
               allow: {
                 to: {
-                  type: ["ui", "session", "registry", "skills", "excalidrawAgent", "host"],
+                  type: ["ui", "session", "registry", "skills", "mcp", "excalidrawAgent", "host"],
                 },
               },
             },
@@ -556,14 +558,14 @@ export default [
               from: { type: "barrel" },
               allow: {
                 to: {
-                  type: ["session", "sdk", "backend", "registry", "ui", "skills", "host"],
+                  type: ["session", "sdk", "backend", "registry", "ui", "skills", "mcp", "host"],
                 },
               },
             },
             { from: { type: "modelmgmt" }, allow: { to: { type: ["modelmgmt", "host"] } } },
             {
               from: { type: "host" },
-              allow: { to: { type: ["host", "barrel", "modelmgmt"] } },
+              allow: { to: { type: ["host", "barrel", "modelmgmt", "mcp"] } },
             },
           ],
         },

@@ -21,15 +21,42 @@ describe("CommandEditorForm", () => {
         target: { value: "review-model" },
       });
       fireEvent.click(screen.getByRole("checkbox", { name: "Show in context menu" }));
-      fireEvent.click(screen.getByRole("checkbox", { name: "Show in slash menu" }));
       fireEvent.click(screen.getByRole("button", { name: "Save" }));
       expect(onConfirm).toHaveBeenCalledWith({
         ...props.command,
         title: "Edited review",
         modelKey: "review-model",
         showInContextMenu: false,
-        showInSlashMenu: false,
       });
+    });
+    it("orders name, model, context-menu visibility, templating, and prompt, and no longer offers slash-menu visibility", () => {
+      render(<CommandEditorForm {...props} />);
+      const fields = [
+        screen.getByLabelText("Name"),
+        screen.getByLabelText("Model (optional)"),
+        screen.getByRole("checkbox", { name: "Show in context menu" }),
+        screen.getByRole("checkbox", { name: "Command templating" }),
+        screen.getByLabelText("Prompt"),
+      ];
+      fields.slice(1).forEach((field, index) => {
+        expect(fields[index].compareDocumentPosition(field)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+      expect(screen.queryByRole("checkbox", { name: "Show in slash menu" })).toBeNull();
+    });
+    it("turns variable templating off for this command only", () => {
+      const onConfirm = jest.fn();
+      render(
+        <CommandEditorForm
+          {...props}
+          command={{ ...props.command, enableTemplating: true }}
+          onConfirm={onConfirm}
+        />
+      );
+      fireEvent.click(screen.getByRole("checkbox", { name: "Command templating" }));
+      fireEvent.click(screen.getByRole("button", { name: "Save" }));
+      expect(onConfirm).toHaveBeenCalledWith(
+        expect.objectContaining({ enableTemplating: false, title: "Review" })
+      );
     });
     it("keeps invalid content in the editor and reports validation failures", () => {
       const onConfirm = jest.fn();
@@ -67,13 +94,13 @@ describe("CommandEditorForm", () => {
       render(<CommandEditorForm {...props} />);
       expect(
         screen.queryByText(
-          "This name matches the built-in /compact command, so this command never appears in the slash menu."
+          "This name matches the built-in /compact command, so this command stays hidden from the slash menu while the built-in command is enabled."
         )
       ).toBeNull();
       fireEvent.change(screen.getByLabelText("Name"), { target: { value: "compact" } });
       expect(
         screen.getByText(
-          "This name matches the built-in /compact command, so this command never appears in the slash menu."
+          "This name matches the built-in /compact command, so this command stays hidden from the slash menu while the built-in command is enabled."
         )
       ).not.toBeNull();
     });

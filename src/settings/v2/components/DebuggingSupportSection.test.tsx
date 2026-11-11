@@ -1,78 +1,35 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import React from "react";
+import { setInterfaceLocale } from "@/lib/i18n";
 import { DebuggingSupportSection } from "./DebuggingSupportSection";
-
-function renderSection() {
-  const props = {
-    debug: false,
-    onDebugChange: jest.fn(),
-    frameLogEnabled: true,
-    onFrameLogChange: jest.fn(),
-    frameLogPath: "/tmp/obsidian-scribe/acp-frames/3f9a/acp-frames.ndjson",
-    onReportIssue: jest.fn(),
-    offerFeedbackCards: true,
-    onOfferFeedbackCardsChange: jest.fn(),
-    onOpenFrameLog: jest.fn(),
-    onClearFrameLog: jest.fn(),
-  };
-  render(<DebuggingSupportSection {...props} />);
-  return props;
-}
+import storyMeta from "./DebuggingSupportSection.stories";
 
 describe("DebuggingSupportSection", () => {
   describe("DebuggingSupportSection()", () => {
-    const BUTTON_CALLBACKS = ["onReportIssue", "onOpenFrameLog", "onClearFrameLog"] as const;
+    afterEach(() => setInterfaceLocale("en"));
 
-    it.each([
-      ["Report an issue", "onReportIssue"],
-      ["Open", "onOpenFrameLog"],
-      ["Clear", "onClearFrameLog"],
-    ] as const)("hands the %s button's click to %s and to no other callback", (name, own) => {
-      const props = renderSection();
+    it("keeps only the debug switch and removes feedback reporting https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+      const onDebugChange = jest.fn();
+      render(<DebuggingSupportSection {...storyMeta.args} onDebugChange={onDebugChange} />);
 
-      fireEvent.click(screen.getByRole("button", { name }));
-
-      for (const callback of BUTTON_CALLBACKS) {
-        expect(props[callback]).toHaveBeenCalledTimes(callback === own ? 1 : 0);
-      }
+      expect(screen.queryByText("Report an issue")).toBeNull();
+      expect(screen.queryByText("Offer feedback reports in Agent Chat")).toBeNull();
+      expect(screen.queryByText("Agent activity log")).toBeNull();
+      expect(screen.queryByRole("button")).toBeNull();
+      expect(screen.getAllByRole("switch")).toHaveLength(1);
+      expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("false");
+      fireEvent.click(screen.getByRole("switch"));
+      expect(onDebugChange).toHaveBeenCalledWith(true);
     });
 
-    it("keeps the three switches on separate callbacks", () => {
-      const props = renderSection();
-      const [feedbackSwitch, debugSwitch, frameLogSwitch] = screen.getAllByRole("switch");
+    it("shows an enabled debug switch and passes a disable action to its callback", () => {
+      const onDebugChange = jest.fn();
+      render(<DebuggingSupportSection {...storyMeta.args} debug onDebugChange={onDebugChange} />);
 
-      fireEvent.click(feedbackSwitch);
-
-      expect(props.onOfferFeedbackCardsChange).toHaveBeenCalledWith(false);
-      expect(props.onDebugChange).not.toHaveBeenCalled();
-      expect(props.onFrameLogChange).not.toHaveBeenCalled();
-
-      fireEvent.click(debugSwitch);
-
-      expect(props.onDebugChange).toHaveBeenCalledWith(true);
-      expect(props.onFrameLogChange).not.toHaveBeenCalled();
-
-      fireEvent.click(frameLogSwitch);
-
-      expect(props.onFrameLogChange).toHaveBeenCalledWith(false);
-      expect(props.onDebugChange).toHaveBeenCalledTimes(1);
-      expect(props.onOfferFeedbackCardsChange).toHaveBeenCalledTimes(1);
-    });
-
-    it("names where the activity log is written, so it can be found without this component reading the disk", () => {
-      const props = renderSection();
-
-      expect(screen.getByText(new RegExp(props.frameLogPath))).toBeTruthy();
-    });
-
-    it("does not promise that current native chats are recorded into the activity log (https://github.com/ItsDalk-Lane/Scribe/issues/22)", () => {
-      renderSection();
-
-      const description = screen
-        .getAllByText(/frameLogPath|stored on this device/i)
-        .map((node) => node.textContent)
-        .join(" ");
-      expect(description).toContain("Current native chats are not recorded");
+      expect(screen.getAllByRole("switch")).toHaveLength(1);
+      expect(screen.getByRole("switch").getAttribute("aria-checked")).toBe("true");
+      fireEvent.click(screen.getByRole("switch"));
+      expect(onDebugChange).toHaveBeenCalledWith(false);
     });
   });
 });

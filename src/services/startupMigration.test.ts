@@ -1,7 +1,6 @@
 import {
   formatStartupMigrationSummary,
   runStartupMigrationSummary,
-  shouldClearCredentialRecovery,
   type StartupMigrationItem,
   type StartupMigrationTask,
   type StartupMigrationTasks,
@@ -42,20 +41,12 @@ describe("startupMigration", () => {
     it("formats statuses and recovery details as one readable message", () => {
       expect(formatStartupMigrationSummary([initial, failure, final])).toBe(
         [
-          "Scribe finished updating this vault.",
+          "Scribe startup report.",
           "API keys — Completed\nKeys migrated.",
           "Projects — Failed\nProjects failed.",
           "Prompts — Action required\nReview prompt locations.\n• Open Scribe Settings.",
         ].join("\n\n")
       );
-    });
-  });
-
-  describe("shouldClearCredentialRecovery()", () => {
-    it("clears only a presented receipt owned by this device", () => {
-      expect(shouldClearCredentialRecovery([initial], "device-a", "device-a")).toBe(true);
-      expect(shouldClearCredentialRecovery([initial], "device-b", "device-a")).toBe(false);
-      expect(shouldClearCredentialRecovery([], "device-a", "device-a")).toBe(false);
     });
   });
 

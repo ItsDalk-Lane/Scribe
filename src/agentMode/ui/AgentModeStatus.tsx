@@ -64,9 +64,12 @@ export const AgentModeStatus: React.FC<Props> = ({ manager, plugin, onInstallCli
       <AgentStatusCard
         message={
           usesConfiguredModels
-            ? t("No chat model is enabled for {p0} yet. Add a provider and enable a model first.", {
-                p0: descriptor.displayName,
-              })
+            ? t(
+                "No runnable chat model is configured for {p0} yet. Add a provider and model in Models.",
+                {
+                  p0: descriptor.displayName,
+                }
+              )
             : t("{p0} not installed", { p0: descriptor.displayName })
         }
         action={{

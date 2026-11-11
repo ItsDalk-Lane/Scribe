@@ -47,12 +47,12 @@ function pickerIds(): string[] {
 
 describe("atoms", () => {
   describe("chatBackendPickerAtom", () => {
-    it("lists enabled models in order and marks missing models as broken", () => {
-      expect(pickerIds()).toEqual(["cloud-m", "local-m", "missing"]);
+    it("lists configured chat models in registration order regardless of old switches https://github.com/ItsDalk-Lane/Scribe/issues/31", () => {
+      setSettings({ backends: { chat: { enabledModels: [] } } });
+      expect(pickerIds()).toEqual(["cloud-m", "local-m"]);
       expect(settingsStore.get(chatBackendPickerAtom).map((entry) => entry.state)).toEqual([
         "ok",
         "ok",
-        "broken",
       ]);
     });
 
@@ -90,10 +90,27 @@ describe("atoms", () => {
         ["chat", "ok"],
         ["manual-unknown", "ok"],
         ["orphan-chat", "broken"],
-        ["missing-record", "broken"],
       ]);
       expect(settingsStore.get(configuredModelsAtom)).toEqual(saved);
       expect(settingsStore.get(backendsAtom).chat?.enabledModels).toEqual(enabledModels);
+    });
+
+    it("excludes every model of a provider switched off for selectors while keeping the provider listed for settings https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      setSettings({ providers: { cloud: { ...CLOUD, enabled: false }, local: LOCAL } });
+      expect(pickerIds()).toEqual(["local-m"]);
+      setSettings({ providers: { cloud: CLOUD, local: { ...LOCAL, enabled: true } } });
+      expect(pickerIds()).toEqual(["cloud-m", "local-m"]);
+      expect(settingsStore.get(visibleByokProvidersAtom).map((p) => p.providerId)).toEqual([
+        "cloud",
+        "local",
+      ]);
+    });
+
+    it("returns the canonical empty list when the only configured provider is switched off https://github.com/ItsDalk-Lane/Scribe/issues/69", () => {
+      setSettings({
+        providers: { cloud: { ...CLOUD, enabled: false }, local: { ...LOCAL, enabled: false } },
+      });
+      expect(settingsStore.get(chatBackendPickerAtom)).toEqual([]);
     });
 
     it("returns the canonical empty list when enabled records are all non-chat models", () => {
@@ -108,8 +125,8 @@ describe("atoms", () => {
       expect(after).toBe(before);
     });
 
-    it("returns the same empty list on every read when no models are enabled", () => {
-      setSettings({ backends: { chat: { enabledModels: [] } } });
+    it("returns the same empty list on every read when no models are configured", () => {
+      setSettings({ configuredModels: [] });
       const a = settingsStore.get(chatBackendPickerAtom);
       const b = settingsStore.get(chatBackendPickerAtom);
       expect(a).toHaveLength(0);
@@ -118,7 +135,7 @@ describe("atoms", () => {
   });
 
   describe("visibleByokProvidersAtom", () => {
-    it("preserves the configured order of cloud and local BYOK providers", () => {
+    it("preserves the configured order of cloud and local providers", () => {
       expect(settingsStore.get(visibleByokProvidersAtom).map((p) => p.providerId)).toEqual([
         "cloud",
         "local",
@@ -128,7 +145,7 @@ describe("atoms", () => {
       );
     });
 
-    it("returns the same empty list on every read when no BYOK providers exist", () => {
+    it("returns the same empty list on every read when no configured providers exist", () => {
       setSettings({ providers: {}, configuredModels: [] });
       const a = settingsStore.get(visibleByokProvidersAtom);
       const b = settingsStore.get(visibleByokProvidersAtom);

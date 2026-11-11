@@ -2,6 +2,7 @@ import { logWarn } from "@/logger";
 import type { BackendId } from "./types";
 
 export interface AgentSessionIndexEntry {
+  lastSeq?: number;
   backendId: BackendId;
   sessionId: string;
   title: string | null;
@@ -15,6 +16,7 @@ interface AgentSessionIndexFile {
   version: 1;
   entries: AgentSessionIndexEntry[];
   tombstones: Record<string, number>;
+  pinOverrides?: Record<string, number | null>;
 }
 
 export interface AgentSessionIndexStorage {
@@ -50,12 +52,17 @@ function sanitizeEntry(raw: unknown): AgentSessionIndexEntry | null {
     createdAtMs: createdAtMs ?? lastAccessedAtMs!,
     lastAccessedAtMs: lastAccessedAtMs ?? createdAtMs!,
     projectId: typeof r.projectId === "string" && r.projectId.trim() ? r.projectId : undefined,
+    lastSeq:
+      typeof r.lastSeq === "number" && Number.isSafeInteger(r.lastSeq) && r.lastSeq >= 0
+        ? r.lastSeq
+        : undefined,
   };
 }
 
 export class AgentSessionIndex {
   private entries = new Map<string, AgentSessionIndexEntry>();
   private tombstones = new Map<string, number>();
+  private pinOverrides = new Map<string, number | null>();
   private loadPromise: Promise<void> | null = null;
   private saveTimer: number | null = null;
   private writeChain: Promise<void> = Promise.resolve();
@@ -75,6 +82,19 @@ export class AgentSessionIndex {
     return this.entries.get(entryKey(backendId, sessionId)) ?? null;
   }
 
+  async getPinOverride(id: string): Promise<number | null | undefined> {
+    await this.ensureLoaded();
+    return this.pinOverrides.get(id);
+  }
+
+  async setPinOverride(id: string, pinnedAt: number | null | undefined): Promise<void> {
+    await this.ensureLoaded();
+    // 删除聊天时一并删除置顶覆盖；null 仍表示保留的明确取消状态。https://github.com/ItsDalk-Lane/Scribe/issues/31
+    if (pinnedAt === undefined) this.pinOverrides.delete(id);
+    else this.pinOverrides.set(id, pinnedAt);
+    this.scheduleSave();
+  }
+
   async recordSession(entry: AgentSessionIndexEntry): Promise<void> {
     await this.ensureLoaded();
     const key = entryKey(entry.backendId, entry.sessionId);
@@ -92,6 +112,7 @@ export class AgentSessionIndex {
         existing?.lastAccessedAtMs ?? entry.lastAccessedAtMs
       ),
       projectId: entry.projectId ?? existing?.projectId,
+      lastSeq: entry.lastSeq ?? existing?.lastSeq,
     });
     this.scheduleSave();
   }
@@ -115,13 +136,15 @@ export class AgentSessionIndex {
           existing?.lastAccessedAtMs ?? entry.lastAccessedAtMs
         ),
         projectId: existing?.projectId ?? entry.projectId,
+        lastSeq: entry.lastSeq ?? existing?.lastSeq,
       };
       if (
         !existing ||
         existing.title !== next.title ||
         existing.createdAtMs !== next.createdAtMs ||
         existing.lastAccessedAtMs !== next.lastAccessedAtMs ||
-        existing.projectId !== next.projectId
+        existing.projectId !== next.projectId ||
+        existing.lastSeq !== next.lastSeq
       ) {
         this.entries.set(key, next);
         changed = true;
@@ -201,6 +224,17 @@ export class AgentSessionIndex {
         const entry = sanitizeEntry(candidate);
         if (entry) this.entries.set(entryKey(entry.backendId, entry.sessionId), entry);
       }
+      // 旧笔记的取消置顶必须跨重启保留，同时不改写用户笔记。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      if (raw.pinOverrides && typeof raw.pinOverrides === "object") {
+        for (const [id, value] of Object.entries(raw.pinOverrides)) {
+          if (
+            value === null ||
+            (typeof value === "number" && Number.isFinite(value) && value > 0)
+          ) {
+            this.pinOverrides.set(id, value);
+          }
+        }
+      }
       if (raw.tombstones && typeof raw.tombstones === "object") {
         for (const [key, value] of Object.entries(raw.tombstones)) {
           if (typeof value === "number" && value > 0) this.tombstones.set(key, value);
@@ -245,6 +279,9 @@ export class AgentSessionIndex {
       version: 1,
       entries,
       tombstones: Object.fromEntries(tombstonePairs),
+      ...(this.pinOverrides.size > 0
+        ? { pinOverrides: Object.fromEntries(this.pinOverrides) }
+        : {}),
     };
     return JSON.stringify(file, null, 2);
   }

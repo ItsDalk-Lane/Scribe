@@ -1,39 +1,17 @@
 import type { App } from "obsidian";
-import { FileSystemAdapter, Platform } from "obsidian";
+import { FileSystemAdapter } from "obsidian";
 import * as path from "node:path";
-import { md5 } from "@/utils/hash";
-import { scribeAppDataDir, getVaultId } from "./appPaths";
+import { getScribeDataPath } from "./appPaths";
 
 describe("appPaths", () => {
-  describe("scribeAppDataDir()", () => {
-    it("is ~/.obsidian-scribe under the given home dir", () => {
-      expect(scribeAppDataDir("/Users/me")).toBe(path.join("/Users/me", ".obsidian-scribe"));
+  describe("getScribeDataPath()", () => {
+    it("uses the current vault instead of the operating system home directory", () => {
+      const Adapter = FileSystemAdapter as unknown as new (basePath: string) => FileSystemAdapter;
+      const app = { vault: { adapter: new Adapter("/Users/me/My Vault") } } as unknown as App;
+      expect(getScribeDataPath(app)).toBe(path.join("/Users/me/My Vault", ".scribe"));
     });
-
-    it("throws the desktop-only error on non-desktop runtimes instead of a TypeError", () => {
-      const platform = Platform as { isMobile: boolean };
-      platform.isMobile = true;
-      try {
-        expect(() => scribeAppDataDir("/Users/me")).toThrow(/unavailable outside the desktop/);
-      } finally {
-        platform.isMobile = false;
-      }
-    });
-  });
-
-  describe("getVaultId()", () => {
-    const appWith = (adapter: unknown): App => ({ vault: { adapter } }) as unknown as App;
-    const FsAdapter = FileSystemAdapter as unknown as new (basePath: string) => FileSystemAdapter;
-
-    it("is the first 8 hex chars of md5(vaultBasePath) for a desktop adapter", () => {
-      const app = appWith(new FsAdapter("/Users/me/My Vault"));
-      expect(getVaultId(app)).toBe(md5("/Users/me/My Vault").slice(0, 8));
-      expect(getVaultId(app)).toHaveLength(8);
-    });
-
-    it('falls back to "default" when the adapter is not a FileSystemAdapter', () => {
-      const app = appWith({ getBasePath: () => "/unused" });
-      expect(getVaultId(app)).toBe("default");
+    it("rejects a vault without a desktop filesystem", () => {
+      expect(() => getScribeDataPath({ vault: { adapter: {} } } as App)).toThrow("desktop vault");
     });
   });
 

@@ -51,12 +51,14 @@ export function appendBackendSection(
   if (!isAgentBackendEnabled(ctx.settings, descriptor.id)) return;
   const enabledEntries = descriptor.getEnabledModelEntries?.(ctx.settings) ?? null;
   if (!enabledEntries) return;
+  const sectionStart = entries.length;
   if (!ctx.backendModels) {
     if (!ctx.useEnabledFallback) return;
     appendEnabledFallbackEntries(entries, descriptor, enabledEntries);
-    return;
+  } else {
+    appendFromEnabledEntries(entries, descriptor, enabledEntries, ctx.backendModels);
   }
-  appendFromEnabledEntries(entries, descriptor, enabledEntries, ctx.backendModels);
+  sortSectionByGroup(entries, sectionStart);
 }
 
 function appendEnabledFallbackEntries(
@@ -73,7 +75,9 @@ function appendEnabledFallbackEntries(
       enabled.isFree,
       enabled.capabilities
     );
-    if (enabled.credentialState === "missing_key") entry._disabledReason = t(MISSING_KEY_LABEL);
+    applyProviderGroup(entry, enabled);
+    const reason = credentialDisabledReason(enabled.credentialState, true);
+    if (reason) entry._disabledReason = reason;
     entries.push(entry);
   }
 }
@@ -98,10 +102,27 @@ function appendFromEnabledEntries(
       enabled.isFree,
       capabilities
     );
+    applyProviderGroup(entry, enabled);
     const reason = credentialDisabledReason(enabled.credentialState, !!reported);
     if (reason) entry._disabledReason = reason;
     entries.push(entry);
   }
+}
+
+// 模型选择器按供应商分组；来源缺失时回退到后端名分组。https://github.com/ItsDalk-Lane/Scribe/issues/69
+function applyProviderGroup(entry: ModelSelectorEntry, enabled: EnabledModelEntry): void {
+  if (enabled.providerLabel) entry._group = enabled.providerLabel;
+}
+
+// 分组头只在相邻同名组渲染一次；后端段内按供应商名排序保证组内连续，稳定排序保持原配置顺序。https://github.com/ItsDalk-Lane/Scribe/issues/69
+function sortSectionByGroup(entries: ModelSelectorEntry[], start: number): void {
+  const section = entries.splice(start);
+  section.sort((a, b) => {
+    const aGroup = a._group ?? "";
+    const bGroup = b._group ?? "";
+    return aGroup === bGroup ? 0 : aGroup < bGroup ? -1 : 1;
+  });
+  entries.push(...section);
 }
 
 function credentialDisabledReason(
@@ -109,6 +130,7 @@ function credentialDisabledReason(
   reported: boolean
 ): string | undefined {
   if (state === "missing_key") return t(MISSING_KEY_LABEL);
+  if (state === "unavailable_key") return t("Cannot read API key on this device");
   if (!reported) return t("Not offered by agent");
   return undefined;
 }
@@ -214,14 +236,18 @@ export function buildPickerEntries(
     const backendModels = catalog?.availableModels ?? null;
     const hasNoCatalog = catalog === null;
     const preloadStatus = manager.getPreloadStatus(descriptor.id);
-    if (!isActiveBackend && descriptor.getInstallState(settings).kind === "absent") continue;
+    const installState = descriptor.getInstallState(settings);
+    const configurationUnavailable =
+      installState.kind === "error" && installState.reason === "configuration";
+    if (!isActiveBackend && installState.kind === "absent") continue;
     const sectionStart = entries.length;
     appendBackendSection(entries, descriptor, {
       backendModels,
       settings,
       useEnabledFallback: hasNoCatalog && (preloadStatus === "ready" || preloadStatus === "error"),
     });
-    if (hasNoCatalog && entries.length === sectionStart) {
+    // 未启用模型并非加载失败，不能借用旧预加载结果误报。https://github.com/ItsDalk-Lane/Scribe/issues/21
+    if (hasNoCatalog && entries.length === sectionStart && !configurationUnavailable) {
       if (preloadStatus === "pending") {
         entries.push(synthesizePreloadPlaceholder(descriptor, "pending"));
       } else if (preloadStatus === "ready" || preloadStatus === "error") {
@@ -229,7 +255,7 @@ export function buildPickerEntries(
       }
     }
     if (!isActiveBackend) {
-      const readiness = backendReadinessReason(descriptor.getInstallState(settings));
+      const readiness = backendReadinessReason(installState);
       if (readiness) {
         for (let i = sectionStart; i < entries.length; i++) {
           entries[i]._disabledReason = readiness;
@@ -303,14 +329,18 @@ function runCrossBackendPick(
   void (async () => {
     try {
       const seedSelection = { baseModelId, effort };
-      if (oldSessionId) {
-        await manager.replaceSessionInPlace(oldSessionId, targetBackendId, {
-          preserveChatInput: true,
-          seedSelection,
-        });
-      } else {
-        await manager.createSession(targetBackendId, undefined, seedSelection);
-      }
+      const created = oldSessionId
+        ? await manager.replaceSessionInPlace(oldSessionId, targetBackendId, {
+            preserveChatInput: true,
+            seedSelection,
+          })
+        : await manager.createSession(targetBackendId, undefined, seedSelection);
+      // 新建聊天中的手动选择也要等启动成功后记住，恢复旧聊天不走此路径。https://github.com/ItsDalk-Lane/Scribe/issues/31
+      await created.ready;
+      manager.persistDefaultSelection(
+        targetBackendId,
+        created.getState()?.model?.current ?? seedSelection
+      );
       manager.setDefaultBackend(targetBackendId);
     } catch (err) {
       logError("[AgentMode] cross-backend pick failed", err);

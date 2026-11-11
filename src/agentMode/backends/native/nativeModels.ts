@@ -1,18 +1,25 @@
 import type { App } from "obsidian";
 import ChatModelManager from "@/LLMProviders/chatModelManager";
 import type { ProviderChatModel } from "@/LLMProviders/piChatModel";
-import type { EnabledModelEntry, ModelEntry } from "@/agentMode/session/types";
+import type {
+  EnabledModelCredentialState,
+  EnabledModelEntry,
+  ModelEntry,
+} from "@/agentMode/session/types";
 import {
   capabilitiesFromConfiguredInfo,
   configuredModelToCustomModel,
   isChatModelInfo,
-  isChatModelSelectionForEntry,
   providerNeedsResolvedApiKey,
+  isProviderModelsEnabled,
   type ConfiguredModel,
+  type Provider,
 } from "@/modelManagement";
-import { KeychainService } from "@/services/keychainService";
+import { SecretStore } from "@/services/secretStore";
 import { getSettings, type ScribeSettings } from "@/settings/model";
 import { t } from "@/lib/i18n";
+import { MissingApiKeyError } from "@/error";
+import { resolveModelThinking } from "@/LLMProviders/modelThinking";
 
 const EMPTY_MODELS: ConfiguredModel[] = Object.freeze([]) as unknown as ConfiguredModel[];
 const EMPTY_MODEL_ENTRIES: ModelEntry[] = Object.freeze([]) as unknown as ModelEntry[];
@@ -22,57 +29,27 @@ const EMPTY_ENABLED_ENTRIES: EnabledModelEntry[] = Object.freeze(
 const EMPTY_EFFORT_OPTIONS: ModelEntry["effortOptions"] = Object.freeze(
   []
 ) as unknown as ModelEntry["effortOptions"];
-const THINKING_LEVELS: readonly string[] = [
-  "off",
-  "minimal",
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-];
 
-const EMPTY_MODEL_IDS: readonly string[] = Object.freeze([]);
-
-function configuredModels(
-  settings: ScribeSettings,
-  enabledIds: readonly string[] = settings.backends.native?.enabledModels ??
-    settings.backends.chat?.enabledModels ??
-    EMPTY_MODEL_IDS
-): ConfiguredModel[] {
-  const byId = new Map(settings.configuredModels.map((model) => [model.configuredModelId, model]));
-  const models = [...new Set(enabledIds)].flatMap((id) => {
-    const model = byId.get(id);
-    return model &&
-      settings.providers[model.providerId]?.origin.kind === "byok" &&
-      isChatModelInfo(model.info)
-      ? [model]
-      : EMPTY_MODELS;
-  });
-  return models.length ? models : EMPTY_MODELS;
+function configuredModels(settings: ScribeSettings): ConfiguredModel[] {
+  // 模型一次配置后直接供聊天使用，历史启用清单只保留兼容加载。https://github.com/ItsDalk-Lane/Scribe/issues/31
+  const models = settings.configuredModels.filter(
+    (model) =>
+      settings.providers[model.providerId]?.origin.kind === "byok" && isChatModelInfo(model.info)
+  );
+  // 关闭的供应商模型对代理整体不可见：默认模型解析、就绪状态与运行时实例化共用本清单。https://github.com/ItsDalk-Lane/Scribe/issues/69
+  const visible = models.filter((model) =>
+    isProviderModelsEnabled(settings.providers[model.providerId])
+  );
+  return visible.length ? visible : EMPTY_MODELS;
 }
 
 export function getNativeDefaultModelId(settings: ScribeSettings): string | undefined {
-  const explicit = settings.agentMode.backends.native?.defaultModel?.baseModelId;
-  if (explicit) return explicit;
-  const models = configuredModels(
-    settings,
-    settings.backends.chat?.enabledModels ?? EMPTY_MODEL_IDS
+  const models = getNativeEnabledModelEntries(settings).filter(
+    (model) => model.credentialState === "ok"
   );
+  const previous = settings.agentMode.backends.native?.defaultModel?.baseModelId;
   return (
-    models.find((model) =>
-      isChatModelSelectionForEntry(
-        {
-          configuredModelId: model.configuredModelId,
-          state: "ok",
-          configuredModel: model,
-          provider: settings.providers[model.providerId],
-        },
-        settings.defaultModelKey
-      )
-    )?.configuredModelId ??
-    models[0]?.configuredModelId ??
-    configuredModels(settings)[0]?.configuredModelId
+    models.find((model) => model.baseModelId === previous)?.baseModelId ?? models[0]?.baseModelId
   );
 }
 
@@ -80,9 +57,12 @@ export function getNativeModelEntries(settings: ScribeSettings): ModelEntry[] {
   const models = configuredModels(settings);
   if (!models.length) return EMPTY_MODEL_ENTRIES;
   return models.map((model) => {
-    const efforts = (model.info.reasoningEfforts ?? [])
-      .map((value) => (value === "none" ? "off" : value))
-      .filter((value) => THINKING_LEVELS.includes(value));
+    const efforts = resolveModelThinking(
+      configuredModelToCustomModel({
+        provider: settings.providers[model.providerId],
+        configuredModel: model,
+      })
+    ).levels;
     return {
       baseModelId: model.configuredModelId,
       name: model.info.displayName || model.info.id,
@@ -98,28 +78,45 @@ export function getNativeModelEntries(settings: ScribeSettings): ModelEntry[] {
   });
 }
 
+function credentialState(provider: Provider): EnabledModelCredentialState {
+  if (!providerNeedsResolvedApiKey(provider)) return "ok";
+  if (!provider.apiKeyRef) return "missing_key";
+  try {
+    const status = SecretStore.getInstance().getStatus(provider.apiKeyRef);
+    return status === "missing"
+      ? "missing_key"
+      : status === "unavailable"
+        ? "unavailable_key"
+        : "ok";
+  } catch {
+    return "unavailable_key";
+  }
+}
+
+export function getNativeModelReadiness(
+  settings: ScribeSettings
+): "no_models" | "missing_credentials" | "ready" {
+  const models = configuredModels(settings);
+  if (!models.length) return "no_models";
+  return models.some((model) => credentialState(settings.providers[model.providerId]) === "ok")
+    ? "ready"
+    : "missing_credentials";
+}
+
 export function getNativeEnabledModelEntries(settings: ScribeSettings): EnabledModelEntry[] {
   const models = configuredModels(settings);
   if (!models.length) return EMPTY_ENABLED_ENTRIES;
-  const preferred = getNativeDefaultModelId(settings);
-  return models
-    .map((model): EnabledModelEntry => {
-      const provider = settings.providers[model.providerId];
-      return {
-        baseModelId: model.configuredModelId,
-        name: model.info.displayName || model.info.id,
-        description: model.info.description,
-        credentialState:
-          providerNeedsResolvedApiKey(provider) && !provider.apiKeyKeychainId
-            ? "missing_key"
-            : "ok",
-        capabilities: capabilitiesFromConfiguredInfo(model.info),
-      };
-    })
-    .sort(
-      (left, right) =>
-        Number(right.baseModelId === preferred) - Number(left.baseModelId === preferred)
-    );
+  return models.map((model): EnabledModelEntry => {
+    const provider = settings.providers[model.providerId];
+    return {
+      baseModelId: model.configuredModelId,
+      name: model.info.displayName || model.info.id,
+      description: model.info.description,
+      providerLabel: provider.displayName,
+      credentialState: credentialState(provider),
+      capabilities: capabilitiesFromConfiguredInfo(model.info),
+    };
+  });
 }
 
 export async function createNativeModel(app: App, modelId: string): Promise<ProviderChatModel> {
@@ -132,10 +129,10 @@ export async function createNativeModel(app: App, modelId: string): Promise<Prov
       `The selected native agent model is unavailable: ${modelId}. Choose it in the existing model settings.`
     );
   const provider = settings.providers[model.providerId];
-  const apiKey = provider.apiKeyKeychainId
-    ? KeychainService.getInstance(app).getSecretById(provider.apiKeyKeychainId)
-    : null;
+  SecretStore.getInstance(app);
+  if (credentialState(provider) !== "ok")
+    throw new MissingApiKeyError(t("Provider credentials are missing."));
   return ChatModelManager.getInstance().createModelInstanceFromBridged(
-    configuredModelToCustomModel({ provider, configuredModel: model, apiKey })
+    configuredModelToCustomModel({ provider, configuredModel: model })
   );
 }

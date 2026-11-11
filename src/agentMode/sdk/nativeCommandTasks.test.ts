@@ -1,7 +1,7 @@
 import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NativeCommandTasks } from "@/agentMode/sdk/nativeCommandTasks";
+import { NativeCommandTasks, formatCommandResult } from "@/agentMode/sdk/nativeCommandTasks";
 import type { SessionUpdate } from "@/agentMode/session/types";
 
 async function waitForFile(path: string): Promise<string> {
@@ -18,6 +18,39 @@ async function waitForFile(path: string): Promise<string> {
 }
 
 describe("nativeCommandTasks", () => {
+  describe("formatCommandResult()", () => {
+    it("always includes command outcome and full-output location beside nonempty stdout https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      const actual = formatCommandResult({
+        taskId: "command-1",
+        outputFile: "/vault/.scribe/chats/v2/tasks/command-1.output",
+        output: "Wrote part of the file",
+        exitCode: 3,
+        status: "failed",
+        truncated: false,
+        complete: false,
+      });
+      expect(actual).toContain('"status":"failed"');
+      expect(actual).toContain('"exitCode":3');
+      expect(actual).toContain('"retry":"verify_before_retry"');
+      expect(actual).toContain("command-1.output");
+      expect(actual).toContain("Wrote part of the file");
+    });
+    it("identifies a background command as running and forbids launching the same task again https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      const actual = formatCommandResult({
+        taskId: "command-1",
+        outputFile: "command-1.output",
+        output: "Starting",
+        exitCode: null,
+        status: "running",
+        truncated: false,
+        complete: false,
+      });
+      expect(actual).toContain('"status":"running"');
+      expect(actual).toContain('"retry":"never"');
+      expect(actual).toContain('"complete":false');
+    });
+  });
+
   describe("NativeCommandTasks", () => {
     let directory: string;
     let tasks: NativeCommandTasks;
@@ -45,6 +78,32 @@ describe("nativeCommandTasks", () => {
     });
 
     describe("run", () => {
+      it("reports complete short output with stable result identity https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const actual = await tasks.run({
+          toolCallId: "complete",
+          command: `"${process.execPath}" -p "42"`,
+        });
+        expect(actual).toMatchObject({
+          status: "completed",
+          exitCode: 0,
+          complete: true,
+          truncated: false,
+          taskId: expect.any(String),
+          outputFile: expect.any(String),
+        });
+      });
+      it("marks a long command output as partial without splitting emoji https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const actual = await tasks.run({
+          toolCallId: "emoji",
+          command: `"${process.execPath}" -e "process.stdout.write('😀'.repeat(32768)+'x')"`,
+        });
+        expect(actual).toMatchObject({ status: "completed", truncated: true, complete: false });
+        expect(actual.output.charCodeAt(0) >= 0xdc00 && actual.output.charCodeAt(0) <= 0xdfff).toBe(
+          false
+        );
+        expect(await readFile(actual.outputFile, "utf8")).toBe("😀".repeat(32768) + "x");
+      });
+
       it("passes the Scribe skill environment to the real command without changing machine configuration", async () => {
         const runner = new NativeCommandTasks({
           cwd: directory,
@@ -166,6 +225,33 @@ describe("nativeCommandTasks", () => {
           expect.objectContaining({ sessionUpdate: "task_ended", taskId: result.taskId })
         );
       });
+
+      it("reports a background command that exits during start persistence as completed https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        let ended!: () => void;
+        const exited = new Promise<void>((resolve) => {
+          ended = resolve;
+        });
+        const runner = new NativeCommandTasks({
+          cwd: directory,
+          sessionId: "quick-background",
+          outputDirectory: join(directory, "quick-output"),
+          emit: (update) => {
+            if (update.sessionUpdate === "task_ended") ended();
+          },
+          flush: () => exited,
+        });
+        try {
+          await expect(
+            runner.run({
+              toolCallId: "quick",
+              command: `"${process.execPath}" -p "42"`,
+              background: true,
+            })
+          ).resolves.toMatchObject({ status: "completed", exitCode: 0, output: "42\n" });
+        } finally {
+          await runner.shutdown();
+        }
+      });
     });
 
     describe("stop", () => {
@@ -277,6 +363,42 @@ describe("nativeCommandTasks", () => {
     });
 
     describe("shutdown", () => {
+      it("prevents launch when shutdown occurs during background admission persistence https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        let entered!: () => void;
+        let release!: () => void;
+        const admissionEntered = new Promise<void>((resolve) => {
+          entered = resolve;
+        });
+        const admission = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const runner = new NativeCommandTasks({
+          cwd: directory,
+          sessionId: "pending-admission",
+          outputDirectory: join(directory, "pending-output"),
+          emit: (update) => updates.push(update),
+          beforeStart: () => {
+            entered();
+            return admission;
+          },
+        });
+        const run = runner.run({
+          toolCallId: "pending",
+          command: `"${process.execPath}" -p "42"`,
+          background: true,
+        });
+        try {
+          await admissionEntered;
+          await runner.shutdown();
+          release();
+          await expect(run).rejects.toThrow(/closed/i);
+          expect(updates).toEqual([]);
+        } finally {
+          release();
+          await runner.shutdown();
+        }
+      });
+
       it("waits for all running processes to stop and prevents new commands", async () => {
         const result = await tasks.run({
           toolCallId: "unload",

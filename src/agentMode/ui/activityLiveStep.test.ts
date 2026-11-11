@@ -42,17 +42,21 @@ describe("activityLiveStep", () => {
         action("b", { vendorToolName: "Bash", status: "in_progress", input: { command: "npm t" } }),
       ];
 
-      expect(activityLiveStep(members, true)).toBe("Running `npm t`");
+      expect(activityLiveStep(members, true)).toBe("Running command `npm t`");
     });
 
     it("prefers the latest unsettled call when parallel calls resolve out of order", () => {
       const members = [
-        action("a", { vendorToolName: "Bash", status: "pending", input: { command: "npm run a" } }),
+        action("a", {
+          vendorToolName: "Read",
+          status: "pending",
+          input: { file_path: "Notes/A.md" },
+        }),
         action("b", { vendorToolName: "Bash", status: "pending", input: { command: "npm run b" } }),
         action("c", { vendorToolName: "Bash", input: { command: "npm run c" } }),
       ];
 
-      expect(activityLiveStep(members, true)).toBe("Running `npm run b`");
+      expect(activityLiveStep(members, true)).toBe("Waiting to run · Bash");
     });
 
     it("goes quiet once the group has nothing left in flight", () => {
@@ -81,7 +85,7 @@ describe("activityLiveStep", () => {
       ];
 
       expect(activityLiveStep(members, true, { vaultBase: "/vault" })).toBe(
-        "Reading Notes/Inbox.md"
+        "Reading files Notes/Inbox.md"
       );
     });
   });

@@ -13,6 +13,7 @@ const NATIVE_PRESENTATION_NAMES: Readonly<Record<string, string>> = Object.freez
   web_search: "WebSearch",
   fetch_url: "WebFetch",
   invoke_skill: "Skill",
+  tool_search: "ToolSearch",
 });
 
 export function toolPresentationName(name: string): string {
