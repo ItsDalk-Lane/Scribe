@@ -28,7 +28,7 @@ Scribe ran into an error while loading and stayed off for this session. To see t
 
 If a credential file is missing or unreadable, enter that provider's key again. Locked saved keys remain selectable and ask for the master password when you send.
 
-如果 Agent Chat 的模型选择器显示 **Not offered by agent**，说明当前代理没有报告该模型；请选择它当前提供的模型。
+如果 Agent Chat 的模型选择器显示 **代理未提供**（**Not offered by agent**），说明当前代理没有报告该模型；请选择它当前提供的模型。
 
 参见 [Getting Started](getting-started.md) 和 [Models](models-and-parameters.md)。
 
@@ -133,7 +133,7 @@ Readable parts of a damaged chat remain available where possible. If safe contin
 
 ### Collecting logs by hand
 
-Run **打开 Scribe 日志文件** from the command palette to save the Scribe log into your vault as a note and open it. The old Agent Chat activity-log controls have been removed; current native chats do not write that log. 旧版代理活动日志入口已移除，当前原生聊天不写入该日志。
+Run **打开 Scribe 日志文件** from the command palette to save the Scribe log inside `.scribe` and open it with your system application. 旧版代理活动日志入口已移除，当前原生聊天不写入该日志。
 
 Logs and screenshots can contain prompts, note contents, paths, and tool inputs. Review them before attaching anything to a public issue.
 

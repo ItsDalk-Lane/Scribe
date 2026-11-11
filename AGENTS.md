@@ -33,6 +33,13 @@ This repository is a fork of the upstream project at v4.0.17. It tracks upstream
 - `npm run test` — unit tests. Single test: `npm test -- -t "test name"`.
 - `npm run test:vault` — macOS-only build-and-deploy into `$SCRIBE_TEST_VAULT_PATH`; see [`TESTING_GUIDE.md`](./internal-docs/TESTING_GUIDE.md).
 
+## Branch, checks, and releases
+
+- `main` is protected. Changes land only through merged pull requests: direct pushes, force pushes, and branch deletion are rejected for everyone, including the maintainer. Branch from the latest `main`, one branch per change, and push follow-up fixes to the same branch.
+- Every PR must turn all required checks green before it can merge: Bundle and smoke tests, Jest shards 1–4, Lint and PR size, Obsidian review, build, docs, label, publish-windows, and the four test-windows shards. Approvals are not required; once checks pass, the human merges. An agent never merges its own pull request — stop after the checks are green and hand the merge button to the user.
+- Merging a PR titled with a bare version (`X.Y.Z` or `X.Y.Z-tag.N`) triggers the release workflow: it re-runs the Windows suite pinned to the merge commit, builds, and publishes a GitHub Release whose notes are the PR body. Use that title only on release PRs; feature PRs must not carry a version title. `RELEASES.md` is still edited only inside a release PR.
+- If CI check names ever change (for example a Node version matrix bump renames a job), update `main`'s required-check list in the same change, or PRs will block on never-reporting checks.
+
 ## Core principles (apply to every change)
 
 - **Always write generalizable solutions.** No hardcoded folder names, file patterns, or special-case logic (no "piano notes" / "daily notes" branches). Make varying behavior configurable, not hardcoded.

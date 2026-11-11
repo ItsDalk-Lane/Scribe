@@ -102,7 +102,7 @@ The configuration dialog contains:
 
 ## 我的指令
 
-**我的指令** 是独立设置标签页，管理保存在当前资料库的自定义指令。指令变量、排序等选项直接显示，不再通过 **指令选项** 折叠。指令与 **命令** 页共享同一份列表，提供新建、编辑、复制、排序、启停和删除。
+**我的指令** 是独立设置标签页，管理保存在当前资料库的自定义指令。「命令」页管理 Agent 的斜杠命令，与「我的指令」互相独立；本页提供新建、编辑、复制、排序、启停和删除。每条指令可在编辑器中开关指令变量替换；列表顺序按拖动排序保存。
 
 每条指令可指定自己的模型；选择 **默认模型** 时使用配置的第一个可用模型。这里不再提供全局默认模型设置。完整操作说明见 [命令](#命令)。
 
@@ -142,13 +142,11 @@ Agent 斜杠菜单按 **命令、技能、子代理** 三组显示，每个条�
 
 ### Command-wide controls
 
-| Control          | Default        | What it does                                                                                                                                                                                                                       |
-| ---------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **指令变量替换** | On             | Controls note-variable expansion for editor and command-palette runs. In Agent Chat, command variables still become selected text or references when this is off; see [Commands](custom-commands.md#add-note-context-to-a-prompt). |
-| **指令排序**     | **最近使用**   | **最近使用** sorts by last use, **按名称** sorts by name, and **手动排序** uses the saved drag order.                                                                                                                              |
-| **生成默认指令** | Not applicable | After confirmation, adds Scribe's starter command files to the custom-prompts folder. It does not replace the folder setting because that folder derives from the Scribe root.                                                     |
-| **新建代理命令** | Not applicable | Opens the command editor from **命令** for the current vault.                                                                                                                                                                      |
-| **添加指令**     | Not applicable | Opens the command editor from **我的指令**.                                                                                                                                                                                        |
+| Control          | Default        | What it does                                                                                                                                                                   |
+| ---------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **生成默认指令** | Not applicable | After confirmation, adds Scribe's starter command files to the custom-prompts folder. It does not replace the folder setting because that folder derives from the Scribe root. |
+| **新建 命令**    | Not applicable | Opens the command editor from **命令** for the current vault.                                                                                                                  |
+| **添加指令**     | Not applicable | Opens the command editor from **我的指令**.                                                                                                                                    |
 
 ### Command list and editor
 
