@@ -1,4 +1,5 @@
 import { pickSkillImport } from "@/agentMode/skills/pickSkillImport";
+import { resolve, sep } from "node:path";
 
 jest.mock("electron", () => ({ webUtils: { getPathForFile: jest.fn() } }), { virtual: true });
 const electron = jest.requireMock<{ webUtils?: { getPathForFile: jest.Mock } }>("electron");
@@ -33,13 +34,14 @@ describe("pickSkillImport", () => {
     });
 
     it("reconstructs the selected folder from a nested file without copying selected files", async () => {
-      electron.webUtils!.getPathForFile.mockReturnValue("/imports/review/references/guide.md");
+      const nestedPath = resolve(sep, "imports", "review", "references", "guide.md");
+      electron.webUtils!.getPathForFile.mockReturnValue(nestedPath);
       const file = new File(["body"], "guide.md");
       Object.defineProperty(file, "webkitRelativePath", { value: "review/references/guide.md" });
       const result = pickSkillImport("folder", document);
       expect(document.querySelector("input")?.hasAttribute("webkitdirectory")).toBe(true);
       select([file]);
-      await expect(result).resolves.toBe("/imports/review");
+      await expect(result).resolves.toBe(resolve(sep, "imports", "review"));
     });
 
     it("supports older installers only when the newer path API is absent", async () => {
