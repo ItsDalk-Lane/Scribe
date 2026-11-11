@@ -218,8 +218,8 @@ describe("JournalStorage", () => {
       });
 
       it("times out a stalled usage write, skips expired queued facts, and resumes in sequence after the original write finishes (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
-        const quick = new NodeJournalStorage(directory, 20);
-        await quick.append(SESSION, "message", { text: "保留" });
+        const setup = new NodeJournalStorage(directory);
+        await setup.append(SESSION, "message", { text: "保留" });
         let release!: () => void;
         let started!: () => void;
         let finished!: () => void;
@@ -253,6 +253,7 @@ describe("JournalStorage", () => {
             }
             return handle;
           });
+        const quick = new NodeJournalStorage(directory, 20);
         jest.useFakeTimers();
         const usage = quick.append(SESSION, "usage", {}, { discardOnFailure: true });
         const usageResult = expect(usage).rejects.toBeInstanceOf(JournalConfirmationTimeout);
@@ -395,8 +396,9 @@ describe("JournalStorage", () => {
       });
 
       it("reports a confirmation that runs past its limit without freezing later writes (https://github.com/ItsDalk-Lane/Scribe/issues/55)", async () => {
+        const setup = new NodeJournalStorage(directory);
+        await setup.append(SESSION, "message", { text: "保留" });
         const quick = new NodeJournalStorage(directory, 20);
-        await quick.append(SESSION, "message", { text: "保留" });
         const stall = stallConfirmations(file());
         await expect(quick.flush(SESSION)).rejects.toBeInstanceOf(JournalConfirmationTimeout);
         stall.release();

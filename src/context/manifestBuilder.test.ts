@@ -1,4 +1,5 @@
 import { FileSystemAdapter, TFolder, type App } from "obsidian";
+import nodePath from "node:path";
 
 jest.mock("@/projects/state", () => ({
   getCachedProjectRecordById: jest.fn(),
@@ -25,6 +26,10 @@ import {
 
 const getRecord = getCachedProjectRecordById as jest.Mock;
 const indexFile = shouldIndexFile as jest.Mock;
+
+function vaultAbs(...parts: string[]): string {
+  return nodePath.join("/vault", ...parts);
+}
 
 function abs(vaultPath: string, absPath?: string): ManifestPathEntry {
   return absPath ? { vaultPath, absPath } : { vaultPath };
@@ -192,7 +197,8 @@ describe("manifestBuilder", () => {
       }
       const listFiles = jest.spyOn(app.vault, "getFiles");
       const block = buildProjectContext(app, "p1");
-      for (const title of selectedTitles) expect(block).toContain(`\`/vault/Notes/${title}.md\``);
+      for (const title of selectedTitles)
+        expect(block).toContain(`\`${vaultAbs("Notes", `${title}.md`)}\``);
       expect(basenameReads).toBe(noteCount);
       expect(listFiles).toHaveBeenCalledTimes(1);
     });
@@ -204,17 +210,17 @@ describe("manifestBuilder", () => {
       const block = buildProjectContext(app, "p1");
 
       expect(block).toContain("## Included notes");
-      expect(block).toContain("`/vault/Notes/Spec.md`");
+      expect(block).toContain(`\`${vaultAbs("Notes", "Spec.md")}\``);
     });
 
     it("rebuilds selected note paths after a move or rename without retaining a prior lookup", () => {
       getRecord.mockReturnValue(record({ inclusions: "[[Spec]]" }));
       const app = fakeApp([{ path: "Drafts/Spec.md", ext: "md" }]);
       const note = app.vault.getFiles()[0];
-      expect(buildProjectContext(app, "p1")).toContain("`/vault/Drafts/Spec.md`");
+      expect(buildProjectContext(app, "p1")).toContain(`\`${vaultAbs("Drafts", "Spec.md")}\``);
       note.path = "Published/Spec.md";
       const moved = buildProjectContext(app, "p1");
-      expect(moved).toContain("`/vault/Published/Spec.md`");
+      expect(moved).toContain(`\`${vaultAbs("Published", "Spec.md")}\``);
       expect(moved).not.toContain("Drafts/Spec.md");
       note.path = "Published/Outline.md";
       note.basename = "Outline";
@@ -222,7 +228,9 @@ describe("manifestBuilder", () => {
       expect(renamed).toContain("`[[Spec]]`");
       expect(renamed).not.toContain("Published/Spec.md");
       getRecord.mockReturnValue(record({ inclusions: "[[Outline]]" }));
-      expect(buildProjectContext(app, "p1")).toContain("`/vault/Published/Outline.md`");
+      expect(buildProjectContext(app, "p1")).toContain(
+        `\`${vaultAbs("Published", "Outline.md")}\``
+      );
     });
 
     it("splits the saved web and YouTube URL settings into one link per line", () => {
@@ -245,8 +253,8 @@ describe("manifestBuilder", () => {
 
       const block = buildProjectContext(app, "p1");
 
-      expect(block).toContain("`/vault/A/Spec.md`");
-      expect(block).toContain("`/vault/B/Spec.md`");
+      expect(block).toContain(`\`${vaultAbs("A", "Spec.md")}\``);
+      expect(block).toContain(`\`${vaultAbs("B", "Spec.md")}\``);
     });
 
     it("does not advertise a selected title in an excluded folder as an included source https://github.com/ItsDalk-Lane/Scribe/issues/71", () => {
@@ -260,8 +268,8 @@ describe("manifestBuilder", () => {
         { path: "Private/Spec.md", ext: "md" },
       ]);
       const block = buildProjectContext(app, "p1");
-      expect(block).toContain("`/vault/Shared/Spec.md`");
-      expect(block).not.toContain("/vault/Private/Spec.md");
+      expect(block).toContain(`\`${vaultAbs("Shared", "Spec.md")}\``);
+      expect(block).not.toContain(vaultAbs("Private", "Spec.md"));
 
       getRecord.mockReturnValue(record({ inclusions: "[[Spec]]", exclusions: "[[Spec]]" }));
       const entirelyExcluded = buildProjectContext(app, "p1");
@@ -280,7 +288,7 @@ describe("manifestBuilder", () => {
       const block = buildProjectContext(app, "p1");
 
       expect(block).toContain("## Notes matching an included property");
-      expect(block).toContain("`/vault/Notes/Relativity.md`");
+      expect(block).toContain(`\`${vaultAbs("Notes", "Relativity.md")}\``);
       expect(block).not.toContain("Cooking");
     });
 
@@ -290,7 +298,7 @@ describe("manifestBuilder", () => {
 
       const block = buildProjectContext(app, "p1");
 
-      expect(block.match(/\/vault\/Notes\/Relativity\.md/g)).toHaveLength(1);
+      expect(block.split(vaultAbs("Notes", "Relativity.md")).length - 1).toBe(1);
       expect(block).toContain("## Included notes");
       expect(block).not.toContain("## Notes matching an included property");
     });
@@ -306,8 +314,8 @@ describe("manifestBuilder", () => {
       const block = buildProjectContext(app, "p1");
 
       expect(block).toContain("## Document files");
-      expect(block).toContain("- `/vault/Proj/a.pdf`");
-      expect(block).toContain("- `/vault/Notes/brief.DOCX`");
+      expect(block).toContain(`- \`${vaultAbs("Proj", "a.pdf")}\``);
+      expect(block).toContain(`- \`${vaultAbs("Notes", "brief.DOCX")}\``);
       expect(block).not.toContain("note.md");
     });
 
@@ -324,7 +332,10 @@ describe("manifestBuilder", () => {
       const block = buildProjectContext(app, "p1");
 
       expect(block).toContain(
-        "## Document files\n- `/vault/Proj/a.pdf`\n- `/vault/Proj/b.DOCX`\n- `/vault/Proj/book.epub`\n- `/vault/Proj/z.png`"
+        `## Document files\n- \`${vaultAbs("Proj", "a.pdf")}\`\n- \`${vaultAbs(
+          "Proj",
+          "b.DOCX"
+        )}\`\n- \`${vaultAbs("Proj", "book.epub")}\`\n- \`${vaultAbs("Proj", "z.png")}\``
       );
       expect(block).not.toContain("data.csv");
     });
@@ -339,8 +350,8 @@ describe("manifestBuilder", () => {
 
       const block = buildProjectContext(app, "p1");
 
-      expect(block).toContain("`/vault/Proj/a.pdf`");
-      expect(block).not.toContain("`/vault/Proj/secret.pdf`");
+      expect(block).toContain(`\`${vaultAbs("Proj", "a.pdf")}\``);
+      expect(block).not.toContain(`\`${vaultAbs("Proj", "secret.pdf")}\``);
       expect(block).toContain("## Excluded source selections\n- Proj/secret.pdf");
     });
 
@@ -350,7 +361,7 @@ describe("manifestBuilder", () => {
 
       const block = buildProjectContext(app, "p1");
 
-      expect(block.match(/\/vault\/Docs\/report\.pdf/g)).toHaveLength(1);
+      expect(block.split(vaultAbs("Docs", "report.pdf")).length - 1).toBe(1);
       expect(block).toContain("## Included notes");
       expect(block).not.toContain("## Document files");
     });
@@ -362,7 +373,7 @@ describe("manifestBuilder", () => {
       const block = buildProjectContext(app, "p1");
 
       expect(block).not.toContain("No context sources are configured");
-      expect(block).toContain("`/vault/Proj/scan.png`");
+      expect(block).toContain(`\`${vaultAbs("Proj", "scan.png")}\``);
     });
 
     it("still emits <project_context> for a property-only project when no note currently matches", () => {
@@ -382,8 +393,8 @@ describe("manifestBuilder", () => {
 
       const block = buildProjectContext(app, "p1");
 
-      expect(block).toContain("`/vault/External`");
-      expect(block).toContain("`/vault/Proj/Sub`");
+      expect(block).toContain(`\`${vaultAbs("External")}\``);
+      expect(block).toContain(`\`${vaultAbs("Proj", "Sub")}\``);
     });
 
     it("emits the no-sources block when the project has no context sources", () => {
