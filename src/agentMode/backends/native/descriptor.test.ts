@@ -3,7 +3,7 @@ jest.mock("@/agentMode/subagents/SubagentManager", () => ({
   getSubagents: () => [],
 }));
 import { FileSystemAdapter, type App } from "obsidian";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import type ScribePlugin from "@/main";
@@ -551,7 +551,9 @@ describe("nativeDescriptor", () => {
       expect(readNativeExtensionRuntime).toHaveBeenCalledWith("/vault/project");
       expect(NodeNativeSessionStorage).toHaveBeenCalledWith(
         join("/synthetic-vault/.scribe", "chats", "v2"),
-        expect.objectContaining({ directory: join("/synthetic-vault/.scribe", "attachments") })
+        expect.objectContaining({
+          directory: resolve(join("/synthetic-vault/.scribe", "attachments")),
+        })
       );
       const context = toolContext();
       jest.mocked(getNativeScopedSkills).mockReturnValue(

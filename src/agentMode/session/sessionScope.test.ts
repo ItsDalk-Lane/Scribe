@@ -5,6 +5,7 @@ import {
   resolveProjectIdForCwd,
   resolveScopeCwd,
 } from "@/agentMode/session/sessionScope";
+import { join } from "node:path";
 import { updateCachedProjectRecords } from "@/projects/state";
 import type { ProjectFileRecord } from "@/projects/type";
 
@@ -21,7 +22,7 @@ describe("sessionScope", () => {
   afterEach(() => updateCachedProjectRecords([]));
   describe("resolveScopeCwd()", () => {
     it("uses the selected project workspace instead of its hidden configuration folder", () => {
-      expect(resolveScopeCwd("/vault", "research")).toBe("/vault/Research Workspace");
+      expect(resolveScopeCwd("/vault", "research")).toBe(join("/vault", "Research Workspace"));
     });
     it("uses the vault root for a global chat and rejects a removed project", () => {
       expect(resolveScopeCwd("/vault", GLOBAL_SCOPE)).toBe("/vault");
@@ -30,8 +31,12 @@ describe("sessionScope", () => {
   });
   describe("resolveProjectIdForCwd()", () => {
     it("matches a project by workspace and leaves unrelated directories unassigned", () => {
-      expect(resolveProjectIdForCwd("/vault", "/vault/Research Workspace")).toBe("research");
-      expect(resolveProjectIdForCwd("/vault", "/vault/.scribe/projects/research")).toBeUndefined();
+      expect(resolveProjectIdForCwd("/vault", join("/vault", "Research Workspace"))).toBe(
+        "research"
+      );
+      expect(
+        resolveProjectIdForCwd("/vault", join("/vault", ".scribe/projects/research"))
+      ).toBeUndefined();
       expect(resolveProjectIdForCwd("/vault", "/vault")).toBeUndefined();
     });
   });
