@@ -68,21 +68,29 @@ function fixture() {
     message: "Task output",
   };
   const listeners = new Set<() => void>();
+  const taskMessages = new Map<string, AgentChatMessage[]>();
   const backend = {
     subscribe: (listener: () => void) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
     getTasks: () => state.tasks,
-    getTaskMessages: (id: string) => [
-      {
-        id: "message-1",
-        sender: "ai",
-        message: id === "call-1" ? state.message : "Nested output",
-        timestamp: null,
-        isVisible: true,
-      },
-    ],
+    getTaskMessages: (id: string) => {
+      const text = id === "call-1" ? state.message : "Nested output";
+      const cached = taskMessages.get(id);
+      if (cached?.[0].message === text) return cached;
+      const messages = [
+        {
+          id: "message-1",
+          sender: "ai",
+          message: text,
+          timestamp: null,
+          isVisible: true,
+        },
+      ];
+      taskMessages.set(id, messages);
+      return messages;
+    },
     getMessages: () => EMPTY,
     isStarting: () => false,
     isTurnInFlight: () => false,
@@ -165,10 +173,12 @@ describe("TaskDetailModal", () => {
         expect(f.app.workspace.revealLeaf).not.toHaveBeenCalled();
       });
 
-      it("keeps its original source and updates running output without relying on the selected chat", async () => {
+      it("keeps its original source and updates running output while task metadata stays unchanged https://github.com/ItsDalk-Lane/Scribe/issues/72", async () => {
         const f = await opened();
+        const tasks = f.state.tasks;
         f.state.message = "New task output";
         act(() => f.emit());
+        expect(f.state.tasks).toBe(tasks);
         expect(within(f.modal.contentEl).getByText("New task output")).toBeTruthy();
         expect(f.manager.setActiveSession).not.toHaveBeenCalled();
       });

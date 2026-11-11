@@ -17,8 +17,8 @@ export async function renderMarkdown(
   component: Component
 ): Promise<void> {
   const render = (MarkdownRenderer as unknown as { render: ModernRender }).render;
-  await render(app, markdown, el, sourcePath, component);
   wireInternalLinks(el, app, sourcePath, component);
+  await render(app, markdown, el, sourcePath, component);
 }
 
 function wireInternalLinks(

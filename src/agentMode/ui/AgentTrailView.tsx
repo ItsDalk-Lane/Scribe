@@ -41,6 +41,7 @@ interface AgentTrailProps {
   turnDurationMs?: number;
   timestamp?: string;
   app: App;
+  sourcePath?: string;
   turnStopReason?: StopReason;
   errorText?: string;
   fileChanges?: TurnFileChange[];
@@ -93,6 +94,7 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
   turnDurationMs,
   timestamp,
   app,
+  sourcePath = "",
   turnStopReason,
   errorText,
   fileChanges,
@@ -156,12 +158,18 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
         completed={completed}
         isStreaming={isStreaming}
         app={app}
+        sourcePath={sourcePath}
         turnDurationMs={!isStreaming && !compactionOnly ? turnDurationMs : undefined}
       />
       {recoveryNotices.map(({ id, text }) => (
         <div role="alert" key={id} className="tw-text-warning">
           <span className="tw-text-xs">{t("Recovered after interruption")}</span>
-          <AgentMarkdownText text={text} app={app} />
+          <AgentMarkdownText
+            text={text}
+            app={app}
+            sourcePath={sourcePath}
+            renderIdentity={`${messageId ?? "root"}/recovery:${id}`}
+          />
         </div>
       ))}
       {notice ? (
@@ -169,7 +177,12 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
           role={turnStopReason === "interrupted" ? "alert" : undefined}
           className="tw-text-error"
         >
-          <AgentMarkdownText text={notice} app={app} />
+          <AgentMarkdownText
+            text={notice}
+            app={app}
+            sourcePath={sourcePath}
+            renderIdentity={`${messageId ?? "root"}/notice`}
+          />
         </div>
       ) : null}
       {turnStopReason !== undefined && fileChanges && fileChanges.length > 0 ? (
@@ -185,6 +198,8 @@ export const AgentTrail: React.FC<AgentTrailProps> = ({
 
 interface TrailContext {
   app: App;
+  sourcePath: string;
+  partPositions: ReadonlyMap<AgentMessagePart, number>;
   isStreaming: boolean;
   lastPart: AgentMessagePart | undefined;
   expansion: TrailExpansion;
@@ -195,13 +210,15 @@ const LinearTrail: React.FC<{
   parts: AgentMessagePart[];
   isStreaming: boolean;
   app: App;
+  sourcePath: string;
   turnDurationMs?: number;
   messageId?: string;
   metrics?: UsageMetrics;
   completed?: CompletedAgentTrail;
-}> = ({ parts, isStreaming, app, turnDurationMs, messageId, metrics, completed }) => {
+}> = ({ parts, isStreaming, app, sourcePath, turnDurationMs, messageId, metrics, completed }) => {
   const expansion = useTrailExpansion();
   const tasks = useAgentTasks();
+  const partPositions = useMemo(() => new Map(parts.map((part, index) => [part, index])), [parts]);
   const nodes = foldActivityGroups(buildAgentTrail(parts), () => true);
   const processNodes = completed
     ? foldActivityGroups(buildAgentTrail(completed.process), () => true)
@@ -216,8 +233,11 @@ const LinearTrail: React.FC<{
   const trailId = messageId ?? "root";
   const processId = `${trailId}/process`;
   const hasProcess = processNodes.length > 0;
+  const visibleNodes = hasProcess ? finalNodes : nodes;
   const ctx: TrailContext = {
     app,
+    sourcePath,
+    partPositions,
     isStreaming,
     lastPart: parts.length > 0 ? parts[parts.length - 1] : undefined,
     expansion,
@@ -229,56 +249,52 @@ const LinearTrail: React.FC<{
         <AgentTurnDurationIndicator status="complete" durationMs={turnDurationMs} inline />
       ) : null}
       {hasProcess ? (
-        <>
-          <AgentActivityCard
-            icon={ListChecks}
-            ariaLabel={t("Process details")}
-            label={
-              <>
-                <span className="tw-shrink-0">
-                  {t("Worked for")}{" "}
-                  {turnDurationMs === undefined
-                    ? "—"
-                    : formatWorkedDuration(Math.max(100, turnDurationMs))}
-                </span>
-                <span className="tw-truncate tw-font-normal">
-                  · {t("Thinking time")}{" "}
-                  {metrics?.thinkingDurationMs === undefined
-                    ? "—"
-                    : formatWorkedDuration(metrics.thinkingDurationMs)}
-                  {" · "}
-                  {t("Tool calls")} {metrics?.toolCallCount ?? "—"}
-                </span>
-              </>
-            }
-            expandable
-            trailing={
-              failedCount || cancelledCount ? (
-                <span className="tw-flex tw-shrink-0 tw-gap-2 tw-text-xs tw-tabular-nums">
-                  {failedCount ? (
-                    <span className="tw-text-error">
-                      {t("Failed")} {failedCount}
-                    </span>
-                  ) : null}
-                  {cancelledCount ? (
-                    <span className="tw-text-muted">
-                      {t("Cancelled")} {cancelledCount}
-                    </span>
-                  ) : null}
-                </span>
-              ) : null
-            }
-            open={expansion.isOpen(processId)}
-            onToggle={() => expansion.toggle(processId)}
-          >
-            {processNodes.map((node, i) => renderNode(node, i, ctx, false, trailId))}
-          </AgentActivityCard>
-          {finalNodes.map((node, i) => renderNode(node, `final:${i}`, ctx, false, trailId))}
-        </>
-      ) : (
-        nodes.map((node, i) =>
-          renderNode(node, i, ctx, isStreaming && i === nodes.length - 1, trailId)
-        )
+        <AgentActivityCard
+          icon={ListChecks}
+          ariaLabel={t("Process details")}
+          label={
+            <>
+              <span className="tw-shrink-0">
+                {t("Worked for")}{" "}
+                {turnDurationMs === undefined
+                  ? "—"
+                  : formatWorkedDuration(Math.max(100, turnDurationMs))}
+              </span>
+              <span className="tw-truncate tw-font-normal">
+                · {t("Thinking time")}{" "}
+                {metrics?.thinkingDurationMs === undefined
+                  ? "—"
+                  : formatWorkedDuration(metrics.thinkingDurationMs)}
+                {" · "}
+                {t("Tool calls")} {metrics?.toolCallCount ?? "—"}
+              </span>
+            </>
+          }
+          expandable
+          trailing={
+            failedCount || cancelledCount ? (
+              <span className="tw-flex tw-shrink-0 tw-gap-2 tw-text-xs tw-tabular-nums">
+                {failedCount ? (
+                  <span className="tw-text-error">
+                    {t("Failed")} {failedCount}
+                  </span>
+                ) : null}
+                {cancelledCount ? (
+                  <span className="tw-text-muted">
+                    {t("Cancelled")} {cancelledCount}
+                  </span>
+                ) : null}
+              </span>
+            ) : null
+          }
+          open={expansion.isOpen(processId)}
+          onToggle={() => expansion.toggle(processId)}
+        >
+          {processNodes.map((node) => renderNode(node, ctx, false, trailId))}
+        </AgentActivityCard>
+      ) : null}
+      {visibleNodes.map((node, index) =>
+        renderNode(node, ctx, isStreaming && index === visibleNodes.length - 1, trailId)
       )}
     </div>
   );
@@ -286,11 +302,11 @@ const LinearTrail: React.FC<{
 
 function renderNode(
   node: GroupedTrailNode,
-  key: string | number,
   ctx: TrailContext,
   atLiveEdge: boolean,
   trailId: string
 ): React.ReactNode {
+  const key = trailNodeIdentity(node, ctx.partPositions);
   const launch = node.type === "action" ? node.part : node.type === "subagent" ? node.parent : null;
   const task = launch && ctx.tasks?.tasks.find((t) => t.toolCallId === launch.id);
   if (task && ctx.tasks) return <TaskCard key={key} task={task} onOpen={ctx.tasks.openTask} />;
@@ -317,16 +333,12 @@ function renderNode(
           open={ctx.expansion.isOpen(expansionId)}
           onToggle={() => ctx.expansion.toggle(expansionId)}
         >
-          {node.members.map((part) =>
-            renderNode({ type: "action", part }, part.id, ctx, false, trailId)
-          )}
+          {node.members.map((part) => renderNode({ type: "action", part }, ctx, false, trailId))}
         </ExcalidrawToolCard>
       );
     }
     case "activityGroup":
-      return node.members.map((member, index) =>
-        renderNode(member, `${key}:${index}`, ctx, atLiveEdge, trailId)
-      );
+      return node.members.map((member) => renderNode(member, ctx, atLiveEdge, trailId));
     case "subagent": {
       const children = foldActivityGroups(node.children);
       const lastChild = children[children.length - 1];
@@ -340,7 +352,7 @@ function renderNode(
           childNodes={children}
           truncated={node.truncated}
           app={ctx.app}
-          renderNode={(n, k) => renderNode(n, k, ctx, atLiveEdge && n === lastChild, childTrailId)}
+          renderNode={(n) => renderNode(n, ctx, atLiveEdge && n === lastChild, childTrailId)}
         />
       );
     }
@@ -359,12 +371,33 @@ function renderNode(
       );
     }
     case "text":
-      return <AgentMarkdownText key={key} text={node.part.text} app={ctx.app} />;
+      return (
+        <AgentMarkdownText
+          key={key}
+          text={node.part.text}
+          app={ctx.app}
+          sourcePath={ctx.sourcePath}
+          renderIdentity={`${trailId}/${key}`}
+          isStreaming={atLiveEdge}
+        />
+      );
     case "plan":
       return <PlanPill key={key} entries={node.part.entries} isRunning={ctx.isStreaming} />;
     case "compaction":
       return <CompactionRow key={key} part={node.part} />;
   }
+}
+
+function trailNodeIdentity(
+  node: GroupedTrailNode,
+  partPositions: ReadonlyMap<AgentMessagePart, number>
+): string {
+  if (node.type === "activityGroup") return node.id;
+  if (node.type === "excalidrawDrawing") return `drawing:${node.members[0].id}`;
+  if (node.type === "subagent") return `subagent:${node.parent.id}`;
+  if (node.type === "action") return `action:${node.part.id}`;
+  const part = node.part;
+  return `${node.type}:${part.segmentSeq ?? "legacy"}:${part.contentIndex ?? part.seq ?? partPositions.get(part)}`;
 }
 
 const TrailAction = memo(function TrailAction({

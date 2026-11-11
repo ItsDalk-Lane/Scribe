@@ -46,7 +46,7 @@ jest.mock("@/settings/model", () => ({ useSettingsValue: jest.fn(() => ({})) }))
 describe("SubagentChatPanel", () => {
   describe("SubagentChatPanel()", () => {
     it.each([false, true])(
-      "streams a live child after waking or delivered steering (steering=%s) while its input remains available https://github.com/ItsDalk-Lane/Scribe/issues/52",
+      "streams a live child without rerendering its available input (steering=%s) https://github.com/ItsDalk-Lane/Scribe/issues/72",
       (steering) => {
         jest
           .mocked(useAgentChatRuntimeState)
@@ -112,9 +112,12 @@ describe("SubagentChatPanel", () => {
             { kind: "thought", text: thought, startedAtMs: 5200, segmentSeq: 20 },
           ],
         });
+        let messages = [reply()];
+        const empty = Object.freeze([]);
         const parent = {
           getSubagentSessions: () => [snapshot],
-          getTaskMessages: () => [reply()],
+          getTasks: () => empty,
+          getTaskMessages: () => messages,
           getPendingToolPermissions: () => [],
           getMessageUsageMetrics: (message: AgentChatMessage) =>
             message.parts?.some((part) => part.segmentSeq === 20)
@@ -144,12 +147,15 @@ describe("SubagentChatPanel", () => {
           isLoading: false,
           isReplyRunning: true,
         });
+        const inputRenders = mockInput.mock.calls.length;
         act(() => {
           thought += "新的流式内容";
+          messages = [reply()];
           for (const listener of listeners) listener();
         });
         expect(mockMessages.mock.calls.at(-1)![0].messages.at(-1).parts[0].text).toBe(thought);
         expect(mockMessages.mock.calls.at(-1)![0].isLoading).toBe(true);
+        expect(mockInput.mock.calls.length).toBe(inputRenders);
       }
     );
 
@@ -215,22 +221,23 @@ describe("SubagentChatPanel", () => {
           isVisible: true,
           turnStopReason: "end_turn",
         };
-        jest.mocked(useAgentChatRuntimeState).mockReturnValue({
-          messages: [old],
-          isReplyRunning: true,
-          isTurnInFlight: false,
-          queuedPrompts: [],
-          isStarting: false,
-          hasPendingPlanPermission: false,
-          currentPlan: null,
-          currentTodoList: null,
-          pendingToolPermissions: [],
-          pendingAskUserQuestions: [],
-          tasks: [],
-          subagents: [],
-        });
+        snapshot.runs = [
+          {
+            ...snapshot.runs[0],
+            id: "prior",
+            toolCallId: "old-call",
+            status: "completed",
+            createdAt: 500,
+          },
+          ...snapshot.runs,
+        ];
+        const oldMessages = [old];
+        const empty = Object.freeze([]);
         const parent = {
           getSubagentSessions: () => [snapshot],
+          getTasks: () => empty,
+          getTaskMessages: (id: string) => (id === "old-call" ? oldMessages : empty),
+          getPendingToolPermissions: () => empty,
           subscribe: () => () => {},
         } as unknown as AgentChatBackend;
         try {
@@ -258,9 +265,11 @@ describe("SubagentChatPanel", () => {
     it("shows the child's cumulative tokens, cache hit, rounds and steps through the shared meter https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
       jest
         .mocked(useAgentChatRuntimeState)
-        .mockReturnValue({ messages: [], queuedPrompts: [] } as unknown as ReturnType<
-          typeof useAgentChatRuntimeState
-        >);
+        .mockImplementation(
+          jest.requireActual<typeof import("@/agentMode/ui/hooks/useAgentChatRuntimeState")>(
+            "@/agentMode/ui/hooks/useAgentChatRuntimeState"
+          ).useAgentChatRuntimeState
+        );
       (window as unknown as { activeDocument: Document }).activeDocument = window.document;
       const usage: SessionUsage = {
         usedTokens: 0,
@@ -290,9 +299,13 @@ describe("SubagentChatPanel", () => {
         messages: [],
       };
       const getSubagentUsage = jest.fn(() => usage);
+      const empty = Object.freeze([]);
       const parent = {
         getSubagentSessions: () => [snapshot],
         getSubagentUsage,
+        getTasks: () => empty,
+        getTaskMessages: () => empty,
+        getPendingToolPermissions: () => empty,
         getSessionUsage: () => ({ ...usage, metrics: { ...usage.metrics, totalTokens: 99999 } }),
         subscribe: () => () => {},
       } as unknown as AgentChatBackend;

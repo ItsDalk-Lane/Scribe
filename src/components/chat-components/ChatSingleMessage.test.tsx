@@ -470,7 +470,7 @@ describe("ChatSingleMessage", () => {
       const usage = screen.getByText("16000 token");
       expect(usage.parentElement?.textContent).toContain(baseMessage.timestamp?.display);
     });
-    it("collapses an oversized user message behind a Show more control", () => {
+    it("collapses an oversized user message behind a Show more control", async () => {
       const restoreContentHeight = stubContentDimensions(2000, 240);
 
       try {
@@ -488,7 +488,7 @@ describe("ChatSingleMessage", () => {
           true
         );
         expect(screen.getByRole("button", { name: /show more/i })).toBeTruthy();
-        expect(screen.getByText("A very long pasted prompt")).toBeTruthy();
+        expect(await screen.findByText("A very long pasted prompt")).toBeTruthy();
       } finally {
         restoreContentHeight();
       }

@@ -2,6 +2,7 @@ import { t } from "@/lib/i18n";
 import { listBackendDescriptors } from "@/agentMode/backends/registry";
 import { buildAgentModelPicker } from "@/agentMode/ui/agentModelPickerHelpers";
 import type { AgentTask } from "@/agentMode/session/AgentSession";
+import type { QueuedPrompt } from "@/agentMode/session/types";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import {
@@ -30,6 +31,7 @@ import type ScribePlugin from "@/main";
 import React, { useMemo, useState } from "react";
 
 const EMPTY_TASKS = Object.freeze([]) as unknown as AgentTask[];
+const EMPTY_PROMPTS = Object.freeze([]) as readonly QueuedPrompt[];
 
 const resolveModelEntry = (
   modelId: string,
@@ -53,6 +55,68 @@ export interface SubagentChatPanelProps {
   onBack: () => void;
 }
 
+interface SubagentTranscriptProps {
+  backend: SubagentChatBackend;
+  plugin: ScribePlugin;
+  subagentId: string;
+  isLoading: boolean;
+}
+
+const SubagentTranscript: React.FC<SubagentTranscriptProps> = ({
+  backend,
+  plugin,
+  subagentId,
+  isLoading,
+}) => {
+  const runtime = useAgentChatRuntimeState(backend, (current) => {
+    const snapshot = backend.getSnapshot();
+    const activeRun = backend.getActiveRun();
+    const latestInput = snapshot?.messages.findLast(
+      (message) =>
+        message.runId === activeRun?.id &&
+        message.direction === "to_child" &&
+        message.deliveredAt !== undefined
+    );
+    return {
+      messages: current.getMessages(),
+      pendingToolPermissions: current.getPendingToolPermissions(),
+      pendingAskUserQuestions: current.getPendingAskUserQuestions(),
+      isReplyRunning: current.isReplyRunning(),
+      activeRunId: activeRun?.id,
+      pendingStartedAtMs: latestInput?.deliveredAt ?? activeRun?.startedAt,
+    };
+  });
+  const latestAssistant = runtime.messages.findLast(
+    (message) => message.sender !== USER_SENDER && !message.synthetic
+  );
+  // 子输入接收后即返回，但模型仍可持续输出；消息区须跟随真实子执行，不能借用旧回复的身份。https://github.com/ItsDalk-Lane/Scribe/issues/52
+  const hasCurrentReply =
+    runtime.activeRunId !== undefined &&
+    latestAssistant?.id.startsWith(`${SUBAGENT_RUN_MESSAGE_PREFIX}${runtime.activeRunId}:`) &&
+    !latestAssistant.turnStopReason &&
+    ((latestAssistant.parts?.length ?? 0) > 0 || latestAssistant.message.length > 0);
+  return (
+    <>
+      <AgentChatMessages
+        key={subagentId}
+        messages={runtime.messages}
+        plugin={plugin}
+        currentPlan={null}
+        pendingToolPermissions={runtime.pendingToolPermissions}
+        pendingAskUserQuestions={runtime.pendingAskUserQuestions}
+        chatBackend={backend}
+        isLoading={isLoading || (runtime.isReplyRunning && !!hasCurrentReply)}
+      />
+      {/* 首片内容到达前只展示真实开始时间，不制造助手消息或把旧答案重新标为运行中。https://github.com/ItsDalk-Lane/Scribe/issues/52 */}
+      {runtime.isReplyRunning && !hasCurrentReply && runtime.pendingStartedAtMs !== undefined ? (
+        <div className="tw-shrink-0 tw-px-3 tw-py-2">
+          <AgentTurnDurationIndicator status="running" startedAtMs={runtime.pendingStartedAtMs} />
+        </div>
+      ) : null}
+    </>
+  );
+};
+
 export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
   app,
   plugin,
@@ -71,39 +135,35 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
   );
   const settings = useSettingsValue();
   const descriptor = useSessionBackendDescriptor(manager);
-  const runtime = useAgentChatRuntimeState(backend);
+  const runtime = useAgentChatRuntimeState(backend, (current) => {
+    const snapshot = backend.getSnapshot();
+    return {
+      hasSession: snapshot !== null,
+      name: snapshot?.name,
+      cwd: snapshot?.cwd,
+      modelId: snapshot?.modelId,
+      archived: snapshot?.retention === "archived",
+      recoveryBlocked: snapshot?.recoveryBlocked,
+      runStatus: backend.getActiveRun()?.status,
+      isStarting: current.isStarting(),
+      isTurnInFlight: current.isTurnInFlight(),
+      isReplyRunning: current.isReplyRunning(),
+      queuedPrompts: current.getQueuedPrompts(),
+    };
+  });
   const draft = useAgentInputDrafts({
     store: manager.drafts,
     chatInputId: `${SUBAGENT_CHAT_DRAFT_PREFIX}${subagentId}`,
   });
   const [actionError, setActionError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
-
-  const snapshot = backend.getSnapshot();
-  const activeRun = backend.getActiveRun();
   const isReplyRunning = runtime.isReplyRunning;
-  const archived = snapshot?.retention === "archived";
-  const recoveryBlocked = !!snapshot?.recoveryBlocked;
-  const blocked = !snapshot || archived || recoveryBlocked;
+  const archived = runtime.archived;
+  const recoveryBlocked = !!runtime.recoveryBlocked;
+  const blocked = !runtime.hasSession || archived || recoveryBlocked;
   const isLoading = draft.loading || runtime.isTurnInFlight;
-  // 子输入接收后即返回，但模型仍可持续输出；消息区须跟随真实子执行，不能借用旧回复的身份。https://github.com/ItsDalk-Lane/Scribe/issues/52
-  const latestAssistant = runtime.messages.findLast(
-    (message) => message.sender !== USER_SENDER && !message.synthetic
-  );
-  const hasCurrentReply =
-    activeRun !== null &&
-    latestAssistant?.id.startsWith(`${SUBAGENT_RUN_MESSAGE_PREFIX}${activeRun.id}:`) &&
-    !latestAssistant.turnStopReason &&
-    ((latestAssistant.parts?.length ?? 0) > 0 || latestAssistant.message.length > 0);
-  const latestDeliveredInput = snapshot?.messages.findLast(
-    (message) =>
-      message.runId === activeRun?.id &&
-      message.direction === "to_child" &&
-      message.deliveredAt !== undefined
-  );
-  const pendingStartedAtMs = latestDeliveredInput?.deliveredAt ?? activeRun?.startedAt;
-  const delivering = backend.getDeliveringPrompts();
-  const held = backend.getHeldPrompts();
+  const delivering = isReplyRunning ? runtime.queuedPrompts : EMPTY_PROMPTS;
+  const held = isReplyRunning ? EMPTY_PROMPTS : runtime.queuedPrompts;
 
   const runAction = (operation: () => Promise<void>): void => {
     setActionError(null);
@@ -117,12 +177,14 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
     ? t("Archived")
     : recoveryBlocked
       ? t("Recovery blocked")
-      : activeRun
-        ? subagentRunStatusLabel(activeRun.status)
+      : runtime.runStatus
+        ? subagentRunStatusLabel(runtime.runStatus)
         : undefined;
 
-  const modelEntry = snapshot ? resolveModelEntry(snapshot.modelId, manager, settings) : undefined;
-  const modelLabel = modelEntry?.displayName || snapshot?.modelId || "";
+  const modelEntry = runtime.modelId
+    ? resolveModelEntry(runtime.modelId, manager, settings)
+    : undefined;
+  const modelLabel = modelEntry?.displayName || runtime.modelId || "";
 
   const heldMessages = held.map((prompt) => ({ ...prompt, rawInput: prompt.text }));
   const queuedNode =
@@ -164,7 +226,7 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
           <ArrowLeft className="tw-size-4" />
         </Button>
         <div className="tw-min-w-0 tw-flex-1 tw-truncate tw-text-sm tw-font-medium">
-          {snapshot?.name ?? t("This child session no longer exists.")}
+          {runtime.name ?? t("This child session no longer exists.")}
         </div>
         {statusLabel ? (
           <span className="tw-shrink-0 tw-rounded tw-bg-secondary tw-px-2 tw-py-0.5 tw-text-xs tw-text-muted">
@@ -189,7 +251,7 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
             role="alert"
             className="tw-whitespace-pre-wrap tw-break-words tw-text-sm tw-text-warning"
           >
-            {t("Recovery blocked")}: {snapshot?.recoveryBlocked}
+            {t("Recovery blocked")}: {runtime.recoveryBlocked}
           </div>
           <Button
             variant="secondary"
@@ -201,7 +263,7 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
           </Button>
         </div>
       ) : null}
-      {!snapshot ? (
+      {!runtime.hasSession ? (
         <div className="tw-flex tw-flex-1 tw-flex-col tw-items-center tw-justify-center tw-gap-3 tw-px-6">
           <p className="tw-m-0 tw-text-sm tw-text-muted">
             {t("This child session no longer exists.")}
@@ -214,22 +276,13 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
         <ChatInputProvider>
           <AgentTasksProvider tasks={EMPTY_TASKS} openTask={() => {}}>
             <div className="tw-flex tw-min-h-0 tw-flex-1 tw-flex-col">
-              <AgentChatMessages
+              <SubagentTranscript
                 key={subagentId}
-                messages={runtime.messages}
+                backend={backend}
                 plugin={plugin}
-                currentPlan={null}
-                pendingToolPermissions={runtime.pendingToolPermissions}
-                pendingAskUserQuestions={runtime.pendingAskUserQuestions}
-                chatBackend={backend}
-                isLoading={isLoading || (isReplyRunning && !!hasCurrentReply)}
+                subagentId={subagentId}
+                isLoading={isLoading}
               />
-              {/* 首片内容到达前只展示真实开始时间，不制造助手消息或把旧答案重新标为运行中。https://github.com/ItsDalk-Lane/Scribe/issues/52 */}
-              {isReplyRunning && !hasCurrentReply && pendingStartedAtMs !== undefined ? (
-                <div className="tw-shrink-0 tw-px-3 tw-py-2">
-                  <AgentTurnDurationIndicator status="running" startedAtMs={pendingStartedAtMs} />
-                </div>
-              ) : null}
               {queuedNode}
               <div className="tw-flex tw-shrink-0 tw-justify-end tw-px-2">
                 <AgentContextMeter backend={backend} />
@@ -239,7 +292,7 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
                 plugin={plugin}
                 chatInputId={`${SUBAGENT_CHAT_DRAFT_PREFIX}${subagentId}`}
                 skillScope={{
-                  cwd: snapshot.cwd ?? null,
+                  cwd: runtime.cwd ?? null,
                   projectDirectory: descriptor.skillsProjectDir,
                 }}
                 draft={draft}
@@ -255,7 +308,7 @@ export const SubagentChatPanel: React.FC<SubagentChatPanelProps> = ({
                 modePickerOverride={undefined}
                 showModelPicker={false}
                 acceptanceOnly
-                modelIdOverride={snapshot?.modelId}
+                modelIdOverride={runtime.modelId}
                 modelEntryOverride={modelEntry}
                 onCycleMode={() => {}}
                 disabled={blocked}

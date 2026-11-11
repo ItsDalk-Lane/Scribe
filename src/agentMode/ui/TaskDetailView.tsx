@@ -107,7 +107,13 @@ const SubagentDetail: React.FC<{
         ) : null}
         <div className="tw-px-3 tw-pt-2">
           {parts.length > 0 ? (
-            <AgentTrail parts={parts} isStreaming={running} app={app} />
+            <AgentTrail
+              parts={parts}
+              messageId={`${chatId ?? "task"}/${task.toolCallId}`}
+              isStreaming={running}
+              app={app}
+              sourcePath=""
+            />
           ) : (
             <div className="tw-text-sm tw-text-muted">
               {running ? t("Starting…") : t("No activity")}

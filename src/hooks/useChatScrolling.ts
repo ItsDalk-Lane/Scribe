@@ -28,6 +28,7 @@ export const useChatScrolling = ({
   const contentRef = useRef<HTMLDivElement | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const isFollowingRef = useRef(true);
+  const resizeFrameRef = useRef<{ win: Window; id: number } | null>(null);
   const lastScrollTopRef = useRef(0);
 
   const getMessageKey = useCallback((message: ChatMessage, index: number): string => {
@@ -65,11 +66,26 @@ export const useChatScrolling = ({
       if (node === scrollContainerRef.current) return;
       resizeObserverRef.current?.disconnect();
       resizeObserverRef.current = null;
+      if (resizeFrameRef.current) {
+        resizeFrameRef.current.win.cancelAnimationFrame(resizeFrameRef.current.id);
+        resizeFrameRef.current = null;
+      }
       scrollContainerRef.current = node;
 
       if (node) {
-        const resizeObserver = new ResizeObserver(() => {
-          if (isFollowingRef.current || isNearEnd(node)) scrollToEnd();
+        let viewportHeight = node.clientHeight;
+        const Observer = (node.win as Window & typeof window).ResizeObserver;
+        const resizeObserver = new Observer(() => {
+          if (resizeFrameRef.current) return;
+          const win = node.win;
+          const id = win.requestAnimationFrame(() => {
+            resizeFrameRef.current = null;
+            const viewportChanged = node.clientHeight !== viewportHeight;
+            viewportHeight = node.clientHeight;
+            // 内容收缩不代表用户愿意返回底部；只保留原有窗口变高的跟随规则。https://github.com/ItsDalk-Lane/Scribe/issues/72
+            if (isFollowingRef.current || (viewportChanged && isNearEnd(node))) scrollToEnd();
+          });
+          resizeFrameRef.current = { win, id };
         });
         resizeObserver.observe(node);
         if (contentRef.current) resizeObserver.observe(contentRef.current);
@@ -92,8 +108,10 @@ export const useChatScrolling = ({
 
   useEffect(() => {
     return () => {
-      if (resizeObserverRef.current) {
-        resizeObserverRef.current.disconnect();
+      resizeObserverRef.current?.disconnect();
+      if (resizeFrameRef.current) {
+        resizeFrameRef.current.win.cancelAnimationFrame(resizeFrameRef.current.id);
+        resizeFrameRef.current = null;
       }
     };
   }, []);

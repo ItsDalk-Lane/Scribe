@@ -42,6 +42,7 @@ import { useAgentModePicker } from "@/agentMode/ui/useAgentModePicker";
 import { useSessionBackendDescriptor } from "@/agentMode/ui/useBackendDescriptor";
 import { pickRandomGreeting } from "@/agentMode/ui/landingGreetings";
 import type { AgentChatBackend } from "@/agentMode/session/AgentChatBackend";
+import { EMPTY_SUBAGENT_SESSIONS } from "@/agentMode/session/subagentSessions";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { GLOBAL_SCOPE } from "@/agentMode/session/scope";
 import { type ProjectConfig } from "@/aiParams";
@@ -76,6 +77,54 @@ interface AgentHomeProps {
   updateUserMessageHistory: (newMessage: string) => void;
 }
 
+interface AgentHomeTranscriptProps {
+  backend: AgentChatBackend;
+  plugin: ScribePlugin;
+  isLoading: boolean;
+  onForkMessage: (messageId: string) => Promise<void>;
+}
+
+const AgentHomeTranscript: React.FC<AgentHomeTranscriptProps> = ({
+  backend,
+  plugin,
+  isLoading,
+  onForkMessage,
+}) => {
+  const { messages, currentPlan, pendingToolPermissions, pendingAskUserQuestions } =
+    useAgentChatRuntimeState(backend, (current) => ({
+      messages: current.getMessages(),
+      currentPlan: current.getCurrentPlan(),
+      pendingToolPermissions: current.getPendingToolPermissions(),
+      pendingAskUserQuestions: current.getPendingAskUserQuestions(),
+    }));
+  const stoppedTask = messages.findLast((message) => message.turnStopReason);
+  return (
+    <>
+      <AgentChatMessages
+        sourcePath=""
+        messages={messages}
+        plugin={plugin}
+        currentPlan={currentPlan}
+        pendingToolPermissions={pendingToolPermissions}
+        pendingAskUserQuestions={pendingAskUserQuestions}
+        chatBackend={backend}
+        onForkMessage={onForkMessage}
+        isLoading={isLoading}
+      />
+      {stoppedTask?.turnStopReason === "max_task_requests" &&
+      stoppedTask.taskGenerationId &&
+      backend.continueTaskBudget ? (
+        <TaskBudgetContinuation
+          key={stoppedTask.id}
+          onContinue={(requestId) =>
+            backend.continueTaskBudget!(stoppedTask.taskGenerationId, requestId)
+          }
+        />
+      ) : null}
+    </>
+  );
+};
+
 const EMPTY_PROJECT_NAMES_BY_ID: Readonly<Record<string, string>> = Object.freeze({});
 
 const AgentHomeInternal: React.FC<AgentHomeProps> = ({
@@ -94,22 +143,29 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
   useChatInputAutoFocus();
 
   const {
-    messages,
     isStarting,
     isTurnInFlight,
     hasPendingPlanPermission,
-    currentPlan,
     currentTodoList,
     pendingToolPermissions,
-    pendingAskUserQuestions,
     queuedPrompts,
     tasks,
     subagents,
     isReplyRunning,
-  } = useAgentChatRuntimeState(backend);
+  } = useAgentChatRuntimeState(backend, (current) => ({
+    hasMessages: current.getMessages().length > 0,
+    isStarting: current.isStarting(),
+    isTurnInFlight: current.isTurnInFlight(),
+    isReplyRunning: current.isReplyRunning(),
+    hasPendingPlanPermission: current.hasPendingPlanPermission(),
+    currentTodoList: current.getCurrentTodoList(),
+    pendingToolPermissions: current.getPendingToolPermissions(),
+    queuedPrompts: current.getQueuedPrompts(),
+    tasks: current.getTasks(),
+    subagents: current.getSubagentSessions?.() ?? EMPTY_SUBAGENT_SESSIONS,
+  }));
   const isLoading = draft.loading || isTurnInFlight;
   const replyRunning = draft.loading || isReplyRunning;
-  const stoppedTask = messages.findLast((message) => message.turnStopReason);
 
   const [rootEl, setRootEl] = useState<HTMLDivElement | null>(null);
   const handleForkMessage = useCallback(
@@ -705,28 +761,13 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
                 ) : (
                   <AgentTasksProvider tasks={tasks} openTask={handleOpenTask}>
                     <div className="tw-flex tw-min-h-0 tw-flex-1 tw-flex-col">
-                      <AgentChatMessages
-                        sourcePath={manager.getSessionSourcePath(sessionId)}
+                      <AgentHomeTranscript
                         key={sessionId}
-                        messages={messages}
+                        backend={backend}
                         plugin={plugin}
-                        currentPlan={currentPlan}
-                        pendingToolPermissions={pendingToolPermissions}
-                        pendingAskUserQuestions={pendingAskUserQuestions}
-                        chatBackend={backend}
                         onForkMessage={handleForkMessage}
                         isLoading={isLoading}
                       />
-                      {stoppedTask?.turnStopReason === "max_task_requests" &&
-                      stoppedTask.taskGenerationId &&
-                      backend.continueTaskBudget ? (
-                        <TaskBudgetContinuation
-                          key={stoppedTask.id}
-                          onContinue={(requestId) =>
-                            backend.continueTaskBudget!(stoppedTask.taskGenerationId, requestId)
-                          }
-                        />
-                      ) : null}
                       {queuedMessagesNode}
                       <AgentChatControls
                         onPreviewRequest={

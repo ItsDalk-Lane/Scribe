@@ -344,6 +344,139 @@ describe("SubagentChatBackend", () => {
     };
 
     describe("getMessages()", () => {
+      it("reuses the transcript and unchanged reply slices while one reply grows https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+        const snapshot = buildSession({
+          runs: [buildRun()],
+          messages: [buildMessage({ id: "instruction", runId: "native-task-1", deliverySeq: 5 })],
+        });
+        const prefix = { kind: "text" as const, text: "Stable", segmentSeq: 1 };
+        let source = [
+          {
+            ...runContent("answer", "StableNew"),
+            parts: [prefix, { kind: "text" as const, text: "New", segmentSeq: 6 }],
+          },
+        ];
+        const { backend } = backendWithSession(snapshot, {
+          getTaskMessages: () => source,
+          getMessageUsageMetrics: () => ({
+            partial: false,
+            totalTokens: 12,
+            sources: [
+              {
+                sourceId: "child",
+                sourceName: "Audit",
+                kind: "subagent",
+                purpose: "chat",
+                modelId: "model-a",
+                modelName: "Model A",
+                partial: false,
+                totalTokens: 12,
+              },
+            ],
+          }),
+        });
+        const before = backend.getMessages();
+        expect(before.map((message) => message.message)).toEqual(["Stable", "hello", "New"]);
+        expect(backend.getMessages()).toBe(before);
+        source = [
+          {
+            ...source[0],
+            message: "StableNew text",
+            parts: [prefix, { kind: "text" as const, text: "New text", segmentSeq: 6 }],
+          },
+        ];
+        const after = backend.getMessages();
+        expect(after.map((message) => message.message)).toEqual(["Stable", "hello", "New text"]);
+        expect(after[0]).toBe(before[0]);
+        expect(after[1]).toBe(before[1]);
+        expect(after[2]).not.toBe(before[2]);
+      });
+
+      it("preserves native user messages and the transcript when another child task changes https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+        const snapshot = buildSession({ runs: [buildRun()] });
+        const source = [
+          {
+            id: "native-user",
+            sender: USER_SENDER,
+            message: "Please check these notes",
+            timestamp: null,
+            isVisible: true,
+          },
+          runContent("answer", "The notes are consistent"),
+        ];
+        let tasks: readonly AgentTask[] = [
+          {
+            taskId: "other-task",
+            toolCallId: "other-call",
+            kind: "subagent",
+            subagentId: "other-child",
+            description: "Another child is working",
+            status: "running",
+          },
+        ];
+        const { backend } = backendWithSession(snapshot, {
+          getTaskMessages: () => source,
+          getTasks: () => tasks,
+        });
+        const before = backend.getMessages();
+        expect(before.map((message) => message.message)).toEqual([
+          "Please check these notes",
+          "The notes are consistent",
+        ]);
+        expect(backend.getMessages()).toBe(before);
+        tasks = [{ ...tasks[0], status: "completed" }];
+        const after = backend.getMessages();
+        expect(after[0]).toBe(before[0]);
+        expect(after[1]).toBe(before[1]);
+        expect(after).toBe(before);
+      });
+
+      it("refreshes completion and elapsed time when a run ends without changing its text https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+        let snapshot = buildSession({ runs: [buildRun({ status: "running" })] });
+        const source = [runContent("answer", "Answer")];
+        const parent = createParent({
+          getSubagentSessions: () => [snapshot],
+          getTaskMessages: () => source,
+        });
+        const backend = new SubagentChatBackend(parent, snapshot.id);
+        const before = backend.getMessages();
+        expect(before[0].turnStopReason).toBeUndefined();
+        snapshot = {
+          ...snapshot,
+          runs: [buildRun({ status: "completed", startedAt: 1000, endedAt: 2000 })],
+        };
+        expect(backend.getMessages()[0]).toMatchObject({
+          message: "Answer",
+          turnStopReason: "end_turn",
+          turnDurationMs: 1000,
+        });
+      });
+
+      it("refreshes a reply's usage when cumulative metrics change without text or run changes https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+        const snapshot = buildSession({ runs: [buildRun()] });
+        const source = [runContent("answer", "Answer")];
+        const tasks = Object.freeze([]);
+        let usage = {
+          usedTokens: 0,
+          updatedAt: 1,
+          metrics: { partial: false, sources: [], totalTokens: 4 },
+        };
+        const { backend } = backendWithSession(snapshot, {
+          getTaskMessages: () => source,
+          getTasks: () => tasks,
+          getSubagentUsage: () => usage,
+          getMessageUsageMetrics: () => usage.metrics,
+        });
+        const before = backend.getMessages();
+        expect(before[0].turnMetrics?.totalTokens).toBe(4);
+        expect(backend.getMessages()).toBe(before);
+        usage = { ...usage, updatedAt: 2, metrics: { ...usage.metrics, totalTokens: 8 } };
+        const after = backend.getMessages();
+        expect(after[0]).toMatchObject({ message: "Answer", turnMetrics: { totalTokens: 8 } });
+        expect(after[0]).not.toBe(before[0]);
+        expect(backend.getMessages()).toBe(after);
+      });
+
       it("uses each recorded child round's own completion and elapsed time instead of inheriting the whole run https://github.com/ItsDalk-Lane/Scribe/issues/52", () => {
         const snapshot = buildSession({
           runs: [
@@ -656,6 +789,20 @@ describe("SubagentChatBackend", () => {
     });
 
     describe("getQueuedPrompts()", () => {
+      it("keeps waiting prompt identities across reads and unrelated child updates https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+        const pending = buildMessage({ state: "accepted", text: "Continue" });
+        let snapshot = buildSession({ messages: [pending] });
+        const parent = createParent({ getSubagentSessions: () => [snapshot] });
+        const backend = new SubagentChatBackend(parent, snapshot.id);
+        const before = backend.getQueuedPrompts();
+        expect(backend.getQueuedPrompts()).toBe(before);
+        snapshot = { ...snapshot, messages: [pending] };
+        expect(backend.getQueuedPrompts()).toBe(before);
+        snapshot = { ...snapshot, messages: [{ ...pending, state: "delivered" }] };
+        expect(backend.getQueuedPrompts()).toEqual([]);
+        expect(backend.getQueuedPrompts()).toBe(backend.getQueuedPrompts());
+      });
+
       it("identifies a pending image-only message https://github.com/ItsDalk-Lane/Scribe/issues/50", () => {
         const message = buildMessage({
           text: "",
@@ -706,7 +853,7 @@ describe("SubagentChatBackend", () => {
     });
 
     describe("getPendingToolPermissions()", () => {
-      it("mirrors only this child's permission prompts and resolves through the parent", () => {
+      it("keeps this child's permission list stable across parent reads and resolves through the parent https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
         const mine: PermissionPrompt = {
           sessionId: "backend-session",
           requester: { taskId: "native-task-1", subagentId: "subagent-1", subagentName: "Audit" },
@@ -729,7 +876,9 @@ describe("SubagentChatBackend", () => {
           getPendingToolPermissions: jest.fn(() => [mine, mainPrompt]),
           resolveToolPermission,
         });
-        expect(backend.getPendingToolPermissions()).toEqual([mine]);
+        const permissions = backend.getPendingToolPermissions();
+        expect(permissions).toEqual([mine]);
+        expect(backend.getPendingToolPermissions()).toBe(permissions);
         backend.resolveToolPermission("tool-1", "allow_once");
         expect(resolveToolPermission).toHaveBeenCalledWith("tool-1", "allow_once");
       });

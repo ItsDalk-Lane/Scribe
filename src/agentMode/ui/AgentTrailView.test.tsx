@@ -10,7 +10,26 @@ import { makeCommandTask, makeTask } from "@/agentMode/ui/testing/taskFixtures";
 import { setInterfaceLocale } from "@/lib/i18n";
 
 jest.mock("@/agentMode/ui/AgentMarkdownText", () => ({
-  AgentMarkdownText: ({ text }: { text: string }) => <div data-testid="agent-md">{text}</div>,
+  AgentMarkdownText: ({
+    text,
+    renderIdentity,
+    isStreaming,
+    sourcePath,
+  }: {
+    text: string;
+    renderIdentity?: string;
+    isStreaming?: boolean;
+    sourcePath?: string;
+  }) => (
+    <div
+      data-testid="agent-md"
+      data-render-identity={renderIdentity}
+      data-streaming={String(isStreaming)}
+      data-source-path={sourcePath}
+    >
+      {text}
+    </div>
+  ),
 }));
 
 jest.mock("@/utils", () => ({
@@ -105,6 +124,63 @@ describe("AgentTrail", () => {
       value: { writeText },
       configurable: true,
     });
+  });
+
+  it("keeps the final response mounted when a streaming turn finishes and its process folds https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+    const parts: AgentMessagePart[] = [
+      { ...text("Progress update"), segmentSeq: 1, contentIndex: 0 },
+      READ_A,
+      { ...text("Final response"), segmentSeq: 7, contentIndex: 0 },
+    ];
+    const { rerenderTrail } = renderTrail({
+      parts,
+      messageId: "stable-final",
+      isStreaming: true,
+      turnStopReason: undefined,
+    });
+    const response = screen.getByText("Final response");
+    const parent = response.parentElement;
+    const selection = window.getSelection()!;
+    const range = document.createRange();
+    range.selectNodeContents(response);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    expect(response.getAttribute("data-render-identity")).toBe("stable-final/text:7:0");
+    expect(response.getAttribute("data-streaming")).toBe("true");
+    expect(response.getAttribute("data-source-path")).toBe("");
+    rerenderTrail({
+      parts: parts.map((part) => ({ ...part })),
+      messageId: "stable-final",
+      metrics: { partial: false, sources: [], hasActiveWork: false, finalResponseSegmentSeq: 7 },
+    });
+    expect(screen.getByText("Final response")).toBe(response);
+    expect(response.parentElement).toBe(parent);
+    expect(response.getAttribute("data-render-identity")).toBe("stable-final/text:7:0");
+    expect(response.getAttribute("data-streaming")).toBe("false");
+    expect(selection.toString()).toBe("Final response");
+    selection.removeAllRanges();
+    expect(screen.queryByText("Progress update")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Process details/ }));
+    expect(screen.getByText("Progress update")).not.toBeNull();
+    expect(screen.getByText("Final response")).toBe(response);
+  });
+
+  it("preserves legacy final response identity by its original position when completed process nodes disappear https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+    const parts: AgentMessagePart[] = [READ_A, { ...text("Legacy final"), segmentSeq: 7 }];
+    const { rerenderTrail } = renderTrail({
+      parts,
+      messageId: "legacy-final",
+      isStreaming: true,
+      turnStopReason: undefined,
+    });
+    const response = screen.getByText("Legacy final");
+    rerenderTrail({
+      parts: parts.map((part) => ({ ...part })),
+      messageId: "legacy-final",
+      metrics: { partial: false, sources: [], hasActiveWork: false, finalResponseSegmentSeq: 7 },
+    });
+    expect(screen.getByText("Legacy final")).toBe(response);
+    expect(response.getAttribute("data-render-identity")).toBe("legacy-final/text:7:1");
   });
 
   it("folds the completed process in its original order and keeps only the identified final response outside https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
@@ -1158,7 +1234,10 @@ describe("AgentTrail", () => {
       path: "Drawings/Release plan.excalidraw.md",
       elements: [],
     });
-    renderTrail({ app, parts: [READ_A, LINT, write, READ_B, LINT, text("Drew it.")] });
+    renderTrail({
+      app,
+      parts: [READ_A, LINT, write, READ_B, { ...LINT, id: "second-lint" }, text("Drew it.")],
+    });
 
     expect(screen.getByText("Drew in Excalidraw")).toBeTruthy();
     expect(screen.getByText("Drew it.")).toBeTruthy();

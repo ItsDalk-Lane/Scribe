@@ -283,7 +283,6 @@ export function QuickAskPanel({
               replaceInvalidReason={replaceInvalidReason}
               isDisabledDueToStreaming={isDisabledDueToStreaming}
               filePathSnapshot={filePathSnapshot}
-              plugin={plugin}
             />
           ))}
         </div>

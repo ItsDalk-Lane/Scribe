@@ -612,3 +612,47 @@ export const PlainResponseWithEmptyProcess: StoryObj<AgentTrailProps> = {
     />
   ),
 };
+
+const StableResponseCompletionDemo = () => {
+  const app = useApp();
+  const [completed, setCompleted] = useState(false);
+  const parts: AgentMessagePart[] = [
+    { kind: "text", text: "先核对相关笔记。", segmentSeq: 1, contentIndex: 0 },
+    tool("stable-response-read", "Read", { locations: [{ path: "Example.md" }] }),
+    {
+      kind: "text",
+      text: "## 整理结果\n\n可以先选中这段文字，再点击“完成回答”：过程会收起，选区和正文保持不变。\n\n```text\n完整内容一直保留，可以阅读和复制。\n```",
+      segmentSeq: 7,
+      contentIndex: 0,
+    },
+  ];
+  return (
+    <TooltipProvider>
+      <div className="tw-flex tw-select-text tw-flex-col tw-gap-3">
+        <div>
+          <Button onClick={() => setCompleted(true)} disabled={completed}>
+            完成回答
+          </Button>
+        </div>
+        <AgentTrail
+          app={app}
+          messageId="stable-response-demo"
+          parts={parts}
+          isStreaming={!completed}
+          turnStopReason={completed ? "end_turn" : undefined}
+          turnDurationMs={completed ? 12_000 : undefined}
+          metrics={{
+            partial: !completed,
+            sources: [],
+            hasActiveWork: !completed,
+            finalResponseSegmentSeq: 7,
+          }}
+        />
+      </div>
+    </TooltipProvider>
+  );
+};
+
+export const StableFinalResponse: StoryObj<AgentTrailProps> = {
+  render: StableResponseCompletionDemo,
+};

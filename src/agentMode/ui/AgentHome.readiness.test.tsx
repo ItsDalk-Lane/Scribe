@@ -4,6 +4,8 @@ import { AgentInputDraftStore } from "@/agentMode/session/AgentInputDraftStore";
 import type { AgentSessionManager } from "@/agentMode/session/AgentSessionManager";
 import { GLOBAL_SCOPE } from "@/agentMode/session/scope";
 import { AgentHome } from "@/agentMode/ui/AgentHome";
+import { AgentChatInput } from "@/agentMode/ui/AgentChatInput";
+import { useAgentChatRuntimeState } from "@/agentMode/ui/hooks/useAgentChatRuntimeState";
 import type ScribePlugin from "@/main";
 import { getModelKeyFromModel, getSettings, resetSettings, setSettings } from "@/settings/model";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -16,13 +18,20 @@ let mockModelPicker: AgentModelPickerOverride | null = null;
 let mockSubagents: readonly SubagentSessionSnapshot[] = [];
 
 jest.mock("@/agentMode/ui/AgentChatInput", () => ({
-  AgentChatInput: ({ disabled, sendDisabled }: { disabled: boolean; sendDisabled: boolean }) => (
-    <button type="button" disabled={disabled || sendDisabled}>
-      Send
-    </button>
+  AgentChatInput: jest.fn(
+    ({ disabled, sendDisabled }: { disabled: boolean; sendDisabled: boolean }) => (
+      <button type="button" disabled={disabled || sendDisabled}>
+        Send
+      </button>
+    )
   ),
 }));
-jest.mock("@/agentMode/ui/AgentChatMessages", () => ({ __esModule: true, default: () => null }));
+jest.mock("@/agentMode/ui/AgentChatMessages", () => ({
+  __esModule: true,
+  default: ({ messages }: { messages: { message: string }[] }) => (
+    <div>{messages.map((message) => message.message).join("\n")}</div>
+  ),
+}));
 jest.mock("@/agentMode/ui/AgentChatControls", () => ({
   AgentChatControls: ({
     tasksIndicator,
@@ -47,8 +56,7 @@ jest.mock("@/agentMode/ui/GlobalRecentChatsSection", () => ({
 }));
 jest.mock("@/agentMode/ui/AgentTabStrip", () => ({ AgentTabStrip: () => null }));
 jest.mock("@/agentMode/ui/hooks/useAgentChatRuntimeState", () => ({
-  // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- substitutes the peripheral runtime hook
-  useAgentChatRuntimeState: () => ({
+  useAgentChatRuntimeState: jest.fn(() => ({
     messages: [],
     isStarting: false,
     isTurnInFlight: false,
@@ -61,7 +69,7 @@ jest.mock("@/agentMode/ui/hooks/useAgentChatRuntimeState", () => ({
     tasks: [],
     subagents: mockSubagents,
     isReplyRunning: false,
-  }),
+  })),
 }));
 jest.mock("@/agentMode/ui/hooks/useAgentHistoryControls", () => ({
   // eslint-disable-next-line @eslint-react/hooks-extra/no-unnecessary-use-prefix -- substitutes unrelated history loading
@@ -102,6 +110,8 @@ jest.mock("@/projects/ProjectFileManager", () => ({
   },
 }));
 
+const defaultRuntimeHook = jest.mocked(useAgentChatRuntimeState).getMockImplementation()!;
+
 describe("AgentHome", () => {
   describe("AgentHome()", () => {
     afterEach(() => {
@@ -109,6 +119,77 @@ describe("AgentHome", () => {
       resetSettings();
       mockModelPicker = null;
       mockSubagents = [];
+      jest.mocked(useAgentChatRuntimeState).mockImplementation(defaultRuntimeHook);
+    });
+
+    it("updates growing chat text without rerendering the composer https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+      jest
+        .mocked(useAgentChatRuntimeState)
+        .mockImplementation(
+          jest.requireActual<typeof import("@/agentMode/ui/hooks/useAgentChatRuntimeState")>(
+            "@/agentMode/ui/hooks/useAgentChatRuntimeState"
+          ).useAgentChatRuntimeState
+        );
+      const app = { workspace: { getActiveFile: () => null } } as unknown as App;
+      const session = {
+        internalId: "chat",
+        backendId: "native",
+        cwd: "/vault",
+        hasUserVisibleMessages: () => true,
+      };
+      const noIds = new Set<string>();
+      const manager = {
+        drafts: new AgentInputDraftStore(app, () => true),
+        subscribe: () => () => {},
+        getStartingBackendId: () => null,
+        getActiveSession: () => session,
+        getSession: () => session,
+        getActiveProjectId: () => GLOBAL_SCOPE,
+        getSessionSourcePath: () => "",
+        getOpenChatIds: () => noIds,
+        getRunningChatIds: () => noIds,
+        getAttentionChatIds: () => noIds,
+      } as unknown as AgentSessionManager;
+      let messages = [{ id: "reply", message: "First" }];
+      const empty = Object.freeze([]);
+      const listeners = new Set<() => void>();
+      const backend = {
+        subscribe: (listener: () => void) => {
+          listeners.add(listener);
+          return () => listeners.delete(listener);
+        },
+        getMessages: () => messages,
+        isStarting: () => false,
+        isTurnInFlight: () => true,
+        isReplyRunning: () => true,
+        hasPendingPlanPermission: () => false,
+        getCurrentPlan: () => null,
+        getCurrentTodoList: () => null,
+        getPendingToolPermissions: () => empty,
+        getPendingAskUserQuestions: () => empty,
+        getQueuedPrompts: () => empty,
+        getTasks: () => empty,
+        acceptsMidTurnMessages: () => false,
+        canStopTasks: () => false,
+      } as unknown as AgentChatBackend;
+      render(
+        <AgentHome
+          backend={backend}
+          sessionId="chat"
+          chatInputId="chat"
+          manager={manager}
+          plugin={{ app } as ScribePlugin}
+          updateUserMessageHistory={() => undefined}
+        />
+      );
+      expect(screen.getByText("First")).toBeTruthy();
+      const before = jest.mocked(AgentChatInput).mock.calls.length;
+      act(() => {
+        messages = [{ id: "reply", message: "First and latest" }];
+        listeners.forEach((listener) => listener());
+      });
+      expect(screen.getByText("First and latest")).toBeTruthy();
+      expect(jest.mocked(AgentChatInput).mock.calls.length).toBe(before);
     });
 
     it.each(["background command", "child agent"])(

@@ -73,6 +73,7 @@ jest.mock("@/agentMode/ui/AgentTrailView", () => ({
     errorText,
     fileChanges,
     onOpenFileChange,
+    sourcePath,
   }: {
     isStreaming?: boolean;
     turnStartedAtMs?: number;
@@ -81,6 +82,7 @@ jest.mock("@/agentMode/ui/AgentTrailView", () => ({
     errorText?: string;
     fileChanges?: TurnFileChange[];
     onOpenFileChange?: (change: TurnFileChange) => void;
+    sourcePath?: string;
   }) => {
     mockTrailRender(parts);
     return (
@@ -88,6 +90,7 @@ jest.mock("@/agentMode/ui/AgentTrailView", () => ({
         data-testid="agent-trail-timestamp"
         data-streaming={isStreaming}
         data-start={turnStartedAtMs}
+        data-source-path={sourcePath}
       >
         {timestamp}
         {errorText ? <span data-testid="agent-trail-error">{errorText}</span> : null}
@@ -276,6 +279,15 @@ describe("AgentChatMessages", () => {
       expect(
         container.querySelector('[data-source-path="chat/Conversation.md"]')?.textContent
       ).toContain("[[Findings]]");
+    });
+
+    it("passes the fixed vault-root source to structured assistant responses https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+      renderMessages(
+        [assistantMessage("response", 1_000, { parts: [{ kind: "text", text: "[[Findings]]" }] })],
+        false
+      );
+
+      expect(screen.getByTestId("agent-trail-timestamp").getAttribute("data-source-path")).toBe("");
     });
 
     it("forks the selected completed reply once and blocks repeated clicks until it finishes", async () => {

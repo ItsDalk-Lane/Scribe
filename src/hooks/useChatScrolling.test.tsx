@@ -5,6 +5,16 @@ import React, { useCallback } from "react";
 
 const geometry = { scrollHeight: 200, clientHeight: 100, scrollTop: 0 };
 const resizeCallbacks: ResizeObserverCallback[] = [];
+const frames = new Map<number, FrameRequestCallback>();
+let frameId = 0;
+function resize() {
+  act(() => resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+  act(() => {
+    const callbacks = [...frames.values()];
+    frames.clear();
+    callbacks.forEach((callback) => callback(0));
+  });
+}
 
 class MockResizeObserver {
   constructor(callback: ResizeObserverCallback) {
@@ -68,6 +78,14 @@ describe("useChatScrolling", () => {
       geometry.scrollTop = 0;
       resizeCallbacks.length = 0;
       window.ResizeObserver = MockResizeObserver;
+      frames.clear();
+      jest.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+        frames.set(++frameId, callback);
+        return frameId;
+      });
+      jest.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+        frames.delete(id);
+      });
     });
 
     it("follows the growing response after the initial message space fills", () => {
@@ -75,7 +93,7 @@ describe("useChatScrolling", () => {
       expect(geometry.scrollTop).toBe(100);
 
       geometry.scrollHeight = 300;
-      act(() => resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+      resize();
       expect(geometry.scrollTop).toBe(200);
       expect(screen.queryByRole("button", { name: "Scroll to end" })).toBeNull();
     });
@@ -96,14 +114,14 @@ describe("useChatScrolling", () => {
       expect(screen.getByRole("button", { name: "Scroll to end" })).toBeTruthy();
 
       geometry.scrollHeight = 300;
-      act(() => resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+      resize();
       expect(geometry.scrollTop).toBe(40);
 
       geometry.scrollTop = 200;
       fireEvent.scroll(screen.getByTestId("transcript"));
       expect(screen.queryByRole("button", { name: "Scroll to end" })).toBeNull();
       geometry.scrollHeight = 350;
-      act(() => resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+      resize();
       expect(geometry.scrollTop).toBe(250);
     });
 
@@ -113,11 +131,11 @@ describe("useChatScrolling", () => {
       fireEvent.scroll(screen.getByTestId("transcript"));
 
       geometry.clientHeight = 160;
-      act(() => resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+      resize();
       expect(screen.queryByRole("button", { name: "Scroll to end" })).toBeNull();
 
       geometry.scrollHeight = 300;
-      act(() => resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+      resize();
       expect(geometry.scrollTop).toBe(140);
     });
 
@@ -130,7 +148,7 @@ describe("useChatScrolling", () => {
       expect(screen.queryByRole("button", { name: "Scroll to end" })).toBeNull();
 
       geometry.scrollHeight = 260;
-      act(() => resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+      resize();
       expect(geometry.scrollTop).toBe(160);
     });
 
@@ -144,6 +162,32 @@ describe("useChatScrolling", () => {
       rerender(<ChatScrollHarness chatHistory={[first, userMessage("second")]} />);
       expect(geometry.scrollTop).toBe(170);
       expect(screen.queryByRole("button", { name: "Scroll to end" })).toBeNull();
+    });
+    it("does not resume following when rendered content shrinks near the paused reader https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+      render(<ChatScrollHarness chatHistory={[userMessage("first")]} />);
+      geometry.scrollTop = 40;
+      fireEvent.scroll(screen.getByTestId("transcript"));
+      geometry.scrollHeight = 145;
+      resize();
+      expect(screen.getByRole("button", { name: "Scroll to end" })).toBeTruthy();
+      geometry.scrollHeight = 300;
+      resize();
+      expect(geometry.scrollTop).toBe(40);
+    });
+    it("coalesces resize work into one frame and cancels it on close https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+      const view = render(<ChatScrollHarness chatHistory={[userMessage("first")]} />);
+      geometry.scrollHeight = 300;
+      act(() => {
+        resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver));
+        resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver));
+      });
+      expect(frames.size).toBe(1);
+      expect(geometry.scrollTop).toBe(100);
+      resize();
+      expect(geometry.scrollTop).toBe(200);
+      act(() => resizeCallbacks.forEach((callback) => callback([], {} as ResizeObserver)));
+      view.unmount();
+      expect(frames.size).toBe(0);
     });
   });
 });

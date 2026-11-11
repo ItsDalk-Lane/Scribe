@@ -1,7 +1,7 @@
 import { openWithSystemDefault } from "@/utils/openWithSystemDefault";
 import { renderMarkdown } from "@/utils/renderMarkdown";
 import { __resetVaultBaseCache } from "@/utils/vaultPath";
-import { App, FileSystemAdapter } from "obsidian";
+import { App, FileSystemAdapter, MarkdownRenderer } from "obsidian";
 
 jest.mock("@/logger", () => ({ logInfo: jest.fn(), logWarn: jest.fn(), logError: jest.fn() }));
 jest.mock("@/utils/openWithSystemDefault", () => ({ openWithSystemDefault: jest.fn() }));
@@ -90,6 +90,31 @@ describe("renderMarkdown", () => {
         "source.md",
         "tab"
       );
+    });
+    it("removes delegated links while host work is pending without wiring them again later https://github.com/ItsDalk-Lane/Scribe/issues/72", async () => {
+      let finish: (() => void) | undefined;
+      jest
+        .mocked(MarkdownRenderer as unknown as { render: jest.Mock })
+        .render.mockImplementationOnce(
+          () =>
+            new Promise<void>((resolve) => {
+              finish = resolve;
+            })
+        );
+      const cleanup: (() => void)[] = [];
+      const component = {
+        register: (callback: () => void) => cleanup.push(callback),
+      } as unknown as Parameters<typeof renderMarkdown>[4];
+      const el = document.createElement("div");
+      const app = buildApp();
+      const work = renderMarkdown(app as unknown as App, "[[Note]]", el, "source.md", component);
+      expect(cleanup).toHaveLength(1);
+      cleanup[0]();
+      finish?.();
+      await work;
+      const link = el.createEl("a", { cls: "internal-link", attr: { "data-href": "Note" } });
+      link.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      expect(app.workspace.openLinkText).not.toHaveBeenCalled();
     });
   });
 });

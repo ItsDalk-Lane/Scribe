@@ -82,7 +82,7 @@ function DiffSegmentView({ continued, path, segment }: DiffSegmentViewProps): Re
         )}
       >
         <Markdown
-          className={spacing}
+          contentClassName={spacing}
           nested
           onRendered={BLOCK_DECORATORS[segment.change]}
           sourcePath={path}
@@ -93,7 +93,7 @@ function DiffSegmentView({ continued, path, segment }: DiffSegmentViewProps): Re
   }
   return (
     <Markdown
-      className={spacing}
+      contentClassName={spacing}
       nested
       onRendered={decorateMarkdown}
       sourcePath={path}

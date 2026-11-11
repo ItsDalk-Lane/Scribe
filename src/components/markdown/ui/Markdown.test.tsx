@@ -110,5 +110,66 @@ describe("Markdown", () => {
       expect(screen.getByText("Current release notes")).not.toBeNull();
       expect(screen.queryByText("Old release notes")).toBeNull();
     });
+    it("keeps a late successful host write outside replacement content https://github.com/ItsDalk-Lane/Scribe/issues/72", async () => {
+      let finish: (() => void) | undefined;
+      jest
+        .mocked(renderMarkdown)
+        .mockImplementationOnce(
+          (_app, text, target) =>
+            new Promise<void>((resolve) => {
+              finish = () => {
+                target.textContent = text;
+                resolve();
+              };
+            })
+        )
+        .mockImplementation(async (_app, text, target) => {
+          target.textContent = text;
+        });
+      const app = new App();
+      const view = render(
+        <AppContext.Provider value={app}>
+          <Markdown sourcePath="" text="Old answer" />
+        </AppContext.Provider>
+      );
+      view.rerender(
+        <AppContext.Provider value={app}>
+          <Markdown sourcePath="" text="Replacement answer" />
+        </AppContext.Provider>
+      );
+      await act(async () => finish?.());
+      expect(view.container.textContent).toBe("Replacement answer");
+    });
+
+    it("keeps only the latest waiting snapshot and advances before the stream ends https://github.com/ItsDalk-Lane/Scribe/issues/72", async () => {
+      const finishes: (() => void)[] = [];
+      const inputs: string[] = [];
+      jest.mocked(renderMarkdown).mockImplementation(
+        (_app, text, target) =>
+          new Promise<void>((resolve) => {
+            inputs.push(text);
+            finishes.push(() => {
+              target.textContent = text;
+              resolve();
+            });
+          })
+      );
+      const app = new App();
+      const display = (text: string) => (
+        <AppContext.Provider value={app}>
+          <Markdown sourcePath="" text={text} isStreaming />
+        </AppContext.Provider>
+      );
+      const view = render(display("A"));
+      view.rerender(display("AB"));
+      view.rerender(display("ABC"));
+      expect(inputs).toEqual(["A"]);
+      expect(view.container.textContent).toBe("ABC");
+      await act(async () => finishes.shift()?.());
+      expect(inputs).toEqual(["A", "ABC"]);
+      expect(view.container.textContent).toBe("ABC");
+      await act(async () => finishes.shift()?.());
+      expect(view.container.textContent).toBe("ABC");
+    });
   });
 });

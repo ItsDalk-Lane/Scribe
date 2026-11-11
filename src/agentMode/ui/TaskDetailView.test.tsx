@@ -18,11 +18,20 @@ jest.mock("@/agentMode/ui/AgentTrailView", () => ({
   AgentTrail: ({
     parts,
     isStreaming,
+    messageId,
+    sourcePath,
   }: {
     parts: Array<{ kind: string; title?: string; text?: string }>;
     isStreaming: boolean;
+    messageId?: string;
+    sourcePath?: string;
   }) => (
-    <div data-testid="trail" data-streaming={String(isStreaming)}>
+    <div
+      data-testid="trail"
+      data-streaming={String(isStreaming)}
+      data-message-id={messageId}
+      data-source-path={sourcePath}
+    >
       {parts.map((p) => p.title ?? p.text).join(" | ")}
     </div>
   ),
@@ -102,6 +111,19 @@ describe("TaskDetailView", () => {
 
   afterEach(() => {
     delete (window as { ResizeObserver?: unknown }).ResizeObserver;
+  });
+
+  it("identifies its response by the source chat and task while resolving links from the vault root https://github.com/ItsDalk-Lane/Scribe/issues/72", () => {
+    renderDetail({
+      task: makeTask({ toolCallId: "current-task" }),
+      messages: SUBAGENT_MESSAGES,
+      chatId: "source-chat",
+    });
+
+    expect(screen.getByTestId("trail").getAttribute("data-message-id")).toBe(
+      "source-chat/current-task"
+    );
+    expect(screen.getByTestId("trail").getAttribute("data-source-path")).toBe("");
   });
 
   it(`shows a subagent's title and model, that it runs only by its spinner, its task as the first user message, then its work, live while it runs`, () => {

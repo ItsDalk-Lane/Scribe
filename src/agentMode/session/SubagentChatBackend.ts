@@ -41,6 +41,27 @@ import { v4 as uuidv4 } from "uuid";
 const EMPTY_MESSAGES = Object.freeze([]) as unknown as AgentChatMessage[];
 const EMPTY_TASKS = Object.freeze([]) as unknown as AgentTask[];
 const EMPTY_PROMPTS = Object.freeze([]) as unknown as QueuedPrompt[];
+const EMPTY_PERMISSIONS = Object.freeze([]) as unknown as PermissionPrompt[];
+const EMPTY_QUESTIONS = Object.freeze([]) as unknown as AskUserQuestionPrompt[];
+
+function sameItems<T>(previous: readonly T[], next: readonly T[]): boolean {
+  return previous.length === next.length && previous.every((value, index) => value === next[index]);
+}
+
+function sameFields(previous: object, next: object): boolean {
+  const entries = Object.entries(previous);
+  return (
+    entries.length === Object.keys(next).length &&
+    entries.every(([key, value]) => {
+      const nextValue = (next as Record<string, unknown>)[key];
+      return (
+        Object.prototype.hasOwnProperty.call(next, key) &&
+        (Object.is(value, nextValue) ||
+          (Array.isArray(value) && Array.isArray(nextValue) && sameItems(value, nextValue)))
+      );
+    })
+  );
+}
 
 export const SUBAGENT_RUN_MESSAGE_PREFIX = "subagent-run:";
 
@@ -188,6 +209,16 @@ export function buildSubagentTranscript(
 }
 
 export class SubagentChatBackend implements AgentChatBackend {
+  // 父会话通知会波及子聊天，缓存必须同时跟踪真实任务正文和结束指标。https://github.com/ItsDalk-Lane/Scribe/issues/72
+  private transcript: AgentChatMessage[] = EMPTY_MESSAGES;
+  private transcriptSnapshot: SubagentSessionSnapshot | null = null;
+  private transcriptRuns: readonly (readonly AgentChatMessage[])[] = [];
+  private transcriptTasks: readonly AgentTask[] = EMPTY_TASKS;
+  private transcriptUsage: SessionUsage | null = null;
+  private queuedSource: readonly SubagentMessage[] | null = null;
+  private queuedPrompts: readonly QueuedPrompt[] = EMPTY_PROMPTS;
+  private permissions: PermissionPrompt[] = EMPTY_PERMISSIONS;
+
   constructor(
     private readonly parent: AgentChatBackend,
     private readonly subagentId: string,
@@ -259,17 +290,28 @@ export class SubagentChatBackend implements AgentChatBackend {
 
   getQueuedPrompts(): readonly QueuedPrompt[] {
     const snapshot = this.getSnapshot();
-    if (!snapshot) return EMPTY_PROMPTS;
-    return snapshot.messages
+    if (!snapshot) {
+      this.queuedSource = null;
+      this.queuedPrompts = EMPTY_PROMPTS;
+      return this.queuedPrompts;
+    }
+    if (snapshot.messages === this.queuedSource) return this.queuedPrompts;
+    const previous = new Map(this.queuedPrompts.map((prompt) => [prompt.id, prompt]));
+    const prompts = snapshot.messages
       .filter((message) => message.direction === "to_child" && message.state === "accepted")
-      .map((message) => ({
-        id: message.id,
-        text:
+      .map((message) => {
+        const text =
           message.text ||
           (message.payload?.content.some((part) => part.type === "image")
             ? `[${t("Image attachment")}]`
-            : ""),
-      }));
+            : "");
+        const cached = previous.get(message.id);
+        return cached?.text === text ? cached : { id: message.id, text };
+      });
+    this.queuedSource = snapshot.messages;
+    if (!sameItems(this.queuedPrompts, prompts))
+      this.queuedPrompts = prompts.length ? prompts : EMPTY_PROMPTS;
+    return this.queuedPrompts;
   }
 
   getDeliveringPrompts(): readonly QueuedPrompt[] {
@@ -314,13 +356,47 @@ export class SubagentChatBackend implements AgentChatBackend {
 
   getMessages(): AgentChatMessage[] {
     const snapshot = this.getSnapshot();
-    if (!snapshot) return EMPTY_MESSAGES;
-    return buildSubagentTranscript(
+    if (!snapshot) {
+      this.transcript = EMPTY_MESSAGES;
+      this.transcriptSnapshot = null;
+      this.transcriptRuns = [];
+      this.transcriptTasks = EMPTY_TASKS;
+      this.transcriptUsage = null;
+      return this.transcript;
+    }
+    const runs = snapshot.runs.map((run) => this.parent.getTaskMessages(run.toolCallId));
+    const tasks = this.parent.getTasks();
+    const usage = this.getSessionUsage();
+    if (
+      this.transcriptSnapshot === snapshot &&
+      sameItems(this.transcriptRuns, runs) &&
+      this.transcriptTasks === tasks &&
+      this.transcriptUsage === usage
+    )
+      return this.transcript;
+    const previous = new Map(this.transcript.map((message) => [message.id, message]));
+    const previousMailbox = new Map(
+      this.transcriptSnapshot?.messages.map((message) => [message.id, message])
+    );
+    const mailbox = new Map(snapshot.messages.map((message) => [message.id, message]));
+    const sources = new Map(snapshot.runs.map((run, index) => [run.toolCallId, runs[index]]));
+    const transcript = buildSubagentTranscript(
       snapshot,
-      (toolCallId) => this.parent.getTaskMessages(toolCallId),
+      (toolCallId) => sources.get(toolCallId)!,
       this.resolveNote
     ).map((message) => {
-      if (message.sender === USER_SENDER) return message;
+      const cached = previous.get(message.id);
+      const mailboxId = message.id.startsWith("subagent-in:")
+        ? message.id.slice("subagent-in:".length)
+        : message.id.startsWith("subagent-out:")
+          ? message.id.slice("subagent-out:".length)
+          : undefined;
+      // 已投递附件与稳定切片应沿用展示身份，不能随另一段正文增长而重建。https://github.com/ItsDalk-Lane/Scribe/issues/72
+      if (mailboxId && cached && mailbox.get(mailboxId) === previousMailbox.get(mailboxId))
+        return cached;
+      // 原生执行记录也会含用户输入，其他任务变化不能让这些旧消息失去展示身份。https://github.com/ItsDalk-Lane/Scribe/issues/72
+      if (message.sender === USER_SENDER)
+        return cached && sameFields(cached, message) ? cached : message;
       const metrics = this.parent.getMessageUsageMetrics?.(message, true);
       const run = snapshot.runs.find((run) =>
         message.id.startsWith(`${SUBAGENT_RUN_MESSAGE_PREFIX}${run.id}:`)
@@ -360,13 +436,29 @@ export class SubagentChatBackend implements AgentChatBackend {
         run.endedAt >= run.startedAt
           ? run.endedAt - run.startedAt
           : undefined;
-      return {
+      // 用量来源明细会重复包装，数值未变时仍须保留历史正文的身份。https://github.com/ItsDalk-Lane/Scribe/issues/72
+      const cachedMetrics = cached?.turnMetrics;
+      const unchangedMetrics =
+        metrics &&
+        cachedMetrics &&
+        sameFields({ ...cachedMetrics, sources: metrics.sources }, metrics) &&
+        cachedMetrics.sources.length === metrics.sources.length &&
+        cachedMetrics.sources.every((source, index) => sameFields(source, metrics.sources[index]));
+      const entry = {
         ...message,
-        turnMetrics: metrics,
+        turnMetrics: unchangedMetrics ? cachedMetrics : metrics,
         turnStopReason: metrics?.roundStopReason ?? reason,
         turnDurationMs: metrics?.roundDurationMs ?? duration,
       };
+      return cached && sameFields(cached, entry) ? cached : entry;
     });
+    if (!sameItems(this.transcript, transcript))
+      this.transcript = transcript.length ? transcript : EMPTY_MESSAGES;
+    this.transcriptSnapshot = snapshot;
+    this.transcriptRuns = runs;
+    this.transcriptTasks = tasks;
+    this.transcriptUsage = usage;
+    return this.transcript;
   }
 
   getTasks(): readonly AgentTask[] {
@@ -440,12 +532,15 @@ export class SubagentChatBackend implements AgentChatBackend {
   }
 
   getPendingToolPermissions(): PermissionPrompt[] {
-    return this.parent
+    const permissions = this.parent
       .getPendingToolPermissions()
       .filter(
         (prompt) =>
           typeof prompt.requester === "object" && prompt.requester.subagentId === this.subagentId
       );
+    if (!sameItems(this.permissions, permissions))
+      this.permissions = permissions.length ? permissions : EMPTY_PERMISSIONS;
+    return this.permissions;
   }
 
   resolveToolPermission(toolCallId: string, optionId: string): void {
@@ -453,7 +548,7 @@ export class SubagentChatBackend implements AgentChatBackend {
   }
 
   getPendingAskUserQuestions(): AskUserQuestionPrompt[] {
-    return [];
+    return EMPTY_QUESTIONS;
   }
 
   resolveAskUserQuestion(): void {}

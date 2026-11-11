@@ -14,12 +14,11 @@ import { ClampedContent } from "@/components/ui/clamped-content";
 import { USER_SENDER } from "@/constants";
 import { cn } from "@/lib/utils";
 import { processInlineCitations } from "@/LLMProviders/chainRunner/utils/citationUtils";
-import { logError } from "@/logger";
 import { ChatMessage } from "@/types/message";
 import { extractYoutubeVideoId, insertAtCursor } from "@/utils";
 import { preprocessAIResponse } from "@/utils/markdownPreprocess";
-import { renderMarkdown } from "@/utils/renderMarkdown";
-import { App, Component, TFile } from "obsidian";
+import { MarkdownRenderController } from "@/components/markdown/MarkdownRenderController";
+import { App, TFile } from "obsidian";
 import React, { useCallback, useEffect, useRef } from "react";
 import { useSettingsValue } from "@/settings/model";
 import {
@@ -260,6 +259,9 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   forkDisabled,
 }) => {
   const contentRef = useRef<HTMLDivElement>(null);
+  const renderControllerRef = useRef<MarkdownRenderController | null>(null);
+  const streamingRef = useRef(isStreaming);
+  streamingRef.current = isStreaming;
   const messageId = useRef(
     message.id ||
       (message.timestamp?.epoch
@@ -274,9 +276,6 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
 
   const preprocess = useCallback(
     (content: string): string => {
-      const activeFile = app.workspace.getActiveFile();
-      const sourcePath = activeFile ? activeFile.path : "";
-
       const processCollapsibleSection = (
         content: string,
         tagName: string,
@@ -395,7 +394,7 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
 
       return processYouTubeEmbed(citationPlaceholderProcessed);
     },
-    [app, isStreaming, settings.enableInlineCitations, collapsibleOpenStateMap]
+    [app, sourcePath, isStreaming, settings.enableInlineCitations, collapsibleOpenStateMap]
   );
 
   useEffect(() => {
@@ -448,36 +447,43 @@ const ChatSingleMessage: React.FC<ChatSingleMessageProps> = ({
   useEffect(() => {
     const target = contentRef.current;
     if (!target || message.sender === USER_SENDER) return;
+    target.classList.add("message-segment", "markdown-rendered");
+    const controller = new MarkdownRenderController(app, target, () => {
+      normalizeFootnoteRendering(target);
+      if (!streamingRef.current) linkInlineCitations(target);
+    });
+    renderControllerRef.current = controller;
+    return () => {
+      controller.dispose();
+      if (renderControllerRef.current === controller) renderControllerRef.current = null;
+    };
+  }, [app, message.sender]);
 
+  useEffect(() => {
+    const target = contentRef.current;
+    if (!target || message.sender === USER_SENDER) return;
     captureScribeCollapsibleOpenStates(target, collapsibleOpenStateMap, {
       overwriteExisting: !isStreaming,
     });
-
-    const component = new Component();
-    component.load();
-    let cancelled = false;
-    const textDiv = target.doc.win.createDiv("message-segment markdown-rendered");
-    target.replaceChildren(textDiv);
-
-    void renderMarkdown(
-      app,
-      preprocess(message.message),
-      textDiv,
-      app.workspace.getActiveFile()?.path ?? "",
-      component
-    )
-      .then(() => {
-        if (cancelled) return;
-        normalizeFootnoteRendering(textDiv);
-        if (!isStreaming) linkInlineCitations(target);
-      })
-      .catch((error: unknown) => logError("renderMarkdown failed", error));
-
-    return () => {
-      cancelled = true;
-      component.unload();
-    };
-  }, [message, app, isStreaming, preprocess, collapsibleOpenStateMap]);
+    renderControllerRef.current?.update({
+      text: message.message,
+      preparedText: preprocess(message.message),
+      sourcePath,
+      renderIdentity: message.id ?? messageId.current,
+      isStreaming,
+      contentPolicy: "model",
+      contentClassName: cn("markdown-rendered"),
+    });
+  }, [
+    message.message,
+    message.id,
+    message.sender,
+    app,
+    sourcePath,
+    isStreaming,
+    preprocess,
+    collapsibleOpenStateMap,
+  ]);
 
   const handleInsertIntoEditor = () => {
     void insertAtCursor(app, message.message);

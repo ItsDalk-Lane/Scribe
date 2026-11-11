@@ -34,7 +34,7 @@ describe("AgentMarkdownText", () => {
       );
     });
 
-    it("resolves response links from the active note", async () => {
+    it("keeps response links rooted in the vault when a note is active https://github.com/ItsDalk-Lane/Scribe/issues/72", async () => {
       const app = new App();
       const TFileConstructor = TFile as unknown as new (path: string) => TFile;
       jest
@@ -51,9 +51,33 @@ describe("AgentMarkdownText", () => {
         app,
         "[[Related note]]",
         expect.any(HTMLElement),
-        "Projects/Active note.md",
+        "",
         expect.anything()
       );
+    });
+
+    it("uses the explicit source without reading the active note https://github.com/ItsDalk-Lane/Scribe/issues/72", async () => {
+      const app = new App();
+      render(
+        <AppContext.Provider value={app}>
+          <AgentMarkdownText
+            app={app}
+            text="[[Related note]]"
+            sourcePath="Notes/Question.md"
+            renderIdentity="chat/response/7:0"
+          />
+        </AppContext.Provider>
+      );
+
+      expect(await screen.findByText("[[Related note]]")).not.toBeNull();
+      expect(renderMarkdown).toHaveBeenCalledWith(
+        app,
+        "[[Related note]]",
+        expect.any(HTMLElement),
+        "Notes/Question.md",
+        expect.anything()
+      );
+      expect(app.workspace.getActiveFile).not.toHaveBeenCalled();
     });
   });
 });

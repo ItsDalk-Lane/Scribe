@@ -136,6 +136,7 @@ const AgentMessageRow = memo(function AgentMessageRow({
             turnDurationMs={completedTurnDurationMs}
             timestamp={message.timestamp?.display}
             app={app}
+            sourcePath={sourcePath}
             turnStopReason={message.turnStopReason}
             errorText={messageFailureText(message)}
             fileChanges={message.fileChanges}
