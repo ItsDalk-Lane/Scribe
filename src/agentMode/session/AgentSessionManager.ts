@@ -10,7 +10,6 @@ import {
   type AgentInputDraft,
 } from "@/agentMode/session/AgentInputDraftStore";
 import { getSettings, setSettings, subscribeToSettingsChange } from "@/settings/model";
-import { buildProjectContext } from "@/context/manifestBuilder";
 import { err2String } from "@/utils";
 import type { ChatHistoryItem } from "@/components/chat-components/ChatHistoryPopover";
 import {
@@ -52,18 +51,9 @@ import {
   resolveProjectIdForCwd,
   resolveScopeCwd,
 } from "./sessionScope";
-import {
-  getCachedProjectRecordById,
-  getCachedProjectRecords,
-  subscribeToProjectRecords,
-} from "@/projects/state";
+import { getCachedProjectRecordById } from "@/projects/state";
 import type { ProjectFileRecord } from "@/projects/type";
-import {
-  getProjectContextSignature,
-  getProjectLandingCaptureSignature,
-} from "@/projects/projectContextSignature";
-import { ProjectContentTracker } from "@/context/projectContentTracker";
-import { buildProjectContextUpdatesBlock } from "@/context/contextUpdatesBlockBuilder";
+import { getProjectLandingCaptureSignature } from "@/projects/projectContextSignature";
 import { ensureAgentsFileForDiscovery } from "@/instructions/agentsFile";
 import { validateProjectWorkspace } from "@/projects/projectWorkspace";
 import { ProjectFileManager } from "@/projects/ProjectFileManager";
@@ -123,7 +113,6 @@ const EMPTY_HISTORY_ITEMS = Object.freeze([]) as unknown as ChatHistoryItem[];
 const EMPTY_RECENT_CHAT_IDS: ReadonlySet<string> = new Set();
 const EMPTY_CHAT_INPUT_IDS: readonly string[] = Object.freeze([]);
 
-const RESUMED_SESSION_BEHIND_EPOCH = -1;
 const MAX_HIDDEN_PROCESS_CHATS = 3;
 
 function hasUnsentInput(draft: AgentInputDraft | undefined): boolean {
@@ -191,10 +180,6 @@ export class AgentSessionManager {
   private readonly lastActiveByScope = new Map<ProjectScopeId, string>();
   private readonly detachedFromTabIds = new Set<string>();
   private readonly landingCaptureSignatures = new Map<string, string>();
-  private readonly contentTracker: ProjectContentTracker;
-  private readonly lastSeenProjectContentEpochBySession = new Map<string, number>();
-  private previousProjectRecords: ProjectFileRecord[] = [];
-  private projectRecordsUnsubscriber?: () => void;
   private readonly firstSessionPromiseByScope = new Map<ProjectScopeId, Promise<AgentSession>>();
   private readonly replacementCursorByChatInputId = new Map<string, Promise<string>>();
   readonly drafts: AgentInputDraftStore;
@@ -288,8 +273,6 @@ export class AgentSessionManager {
         }
       }
     });
-    this.contentTracker = new ProjectContentTracker(this.app);
-    this.setupProjectRecordChangeMonitor();
   }
 
   isBackendEnabled(backendId: BackendId): boolean {
@@ -481,55 +464,6 @@ export class AgentSessionManager {
     } finally {
       if (this.backendStops.get(backendId) === work) this.backendStops.delete(backendId);
     }
-  }
-
-  private setupProjectRecordChangeMonitor(): void {
-    this.previousProjectRecords = getCachedProjectRecords();
-    this.projectRecordsUnsubscriber?.();
-    this.projectRecordsUnsubscriber = subscribeToProjectRecords((nextRecords) => {
-      this.handleProjectRecordsChanged(nextRecords);
-    });
-  }
-
-  private handleProjectRecordsChanged(nextRecords: ProjectFileRecord[]): void {
-    if (this.disposed) return;
-    const prevRecords = this.previousProjectRecords;
-    this.previousProjectRecords = nextRecords;
-
-    for (const nextRecord of nextRecords) {
-      const prevRecord = prevRecords.find((r) => r.project.id === nextRecord.project.id);
-      if (!prevRecord) continue;
-      const nextSignature = getProjectContextSignature(nextRecord);
-      if (getProjectContextSignature(prevRecord) === nextSignature) continue;
-
-      this.contentTracker.bumpEpoch(nextRecord.project.id);
-    }
-  }
-
-  private buildFirstProjectContextBlock(internalId: string, projectId: ProjectScopeId): string {
-    this.contentTracker.flushNow();
-    this.lastSeenProjectContentEpochBySession.set(
-      internalId,
-      this.contentTracker.getEpoch(projectId)
-    );
-    return buildProjectContext(this.app, projectId);
-  }
-
-  private getProjectContextUpdates(
-    internalId: string,
-    projectId: ProjectScopeId
-  ): { epoch: number; block: string } | null {
-    if (projectId === GLOBAL_SCOPE) return null;
-    this.contentTracker.flushNow();
-    const epoch = this.contentTracker.getEpoch(projectId);
-    const lastSeen = this.lastSeenProjectContentEpochBySession.get(internalId) ?? 0;
-    if (epoch <= lastSeen) return null;
-    return { epoch, block: buildProjectContextUpdatesBlock() };
-  }
-
-  private markProjectContextUpdatesDelivered(internalId: string, epoch: number): void {
-    const lastSeen = this.lastSeenProjectContentEpochBySession.get(internalId) ?? 0;
-    if (epoch > lastSeen) this.lastSeenProjectContentEpochBySession.set(internalId, epoch);
   }
 
   async getChatHistoryItems(scope?: ProjectScopeId): Promise<ChatHistoryItem[]> {
@@ -1142,15 +1076,6 @@ export class AgentSessionManager {
         getDisplayName: (backendId) => this.resolveDescriptor(backendId).displayName,
         getApp: () => this.app,
         beforePrompt: () => this.prepareNextPrompt(internalId),
-        ...(projectId !== GLOBAL_SCOPE
-          ? {
-              getProjectContextBlock: () =>
-                this.buildFirstProjectContextBlock(internalId, projectId),
-              getProjectContextUpdates: () => this.getProjectContextUpdates(internalId, projectId),
-              markProjectContextUpdatesDelivered: (epoch: number) =>
-                this.markProjectContextUpdatesDelivered(internalId, epoch),
-            }
-          : {}),
       });
     } catch (error) {
       this.finishPendingCreate();
@@ -1876,7 +1801,6 @@ export class AgentSessionManager {
     this.dirtyExtensionSessions.delete(id);
     this.chatUIStates.delete(id);
     this.landingCaptureSignatures.delete(id);
-    this.lastSeenProjectContentEpochBySession.delete(id);
     this.detachedFromTabIds.delete(id);
     if (this.lastActiveByScope.get(closedScope) === id) {
       this.lastActiveByScope.delete(closedScope);
@@ -2061,9 +1985,6 @@ export class AgentSessionManager {
     if (this.disposed) return;
     this.disposed = true;
     this.settingsUnsub();
-    this.projectRecordsUnsubscriber?.();
-    this.projectRecordsUnsubscriber = undefined;
-    this.contentTracker.dispose();
     logInfo(
       `[AgentMode] shutdown (pool size=${this.sessions.size}, backends=${this.backends.size})`
     );
@@ -2092,7 +2013,6 @@ export class AgentSessionManager {
     this.dirtyExtensionSessions.clear();
     this.chatUIStates.clear();
     this.landingCaptureSignatures.clear();
-    this.lastSeenProjectContentEpochBySession.clear();
     this.activeSessionId = null;
     this.activeProjectId = GLOBAL_SCOPE;
     this.scopeSeq++;
@@ -2380,13 +2300,6 @@ export class AgentSessionManager {
       getDescriptor: () => this.opts.resolveDescriptor(backendId),
       getDisplayName: (id) => this.resolveDescriptor(id).displayName,
       getApp: () => this.app,
-      ...(projectId !== GLOBAL_SCOPE
-        ? {
-            getProjectContextUpdates: () => this.getProjectContextUpdates(internalId, projectId),
-            markProjectContextUpdatesDelivered: (epoch: number) =>
-              this.markProjectContextUpdatesDelivered(internalId, epoch),
-          }
-        : {}),
     });
 
     const openInput = { sessionId, cwd, projectId };
@@ -2443,9 +2356,6 @@ export class AgentSessionManager {
       await session.dispose();
       this.finishPendingCreate();
       return null;
-    }
-    if (projectId !== GLOBAL_SCOPE) {
-      this.lastSeenProjectContentEpochBySession.set(internalId, RESUMED_SESSION_BEHIND_EPOCH);
     }
     if (resumeResult.historyFormat === 2) await session.restorePersistedDisplayFacts();
     session.setHistoryReadOnly(resumeResult.historyReadOnly === true);
@@ -2787,7 +2697,6 @@ export class AgentSessionManager {
         this.sessions.delete(s.internalId);
         this.chatUIStates.delete(s.internalId);
         this.landingCaptureSignatures.delete(s.internalId);
-        this.lastSeenProjectContentEpochBySession.delete(s.internalId);
         this.detachedFromTabIds.delete(s.internalId);
         if (this.lastActiveByScope.get(s.projectId) === s.internalId) {
           this.lastActiveByScope.delete(s.projectId);

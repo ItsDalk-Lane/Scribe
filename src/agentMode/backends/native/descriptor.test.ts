@@ -4,6 +4,8 @@ jest.mock("@/agentMode/subagents/SubagentManager", () => ({
 }));
 import { FileSystemAdapter, type App } from "obsidian";
 import { join } from "node:path";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import type ScribePlugin from "@/main";
 import { DEFAULT_SETTINGS } from "@/constants";
 import { getSettings, resetSettings, setSettings } from "@/settings/model";
@@ -367,6 +369,16 @@ describe("nativeDescriptor", () => {
     });
   });
   describe("createBackendProcess()", () => {
+    let vaultRoot: string;
+    beforeEach(async () => {
+      vaultRoot = await mkdtemp(join(tmpdir(), "scribe-descriptor-vault-"));
+    });
+    afterEach(async () => {
+      jest
+        .mocked(createNativeAdvancedTools)
+        .mockReturnValue([{ name: "invoke_skill" }, { name: "excalidraw_read" }] as never);
+      await rm(vaultRoot, { recursive: true, force: true });
+    });
     it("rebuilds the request declaration from the current project selection and leaves global requests without project sources", () => {
       const previous = getCachedProjectRecords();
       const record = {
@@ -595,8 +607,10 @@ describe("nativeDescriptor", () => {
         "@/agentMode/sdk/nativeAdvancedTools"
       );
       jest.mocked(createNativeAdvancedTools).mockImplementation(actual.createNativeAdvancedTools);
+      const adapter = new FileSystemAdapter();
+      adapter.getBasePath = () => vaultRoot;
       NativeBackendDescriptor.createBackendProcess({
-        app: { vault: { adapter: new FileSystemAdapter() } } as unknown as App,
+        app: { vault: { adapter } } as unknown as App,
         plugin: {} as ScribePlugin,
         clientVersion: "test",
         descriptor: NativeBackendDescriptor,
@@ -604,6 +618,7 @@ describe("nativeDescriptor", () => {
       const options = jest.mocked(NativeBackendProcess).mock.calls[0][0];
       let published = false;
       const context = toolContext({
+        cwd: vaultRoot,
         skillCatalog: {
           everPublished: () => published,
           markPublished: () => {
@@ -629,9 +644,6 @@ describe("nativeDescriptor", () => {
       expect(
         options.createTools(context).tools.find((tool) => tool.name === "invoke_skill")?.description
       ).toContain("No skills are currently available");
-      jest
-        .mocked(createNativeAdvancedTools)
-        .mockReturnValue([{ name: "invoke_skill" }, { name: "excalidraw_read" }] as never);
     });
     describe("mcp integration", () => {
       function managerStub(overrides: {

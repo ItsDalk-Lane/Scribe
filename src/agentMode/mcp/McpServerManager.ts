@@ -3,6 +3,7 @@ import type { App } from "obsidian";
 import { logError } from "@/logger";
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
 import { SecretStore } from "@/services/secretStore";
+import { sha256 } from "@/utils/hash";
 
 import { effectiveTimeoutSeconds, mcpServerConnectionFingerprint } from "./configSchema";
 import { resolveMcpValues } from "./secretRefs";
@@ -20,10 +21,12 @@ export interface McpConnectionInput {
   headers: Record<string, string>;
   clientInfo: { name: string; version: string };
   onUnexpectedClose(reason: string): void;
+  onToolsChanged?(): void;
 }
 
 export interface McpConnectionInstance {
   start(): Promise<{ version?: string; tools: readonly McpToolInfo[] }>;
+  listTools?(): Promise<readonly McpToolInfo[]>;
   callTool(
     name: string,
     args: Record<string, unknown> | undefined,
@@ -49,6 +52,7 @@ export interface McpServerManagerOptions {
 interface McpServerEntry {
   config: McpServerConfig;
   fingerprint: string;
+  catalogSignature?: string;
   connection: McpConnectionInstance | null;
   state: McpServerState;
   epoch: number;
@@ -57,6 +61,16 @@ interface McpServerEntry {
 const MAX_ERROR_MESSAGE_LENGTH = 300;
 
 const EMPTY_TOOLS: readonly McpToolInfo[] = Object.freeze([]);
+
+export class McpToolCallError extends Error {
+  constructor(
+    readonly outcome: "not_started" | "outcome_unknown",
+    message: string
+  ) {
+    super(message);
+    this.name = "McpToolCallError";
+  }
+}
 
 export class McpServerManager {
   private readonly entries = new Map<string, McpServerEntry>();
@@ -88,11 +102,13 @@ export class McpServerManager {
     const parts: unknown[] = [];
     for (const entry of this.entries.values()) {
       parts.push([
+        entry.config.id,
         entry.config.name,
         entry.fingerprint,
         entry.state.status,
         entry.state.version ?? null,
         entry.state.toolCount,
+        entry.catalogSignature,
       ]);
     }
     return JSON.stringify(parts);
@@ -136,21 +152,47 @@ export class McpServerManager {
     args: Record<string, unknown> | undefined,
     signal?: AbortSignal
   ): Promise<McpToolCallResult> {
+    // 开始卸载即停止派发，不能等异步连接清理走到此服务器。https://github.com/ItsDalk-Lane/Scribe/issues/71
+    if (this.disposed)
+      throw new McpToolCallError("not_started", "The MCP server manager is shutting down.");
+    // 工具目录或取消状态可在等待批准期间改变，派发前必须核对当前资格。https://github.com/ItsDalk-Lane/Scribe/issues/70
+    if (signal?.aborted)
+      throw new McpToolCallError("not_started", "The MCP request was cancelled before dispatch.");
     const entry = this.entries.get(serverId);
-    if (!entry) throw new Error(`MCP server ${serverId} is not configured.`);
-    if (entry.state.status !== "connected" || !entry.connection)
-      throw new Error(
+    if (!entry)
+      throw new McpToolCallError("not_started", `MCP server ${serverId} is not configured.`);
+    if (!entry.config.isActive || entry.state.status !== "connected" || !entry.connection)
+      throw new McpToolCallError(
+        "not_started",
         `MCP server "${entry.config.name}" is not connected (status: ${entry.state.status}${
           entry.state.lastError ? `: ${entry.state.lastError}` : ""
         }).`
       );
-    return entry.connection.callTool(
-      name,
-      args,
-      effectiveTimeoutSeconds(entry.config),
-      entry.config.longRunning === true,
-      signal
-    );
+    if (entry.config.disabledTools?.includes(name))
+      throw new McpToolCallError(
+        "not_started",
+        `MCP tool "${name}" is disabled on "${entry.config.name}".`
+      );
+    if (!this.getTools(serverId).some((tool) => tool.name === name))
+      throw new McpToolCallError(
+        "not_started",
+        `MCP tool "${name}" was not discovered on "${entry.config.name}".`
+      );
+    try {
+      return await entry.connection.callTool(
+        name,
+        args,
+        effectiveTimeoutSeconds(entry.config),
+        entry.config.longRunning === true,
+        signal
+      );
+    } catch (error) {
+      // 连接错误不能证明远端副作用未发生，禁止把取消或断线当作安全重试依据。https://github.com/ItsDalk-Lane/Scribe/issues/70
+      throw new McpToolCallError(
+        "outcome_unknown",
+        error instanceof Error ? error.message : String(error)
+      );
+    }
   }
 
   subscribe(listener: () => void): () => void {
@@ -219,6 +261,37 @@ export class McpServerManager {
   }
 
   private async connectEntry(entry: McpServerEntry, epoch: number): Promise<void> {
+    let ready = false;
+    let refreshing = false;
+    let catalogChanged = false;
+    const refreshCatalog = async () => {
+      const connection = entry.connection;
+      if (!ready || refreshing || !connection?.listTools) return;
+      refreshing = true;
+      // 通知到达即撤回旧定义，连续通知只发布最后一次完整目录。https://github.com/ItsDalk-Lane/Scribe/issues/71
+      this.toolCache.delete(entry.config.id);
+      entry.catalogSignature = undefined;
+      entry.state = { ...entry.state, status: "connecting", lastError: undefined, toolCount: 0 };
+      this.notify();
+      try {
+        do {
+          catalogChanged = false;
+          try {
+            const tools = await connection.listTools();
+            if (!this.isCurrentEntry(entry, epoch)) return;
+            if (!catalogChanged) this.publishCatalog(entry, tools);
+          } catch (error) {
+            if (!this.isCurrentEntry(entry, epoch)) return;
+            if (!catalogChanged) {
+              entry.state = { ...entry.state, status: "error", lastError: truncateError(error) };
+              this.notify();
+            }
+          }
+        } while (catalogChanged && this.isCurrentEntry(entry, epoch));
+      } finally {
+        refreshing = false;
+      }
+    };
     try {
       const { env, headers } = await this.options.resolveValues(entry.config);
       if (!this.isCurrentEntry(entry, epoch)) return;
@@ -227,6 +300,11 @@ export class McpServerManager {
         env,
         headers,
         clientInfo: this.options.clientInfo,
+        onToolsChanged: () => {
+          if (!this.isCurrentEntry(entry, epoch)) return;
+          catalogChanged = true;
+          void refreshCatalog();
+        },
         onUnexpectedClose: (reason) => {
           if (!this.isCurrentEntry(entry, epoch)) return;
           void this.closeConnection(entry);
@@ -246,15 +324,11 @@ export class McpServerManager {
       entry.connection = connection;
       const started = await connection.start();
       if (!this.isCurrentEntry(entry, epoch)) return;
-      entry.state = {
-        ...entry.state,
-        status: "connected",
-        lastError: undefined,
-        ...(started.version ? { version: started.version } : {}),
-        toolCount: started.tools.length,
-      };
-      this.toolCache.set(entry.config.id, started.tools);
-      this.notify();
+      if (started.version) entry.state = { ...entry.state, version: started.version };
+      ready = true;
+      // 初次发现期间收到变化通知时，初次列表也可能已经过期。https://github.com/ItsDalk-Lane/Scribe/issues/71
+      if (catalogChanged && connection.listTools) await refreshCatalog();
+      else this.publishCatalog(entry, started.tools);
     } catch (error) {
       if (!this.isCurrentEntry(entry, epoch)) return;
       const closing = this.closeConnection(entry);
@@ -269,6 +343,19 @@ export class McpServerManager {
     }
   }
 
+  private publishCatalog(entry: McpServerEntry, tools: readonly McpToolInfo[]): void {
+    // 远端工具数量和服务版本都可能没变，实际声明指纹用于识别目录变化。https://github.com/ItsDalk-Lane/Scribe/issues/71
+    entry.catalogSignature = sha256(JSON.stringify(tools));
+    entry.state = {
+      ...entry.state,
+      status: "connected",
+      lastError: undefined,
+      toolCount: tools.length,
+    };
+    this.toolCache.set(entry.config.id, tools);
+    this.notify();
+  }
+
   private isCurrentEntry(entry: McpServerEntry, epoch: number): boolean {
     return !this.disposed && this.entries.get(entry.config.id) === entry && entry.epoch === epoch;
   }
@@ -277,6 +364,7 @@ export class McpServerManager {
     entry.epoch++;
     const connection = entry.connection;
     entry.connection = null;
+    entry.catalogSignature = undefined;
     entry.state = { serverId: entry.config.id, status: "disabled", toolCount: 0 };
     this.toolCache.delete(entry.config.id);
     if (!connection) return;

@@ -61,6 +61,15 @@ describe("AgentChatControls", () => {
       expect(container.firstElementChild?.firstElementChild?.textContent).toBe("2 tasks running");
     });
 
+    it("opens the saved request preview from the More actions menu", () => {
+      const onPreviewRequest = jest.fn();
+      renderSessionControls({ onPreviewRequest });
+      fireEvent.click(
+        within(openMoreActions()).getByRole("menuitem", { name: "View last request" })
+      );
+      expect(onPreviewRequest).toHaveBeenCalledTimes(1);
+    });
+
     it("copies the chat link from the More actions menu", () => {
       const onCopyChatLink = jest.fn();
       renderSessionControls({ onCopyChatLink });

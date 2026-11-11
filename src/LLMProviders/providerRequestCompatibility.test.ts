@@ -309,6 +309,72 @@ describe("createProviderChatModel", () => {
     });
 
     it.each([
+      ["@ai-sdk/anthropic", "https://api.anthropic.com", undefined, true],
+      ["@ai-sdk/anthropic", "https://api.anthropic.com", true, true],
+      ["@ai-sdk/anthropic", "https://api.anthropic.com", false, false],
+      ["@ai-sdk/google-vertex/anthropic", "https://aiplatform.googleapis.com", undefined, true],
+      ["@ai-sdk/google-vertex/anthropic", "https://aiplatform.googleapis.com", true, true],
+      ["@ai-sdk/google-vertex/anthropic", "https://aiplatform.googleapis.com", false, false],
+      ["@ai-sdk/anthropic", "https://anthropic-gateway.invalid/v1", undefined, false],
+      ["@ai-sdk/anthropic", "https://anthropic-gateway.invalid/v1", false, false],
+      ["@ai-sdk/anthropic", "https://anthropic-gateway.invalid/v1", true, true],
+    ] as const)(
+      "uses supported short caching for %s at %s with caching=%s without changing request content",
+      async (providerNpm, baseUrl, enablePromptCaching, expectedCache) => {
+        const direct = providerNpm === "@ai-sdk/anthropic";
+        const model = await createProviderChatModel(
+          wire({
+            providerNpm,
+            baseUrl,
+            enablePromptCaching,
+            providerOptions: {
+              GOOGLE_VERTEX_PROJECT: "synthetic-project",
+              GOOGLE_VERTEX_LOCATION: "global",
+            },
+          })
+        );
+        const question = "Read this synthetic note";
+        expect(
+          await collectText(model, {
+            systemPrompt,
+            tools: [
+              {
+                name: "read_note",
+                description: "Read a note",
+                parameters: { type: "object", properties: {} },
+              },
+            ],
+            messages: [{ role: "user", content: question, timestamp: 0 }],
+          })
+        ).toBe("ok");
+        const body = requests[0].body;
+        const system = body.system as Array<{ text: string; cache_control?: unknown }>;
+        const tools = body.tools as Array<{ name: string; cache_control?: unknown }>;
+        const messages = body.messages as Array<{
+          content: string | Array<{ text: string; cache_control?: unknown }>;
+        }>;
+        expect(system[0].text).toBe(systemPrompt);
+        expect(tools[0].name).toBe("read_note");
+        const content = messages[0].content;
+        expect(typeof content === "string" ? content : content[0].text).toBe(question);
+        const cache = expectedCache ? { type: "ephemeral" } : undefined;
+        expect(system[0].cache_control).toEqual(cache);
+        expect(tools[0].cache_control).toEqual(cache);
+        expect(typeof content === "string" ? undefined : content[0].cache_control).toEqual(cache);
+        expect(JSON.stringify(body)).not.toContain('"ttl"');
+        expect(body).not.toHaveProperty("prompt_cache_key");
+        if (!expectedCache) expect(JSON.stringify(body)).not.toContain("cache_control");
+        if (!direct) {
+          expect(requests[0].url).toContain(
+            "publishers/anthropic/models/fixture-model:streamRawPredict"
+          );
+          expect(body.anthropic_version).toBe("vertex-2023-10-16");
+          expect(requests[0].headers.get("Authorization")).toBe(`Bearer ${key}`);
+        }
+      }
+    );
+
+    it.each([
       [false, undefined],
       [true, undefined],
       [false, ReasoningEffort.HIGH],

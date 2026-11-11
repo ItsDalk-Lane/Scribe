@@ -62,6 +62,18 @@ function registryWith(overrides: Partial<ManagerStubInput> = {}): {
 describe("deferredMcpTools", () => {
   describe("DeferredMcpToolRegistry", () => {
     describe("fromManager()", () => {
+      it("rejects a collision between different server and tool components before a deferred catalog is published https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+        expect(() =>
+          registryWith({
+            servers: [server({ name: "a__b" }), server({ id: "srv-2", name: "a" })],
+            toolsByServer: {
+              "srv-1": [{ name: "c", inputSchema: {} }],
+              "srv-2": [{ name: "b__c", inputSchema: {} }],
+            },
+          })
+        ).toThrow("Duplicate MCP tool name: mcp__a__b__c");
+      });
+
       it("lists every enabled server tool as a deferred entry with its server ownership", () => {
         const { registry } = registryWith();
         expect(registry.list()).toEqual([
@@ -206,7 +218,13 @@ describe("deferredMcpTools", () => {
           { query: "notes" },
           controller.signal
         );
-        expect(result).toMatchObject({ content: [{ type: "text", text: "found 2 notes" }] });
+        expect(result.content).toEqual([
+          {
+            type: "text",
+            text: '<tool_execution>\n{"status":"completed","retry":"never","complete":true}\n</tool_execution>',
+          },
+          { type: "text", text: "found 2 notes" },
+        ]);
       });
     });
   });

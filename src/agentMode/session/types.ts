@@ -574,7 +574,17 @@ export interface StopTaskInput {
 
 export type SessionUpdateHandler = (event: SessionEvent) => void;
 
+export interface RequestContextPreview {
+  requestId: string;
+  modelId: string;
+  provider: string;
+  content: string;
+}
+
 export interface BackendProcess {
+  getRequestContextPreview?(params: {
+    sessionId: SessionId;
+  }): Promise<RequestContextPreview | null>;
   continueTaskBudget?(params: {
     sessionId: SessionId;
     taskGenerationId?: string;

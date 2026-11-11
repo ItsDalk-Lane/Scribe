@@ -7,6 +7,9 @@ import ChatModelManager from "@/LLMProviders/chatModelManager";
 import { createAssistantMessage, type ChatStreamOptions } from "@/LLMProviders/piChatModel";
 import type { CustomModel } from "@/aiParams";
 
+export const DEFAULT_CHAT_SYSTEM_PROMPT =
+  "You are a helpful assistant. You'll help the user with their content editing needs.";
+
 export interface ChatMemory {
   chatHistory: { messages: Message[] };
 }
@@ -22,13 +25,15 @@ export async function createChatChain(
 ) {
   const chatModel =
     await ChatModelManager.getInstance().createModelInstanceFromBridged(selectedModel);
-  const defaultSystemPrompt =
-    "You are a helpful assistant. You'll help the user with their content editing needs.";
 
   return {
-    stream(input: string, options: ChatStreamOptions & Pick<StreamOptions, "maxTokens">) {
+    stream(
+      input: string,
+      options: ChatStreamOptions & Pick<StreamOptions, "maxTokens">,
+      requestSystemPrompt = systemPrompt
+    ) {
       const context: Context = {
-        systemPrompt: systemPrompt || defaultSystemPrompt,
+        systemPrompt: requestSystemPrompt || DEFAULT_CHAT_SYSTEM_PROMPT,
         messages: [
           ...memory.chatHistory.messages,
           { role: "user", content: input, timestamp: Date.now() },

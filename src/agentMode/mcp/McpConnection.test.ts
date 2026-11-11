@@ -10,6 +10,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  ToolListChangedNotificationSchema,
   type CallToolRequest,
   type CallToolResult,
 } from "@modelcontextprotocol/sdk/types.js";
@@ -42,6 +43,7 @@ function createHarness() {
       transport.onerror?.(new Error("Optional GET stream returned HTTP 400"));
     }),
     getServerVersion: () => ({ version: "1.2.3" }),
+    setNotificationHandler: jest.fn(),
     listTools: jest
       .fn()
       .mockResolvedValue({ tools: [{ name: "search", inputSchema: { type: "object" } }] }),
@@ -75,7 +77,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-async function createProtocolHarness(type: "sse" | "streamableHttp") {
+async function createProtocolHarness(type: "sse" | "streamableHttp", listChanged = false) {
   const { connection, input } = createHarness();
   input.server.type = type;
   const { Client: ActualClient } = jest.requireActual<
@@ -95,7 +97,7 @@ async function createProtocolHarness(type: "sse" | "streamableHttp") {
   }
   const server = new Server(
     { name: "progress-server", version: "1" },
-    { capabilities: { tools: {} } }
+    { capabilities: { tools: { listChanged } } }
   );
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [] }));
   await server.connect(serverTransport);
@@ -105,6 +107,37 @@ async function createProtocolHarness(type: "sse" | "streamableHttp") {
 describe("McpConnection", () => {
   describe("McpSdkConnection", () => {
     describe("start()", () => {
+      it("forwards MCP tool list change notifications to the catalog owner https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const { connection, client, input } = createHarness();
+        const changed = jest.fn();
+        input.onToolsChanged = changed;
+        await connection.start();
+        expect(client.setNotificationHandler).toHaveBeenCalledWith(
+          ToolListChangedNotificationSchema,
+          expect.any(Function)
+        );
+        const notify = client.setNotificationHandler.mock.calls[0][1] as () => void;
+        notify();
+        expect(changed).toHaveBeenCalledTimes(1);
+        await connection.close();
+        notify();
+        expect(changed).toHaveBeenCalledTimes(1);
+      });
+
+      it("receives a list-change notification through the actual MCP protocol https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const { connection, input, server } = await createProtocolHarness("streamableHttp", true);
+        const changed = deferred<void>();
+        input.onToolsChanged = () => changed.resolve();
+        try {
+          await connection.start();
+          await server.sendToolListChanged();
+          await changed.promise;
+        } finally {
+          await connection.close();
+          await server.close();
+        }
+      });
+
       it("keeps a working POST session available when the optional GET stream fails", async () => {
         const { connection, input, client } = createHarness();
         await expect(connection.start()).resolves.toEqual({
@@ -190,6 +223,17 @@ describe("McpConnection", () => {
         await expect(connection.start()).rejects.toThrow("unauthorized");
         await connection.close();
         expect(client.close).toHaveBeenCalledTimes(1);
+      });
+    });
+    describe("listTools()", () => {
+      it("rejects a repeated remote cursor instead of waiting on a directory that cannot advance https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const { connection, client } = createHarness();
+        await connection.start();
+        client.listTools
+          .mockResolvedValueOnce({ tools: [], nextCursor: "same-page" })
+          .mockResolvedValueOnce({ tools: [], nextCursor: "same-page" })
+          .mockResolvedValueOnce({ tools: [] });
+        await expect(connection.listTools()).rejects.toThrow(/repeated.*cursor/i);
       });
     });
     describe("callTool()", () => {

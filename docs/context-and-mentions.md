@@ -4,11 +4,11 @@ Context is the material Scribe gives an AI with your request. Choose the shortes
 
 Clicking a PDF page citation in a chat opens the target page at its top while keeping your current zoom. Citations to selected text, annotations, or an explicit position keep their original destination.
 
-| Context type                   | How long it lasts                                                                              |
-| ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| One-turn attachment or mention | The next ordinary message                                                                      |
-| Project context                | Listed on the first ordinary message of a new Project chat; changes can trigger a later notice |
-| Vault or Project `AGENTS.md`   | Read when starting a response in an Agent Chat in that vault or Project                        |
+| Context type                   | How long it lasts                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| One-turn attachment or mention | The next ordinary message                                                                               |
+| Project context                | Current complete declaration supplied before every model step, including after compression or reopening |
+| Vault or Project `AGENTS.md`   | Read before each model step; already submitted input stays unchanged                                    |
 
 ## Add context to Agent Chat
 
@@ -57,11 +57,11 @@ For material that should be prepared for more than one chat, create a [Project](
 - add a web page or YouTube URL; or
 - select **管理参考内容** to add links, tags, properties, folders, files, and ignored files.
 
-Scribe supplies an initial list of Project sources with the first ordinary message of a new chat. That list has a limit and does not automatically include the contents of every source; see [Projects](projects.md) for details.
+Scribe supplies the current Project source declaration before every model step. It replaces earlier source declarations, including when you clear the selection. All explicit choices are kept; automatically expanded matches have a limit. Source contents are still read when needed; see [Projects](projects.md) for details.
 
 Saved context is a focus aid, not a permission boundary. **忽略文件** filters some matching entries in the source list; it does not necessarily remove explicitly included notes or folders. The agent can still inspect files available through its tools.
 
-One-turn attachments remain one-turn attachments inside a Project. Instructions are read again when a response starts. Start a new Project chat when you need a fresh list of saved context.
+One-turn attachments remain one-turn attachments inside a Project. Current rules and saved source declarations are rebuilt before each model step, so changing the source selection does not require a new chat.
 
 ## Related
 

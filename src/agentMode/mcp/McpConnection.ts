@@ -8,6 +8,7 @@ import {
 } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
+import { ToolListChangedNotificationSchema } from "@modelcontextprotocol/sdk/types.js";
 
 import type { McpConnectionInput, McpConnectionInstance } from "./McpServerManager";
 import { effectiveTimeoutSeconds } from "./configSchema";
@@ -43,9 +44,21 @@ export class McpSdkConnection implements McpConnectionInstance {
         if (!this.closing && error instanceof SseError) this.input.onUnexpectedClose(error.message);
       };
     }
+    // 远端目录通知只触发完整刷新，不能沿用旧工具定义或忽略未完成分页。https://github.com/ItsDalk-Lane/Scribe/issues/71
+    client.setNotificationHandler(ToolListChangedNotificationSchema, () => {
+      if (this.client === client && !this.closing) this.input.onToolsChanged?.();
+    });
     await client.connect(transport, { timeout: timeoutMs });
     const version = client.getServerVersion()?.version;
+    return { ...(version ? { version } : {}), tools: await this.listTools() };
+  }
+
+  async listTools(): Promise<readonly McpToolInfo[]> {
+    const client = this.client;
+    if (!client) throw new Error("The server is not connected.");
+    const timeoutMs = effectiveTimeoutSeconds(this.input.server) * 1000;
     const tools: McpToolInfo[] = [];
+    const cursors = new Set<string>();
     let cursor: string | undefined;
     do {
       const listing = await client.listTools(cursor ? { cursor } : {}, { timeout: timeoutMs });
@@ -57,8 +70,11 @@ export class McpSdkConnection implements McpConnectionInstance {
         }))
       );
       cursor = listing.nextCursor;
+      // 重复游标会让发现一直等待，也无法形成可用的完整目录。https://github.com/ItsDalk-Lane/Scribe/issues/71
+      if (cursor && cursors.has(cursor)) throw new Error("The MCP tool list repeated a cursor.");
+      if (cursor) cursors.add(cursor);
     } while (cursor);
-    return { ...(version ? { version } : {}), tools };
+    return tools;
   }
 
   async callTool(

@@ -4,6 +4,7 @@ import { createMcpTools } from "@/agentMode/mcp/mcpTools";
 import type { McpServerManager } from "@/agentMode/mcp/McpServerManager";
 import type { McpServerConfig, McpToolCallResult, McpToolInfo } from "@/agentMode/mcp/types";
 import { createToolSearchTool } from "@/agentMode/sdk/nativeToolSearch";
+import { getNativeToolPolicy } from "@/agentMode/sdk/nativeToolDefinition";
 
 interface ManagerStubInput {
   servers: readonly McpServerConfig[];
@@ -96,6 +97,12 @@ describe("nativeToolSearch", () => {
       expect(tool.parameters).toMatchObject({ type: "object" });
     });
 
+    it("declares trusted read policy but serializes catalog mutation and excludes skill-authoring sessions https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      const { tool } = toolSearchFixture();
+      expect(getNativeToolPolicy(tool)).toEqual({ kind: "read", skillAuthoring: false });
+      expect(tool.executionMode).toBe("sequential");
+    });
+
     it("rejects calls that pass neither a query nor a select", async () => {
       const { tool } = toolSearchFixture();
       const result = await tool.execute("call-1", {});
@@ -113,7 +120,28 @@ describe("nativeToolSearch", () => {
     });
 
     describe("select", () => {
-      it("registers the selected tool for immediate use and returns its full parameter documentation", async () => {
+      it("does not remember a selection when runtime registration rejects its role eligibility https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const registry = DeferredMcpToolRegistry.fromManager(fixtureManager());
+        const selected: string[] = [];
+        const tool = createToolSearchTool({
+          catalog: registry,
+          registerTool: () => {
+            throw new Error("This role cannot register that tool.");
+          },
+          selections: {
+            names: () => selected,
+            select: (name) => {
+              selected.push(name);
+            },
+          },
+        });
+        await expect(tool.execute("call", { select: "mcp__web__fetch_page" })).rejects.toThrow(
+          "role cannot register"
+        );
+        expect(selected).toEqual([]);
+      });
+
+      it("registers the selected tool for the next model step and returns its full parameter documentation https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
         const { tool, spy } = toolSearchFixture();
         const result = await tool.execute("call-1", {
           select: "select:mcp__web__fetch_page",
@@ -127,6 +155,7 @@ describe("nativeToolSearch", () => {
         expect(text).toContain("mcp__web__fetch_page");
         expect(text).toContain("url");
         expect(text).not.toMatch(/isError/);
+        expect(text).toContain("next model step");
       });
 
       it("marks the registration as auto-approved when the server allows the tool", async () => {
@@ -234,10 +263,14 @@ describe("nativeToolSearch", () => {
       const registered = sessionTools.find((tool) => tool.name === "mcp__web__fetch_page");
       expect(registered).toBeDefined();
       const result = await registered!.execute("call-3", { url: "https://example.invalid/a" });
-      expect(result).toMatchObject({
-        content: [{ type: "text", text: "fetch_page done" }],
-        isError: false,
-      });
+      expect(result.content).toEqual([
+        {
+          type: "text",
+          text: '<tool_execution>\n{"status":"completed","retry":"never","complete":true}\n</tool_execution>',
+        },
+        { type: "text", text: "fetch_page done" },
+      ]);
+      expect(result.isError).toBe(false);
     });
 
     it("caps search results at the limit and notes the truncation", async () => {

@@ -1,7 +1,12 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 
 import type { McpServerManager } from "./McpServerManager";
-import { buildMcpAgentTool, buildMcpToolName, normalizeMcpInputSchema } from "./mcpTools";
+import {
+  assertUniqueMcpToolNames,
+  buildMcpAgentTool,
+  buildMcpToolName,
+  normalizeMcpInputSchema,
+} from "./mcpTools";
 import {
   DEFAULT_MCP_TOOL_LOADING_THRESHOLD_CHARS,
   resolveMcpToolRegistration,
@@ -51,6 +56,7 @@ export class DeferredMcpToolRegistry {
         });
       }
     }
+    assertUniqueMcpToolNames(entries.map((entry) => entry.qualifiedName));
     return new DeferredMcpToolRegistry(manager, serversById, entries);
   }
 
@@ -127,7 +133,7 @@ export function resolveMcpLoadingState(
   return resolveMcpToolRegistration(mode, thresholdChars, registry.estimateDefinitionChars());
 }
 
-// 目录随系统提示词每轮重建，未列出的工具不占请求上下文；选取经 tool_search 完成。https://github.com/ItsDalk-Lane/Scribe/issues/65
+// 目录只列简短说明，完整工具按需选取，避免未使用工具占满请求上下文。https://github.com/ItsDalk-Lane/Scribe/issues/65
 export function buildMcpToolCatalogBlock(registry: DeferredMcpToolRegistry): string | null {
   const lines = registry.catalogLines();
   if (lines.length === 0) return null;

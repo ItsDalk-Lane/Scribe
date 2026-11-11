@@ -1,7 +1,13 @@
+import type { App } from "obsidian";
+import {
+  buildInstructionPromptState,
+  renderInstructionPrompt,
+} from "@/instructions/instructionPolicy";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { CustomModel } from "@/aiParams";
 import {
+  DEFAULT_CHAT_SYSTEM_PROMPT,
   createChatChain,
   createChatMemory,
   type ChatChain,
@@ -20,6 +26,8 @@ export interface StreamingChatTurnContext {
 }
 
 export interface UseStreamingChatSessionParams {
+  app?: App;
+  projectId?: string;
   model: CustomModel | null;
   systemPrompt: string;
   excludeThinking?: boolean;
@@ -66,6 +74,8 @@ export function useStreamingChatSession(
   params: UseStreamingChatSessionParams
 ): StreamingChatSessionApi {
   const {
+    app,
+    projectId,
     model,
     systemPrompt,
     excludeThinking = true,
@@ -97,7 +107,6 @@ export function useStreamingChatSession(
   const memoryRef = useRef<ChatMemory | null>(null);
   const chainRef = useRef<ChatChain | null>(null);
   const currentModelKeyRef = useRef<string | null>(null);
-  const currentSystemPromptRef = useRef<string | null>(null);
 
   // 完整模型快照覆盖连接、能力和预算，任何请求配置变化都应让下一轮重建链路。https://github.com/ItsDalk-Lane/Scribe/issues/62
   const modelKey = useMemo(() => (model ? JSON.stringify(model) : null), [model]);
@@ -123,12 +132,7 @@ export function useStreamingChatSession(
         return null;
       }
 
-      const needsRecreate =
-        !chainRef.current ||
-        currentModelKeyRef.current !== modelKey ||
-        currentSystemPromptRef.current !== systemPrompt;
-
-      if (needsRecreate) {
+      if (!chainRef.current || currentModelKeyRef.current !== modelKey) {
         if (!memoryRef.current) {
           memoryRef.current = createChatMemory();
         }
@@ -139,7 +143,6 @@ export function useStreamingChatSession(
 
         chainRef.current = nextChain;
         currentModelKeyRef.current = modelKey;
-        currentSystemPromptRef.current = systemPrompt;
       }
 
       if (!chainRef.current || !memoryRef.current) return null;
@@ -163,8 +166,7 @@ export function useStreamingChatSession(
     }
     chainRef.current = null;
     currentModelKeyRef.current = null;
-    currentSystemPromptRef.current = null;
-  }, [modelKey, systemPrompt]);
+  }, [app, projectId, modelKey, systemPrompt]);
 
   const getIsFirstTurn = useCallback((): boolean => {
     return !hasSavedContextOnceRef.current;
@@ -188,7 +190,6 @@ export function useStreamingChatSession(
 
     chainRef.current = null;
     currentModelKeyRef.current = null;
-    currentSystemPromptRef.current = null;
 
     memoryRef.current = createChatMemory();
     hasSavedContextOnceRef.current = false;
@@ -253,12 +254,23 @@ export function useStreamingChatSession(
         const chainAndMemory = await getOrCreateChain(abortController.signal);
         if (!chainAndMemory) return null;
 
+        // 首次准备模型可能等待协议加载，之后才读取规则才能应用期间的保存。https://github.com/ItsDalk-Lane/Scribe/issues/71
+        const requestSystemPrompt = app
+          ? renderInstructionPrompt(
+              await buildInstructionPromptState(app, systemPrompt || DEFAULT_CHAT_SYSTEM_PROMPT, {
+                projectId,
+              })
+            )
+          : systemPrompt;
+        if (abortController.signal.aborted) return null;
+
         chain = chainAndMemory.chain;
         const providerSession = getProviderSessionOptions(model, chainAndMemory.memory.chatHistory);
-        const stream = chain.stream(prompt, {
-          signal: abortController.signal,
-          headers: providerSession?.options.headers,
-        });
+        const stream = chain.stream(
+          prompt,
+          { signal: abortController.signal, headers: providerSession?.options.headers },
+          requestSystemPrompt
+        );
 
         for await (const event of stream) {
           if (event.type === "text_delta") thinkStreamer.processChunk({ content: event.delta });
@@ -328,7 +340,16 @@ export function useStreamingChatSession(
 
       return committed;
     },
-    [excludeThinking, getOrCreateChain, handleDelta, model, setStreamingTextThrottled]
+    [
+      app,
+      excludeThinking,
+      getOrCreateChain,
+      handleDelta,
+      model,
+      projectId,
+      setStreamingTextThrottled,
+      systemPrompt,
+    ]
   );
 
   return {

@@ -1754,8 +1754,14 @@ describe("NativeBackendProcess integration", () => {
         await f.send(id);
         const returned = results(f.contexts[1]);
         expect(returned.map((result) => result.toolCallId)).toEqual(["read-slow", "read-fast"]);
-        expect(returned[0].content).toContainEqual({ type: "text", text: "slow-marker-81" });
-        expect(returned[1].content).toContainEqual({ type: "text", text: "fast-marker-32" });
+        expect(returned[0].content).toContainEqual({
+          type: "text",
+          text: expect.stringContaining("slow-marker-81"),
+        });
+        expect(returned[1].content).toContainEqual({
+          type: "text",
+          text: expect.stringContaining("fast-marker-32"),
+        });
         const finished = f.events.flatMap((event) =>
           event.update.sessionUpdate === "tool_call_update" && event.update.status === "completed"
             ? [event.update.toolCallId]
@@ -1808,6 +1814,143 @@ describe("NativeBackendProcess integration", () => {
           })
         );
         expect(record?.decisions).toHaveLength(2);
+      });
+
+      it("rejects a same-step replacement until the model receives the note contents https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const path = "read-before-write.md";
+        await writeFile(join(root, path), "Read this before replacing it");
+        let step = 0;
+        const f = fixture(() => {
+          if (++step === 1)
+            return response("", [
+              { id: "read", name: "read_note", arguments: { path } },
+              { id: "too-soon", name: "write_note", arguments: { path, content: "Premature" } },
+            ]);
+          if (step === 2)
+            return response("", [
+              {
+                id: "after-read",
+                name: "write_note",
+                arguments: { path, content: "Read and replaced" },
+              },
+            ]);
+          return response("Done");
+        });
+        const id = await f.open();
+        await f.send(id);
+        expect(results(f.contexts[1])).toContainEqual(
+          expect.objectContaining({
+            toolCallId: "too-soon",
+            isError: true,
+          })
+        );
+        expect(results(f.contexts[2])).toContainEqual(
+          expect.objectContaining({
+            toolCallId: "after-read",
+            isError: false,
+          })
+        );
+        expect(await readFile(join(root, path), "utf8")).toBe("Read and replaced");
+      });
+
+      it("retains delivered consecutive pages when a concurrent range read covers less of the same note https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const path = "paged-before-write.md";
+        await writeFile(join(root, path), "First line\nSecond line");
+        let step = 0;
+        const f = fixture((context) => {
+          if (++step === 1)
+            return response("", [
+              { id: "first-page", name: "read_note", arguments: { path, maxCharacters: 11 } },
+            ]);
+          if (step === 2) {
+            const firstPage = results(context).find((result) => result.toolCallId === "first-page");
+            const { nextCursor } = firstPage!.details as { nextCursor: string };
+            return response("", [
+              { id: "last-page", name: "read_note", arguments: { path, cursor: nextCursor } },
+              {
+                id: "small-range",
+                name: "read_note",
+                arguments: { path, startLine: 1, lineCount: 1 },
+              },
+            ]);
+          }
+          if (step === 3)
+            return response("", [
+              {
+                id: "after-pages",
+                name: "write_note",
+                arguments: { path, content: "All pages were delivered" },
+              },
+            ]);
+          return response("Done");
+        });
+        const id = await f.open();
+        await f.send(id);
+        expect(results(f.contexts[2])).toContainEqual(
+          expect.objectContaining({
+            toolCallId: "last-page",
+            details: expect.objectContaining({ complete: true }),
+          })
+        );
+        expect(results(f.contexts[3])).toContainEqual(
+          expect.objectContaining({ toolCallId: "after-pages", isError: false })
+        );
+        expect(await readFile(join(root, path), "utf8")).toBe("All pages were delivered");
+      });
+
+      it("withholds replacement authority when the model receives only a clipped note result https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const paths = ["first-large.md", "second-large.md", "target-large.md"];
+        const contents = paths.map((path) => `${path}\n${"a".repeat(19000)}`);
+        await Promise.all(paths.map((path, index) => writeFile(join(root, path), contents[index])));
+        const fastRead = deferred<void>();
+        beforeRead = async (path) => {
+          if (path !== paths[2]) await fastRead.promise;
+        };
+        let step = 0;
+        const f = fixture(
+          () => {
+            if (++step === 1)
+              return response(
+                "",
+                paths.map((path, index) => ({
+                  id: `read-${index}`,
+                  name: "read_note",
+                  arguments: { path },
+                }))
+              );
+            if (step === 2)
+              return response("", [
+                {
+                  id: "write-clipped",
+                  name: "write_note",
+                  arguments: { path: paths[2], content: "Would lose unread text" },
+                },
+              ]);
+            return response("Done");
+          },
+          (event) => {
+            if (
+              event.update.sessionUpdate === "tool_call_update" &&
+              event.update.toolCallId === "turn-main:read-2" &&
+              event.update.status === "completed"
+            )
+              fastRead.resolve();
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(results(f.contexts[1])).toContainEqual(
+          expect.objectContaining({
+            toolCallId: "read-2",
+            details: expect.objectContaining({
+              outputProjection: expect.objectContaining({ truncated: true }),
+            }),
+          })
+        );
+        expect(results(f.contexts[2])).toContainEqual(
+          expect.objectContaining({ toolCallId: "write-clipped", isError: true })
+        );
+        expect(await readFile(join(root, paths[2]), "utf8")).toBe(contents[2]);
       });
 
       it.each([
@@ -2017,6 +2160,8 @@ describe("NativeBackendProcess integration", () => {
 
       it("isolates simultaneous child questions and permissions with repeated model call IDs and returns each child's actual result", async () => {
         const allPending = deferred<void>();
+        const permissionA = deferred<void>();
+        const permissionB = deferred<void>();
         const childBFinished = deferred<void>();
         const permissions: Array<{
           prompt: PermissionPrompt;
@@ -2027,7 +2172,12 @@ describe("NativeBackendProcess integration", () => {
           resolve: (answer: AgentQuestionAnswers) => void;
         }> = [];
         const ready = () => {
-          if (permissions.length + questions.length === 4) allPending.resolve();
+          if (questions.length === 2) allPending.resolve();
+          for (const entry of permissions) {
+            const target = JSON.stringify(entry.prompt.toolCall.rawInput);
+            if (target.includes("child-A.md")) permissionA.resolve();
+            if (target.includes("child-B.md")) permissionB.resolve();
+          }
         };
         const f = fixture(
           (context) => {
@@ -2111,7 +2261,6 @@ describe("NativeBackendProcess integration", () => {
         const id = await f.open();
         const running = f.send(id, "Parent task");
         await allPending.promise;
-        expect(new Set(permissions.map((entry) => entry.prompt.toolCall.toolCallId)).size).toBe(2);
         expect(new Set(questions.map((entry) => entry.prompt.requestId)).size).toBe(2);
         expect(permissions.every((entry) => typeof entry.prompt.requester === "object")).toBe(true);
         const permissionFor = (suffix: string) =>
@@ -2120,12 +2269,15 @@ describe("NativeBackendProcess integration", () => {
           )!;
         const questionFor = (suffix: string) =>
           questions.find((entry) => entry.prompt.questions[0].question === `Answer for ${suffix}`)!;
-        permissionFor("B").resolve({ outcome: { outcome: "selected", optionId: "reject_once" } });
         questionFor("B").resolve({ answer: "Actual B" });
+        await permissionB.promise;
+        permissionFor("B").resolve({ outcome: { outcome: "selected", optionId: "reject_once" } });
         await childBFinished.promise;
         await expect(access(join(root, "child-A.md"))).rejects.toThrow();
-        permissionFor("A").resolve({ outcome: { outcome: "selected", optionId: "allow_once" } });
         questionFor("A").resolve({ answer: "Actual A" });
+        await permissionA.promise;
+        expect(new Set(permissions.map((entry) => entry.prompt.toolCall.toolCallId)).size).toBe(2);
+        permissionFor("A").resolve({ outcome: { outcome: "selected", optionId: "allow_once" } });
         await running;
         expect(await readFile(join(root, "child-A.md"), "utf8")).toBe("Written by A");
         await expect(access(join(root, "child-B.md"))).rejects.toThrow();
@@ -2139,7 +2291,7 @@ describe("NativeBackendProcess integration", () => {
         expect(JSON.stringify(parentResults[1])).toContain("Permission denied");
       });
       const posix = process.platform === "win32" ? it.skip : it;
-      it("keeps an enabled plugin entrypoint byte-identical in Auto mode when every approval is denied", async () => {
+      it("keeps an enabled plugin entrypoint byte-identical and reports not_started when every approval is denied https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
         const configEntry = [OBSIDIAN_DEFAULT_CONFIG_DIR, "plugins", "fixture"].join("/");
         await mkdir(join(root, ...configEntry.split("/")), { recursive: true });
         const pluginEntry = join(root, ...configEntry.split("/"), "main.js");
@@ -2150,16 +2302,28 @@ describe("NativeBackendProcess integration", () => {
           ++count === 1
             ? response("", [
                 {
-                  id: "write-code",
-                  name: "write_note",
-                  arguments: {
-                    path: `${configEntry}/main.js`,
-                    content: "/* replacement */",
-                  },
+                  id: "read-code",
+                  name: "read_note",
+                  arguments: { path: `${configEntry}/main.js` },
                 },
-                { id: "cmd-probe", name: "run_command", arguments: { command: "printf harmless" } },
               ])
-            : response("done")
+            : count === 2
+              ? response("", [
+                  {
+                    id: "write-code",
+                    name: "write_note",
+                    arguments: {
+                      path: `${configEntry}/main.js`,
+                      content: "/* replacement */",
+                    },
+                  },
+                  {
+                    id: "cmd-probe",
+                    name: "run_command",
+                    arguments: { command: "printf harmless" },
+                  },
+                ])
+              : response("done")
         );
         f.process.setPermissionPrompter(async (prompt) => {
           prompts.push(prompt.toolCall.kind ?? "unknown");
@@ -2170,6 +2334,11 @@ describe("NativeBackendProcess integration", () => {
         await f.send(id);
         expect(await readFile(pluginEntry, "utf8")).toBe("/* MANUAL ENTRY */");
         expect(prompts.sort()).toEqual(["edit", "execute"]);
+        expect(
+          results(f.contexts.at(-1)!)
+            .filter((result) => result.toolName !== "read_note")
+            .map((result) => (result.details as { execution: { status: string } }).execution.status)
+        ).toEqual(["not_started", "not_started"]);
       });
 
       posix(
@@ -2314,7 +2483,16 @@ describe("NativeBackendProcess integration", () => {
 
     describe("setSessionMode", () => {
       function lastUserText(context: TranscriptContext): string {
-        const last = context.messages.filter((message) => message.role === "user").at(-1);
+        const last = context.messages
+          .filter(
+            (message) =>
+              message.role === "user" &&
+              !(
+                typeof message.content === "string" &&
+                message.content.startsWith("<current_context_update>")
+              )
+          )
+          .at(-1);
         return last && last.role === "user"
           ? typeof last.content === "string"
             ? last.content

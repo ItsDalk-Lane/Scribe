@@ -119,6 +119,27 @@ describe("skillDeliveryProjection", () => {
       ]);
     });
 
+    it("does not count an output-budget omission notice as delivered skill instructions https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      expect(
+        projectDeliveredSkillPages(
+          [
+            call("omitted", { name: "notes" }),
+            result(
+              "omitted",
+              "Skill instructions omitted; load the current authorized skill again.",
+              {
+                name: "notes",
+                truncated: false,
+                skillContentOmitted: true,
+                outputProjection: { truncated: true },
+              }
+            ),
+          ],
+          "main"
+        )
+      ).toEqual([]);
+    });
+
     it("ignores failures, unmatched calls, listings and supporting files https://github.com/ItsDalk-Lane/Scribe/issues/68", () => {
       const messages = [
         call("fail", { name: "notes" }),

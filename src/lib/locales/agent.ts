@@ -1,4 +1,14 @@
 export const agentTranslations: Record<string, string> = {
+  "View last request": "查看上次请求",
+  "Saved request input": "已保存的请求输入",
+  "Loading saved request...": "正在读取上次请求…",
+  "Could not read saved request.": "无法读取已保存的请求。",
+  "This is the saved input handed to the model adapter. Provider formatting may differ. Opening this view does not send a request.":
+    "这里展示当时准备交给模型的已保存内容。服务商可能调整最终格式。查看不会发送新请求。",
+  "No saved request is available for this chat. Older chats may not contain request records.":
+    "这个聊天暂无可查看的请求记录。旧聊天可能未保存这类记录。",
+  "The recorded request is incomplete or damaged. Its saved input cannot be shown.":
+    "保存的请求内容不完整或已损坏，无法展示当时的输入。",
   "Context compacted.": "上下文已压缩。",
   Waiting: "等待中",
   "Waiting to run": "等待执行",

@@ -2297,49 +2297,6 @@ describe("AgentSession", () => {
         expect(() => session.sendPrompt("second")).toThrow(/in flight/);
       });
 
-      it("injects the project-context-updates note and acks its epoch after acceptance", async () => {
-        const mock = makeMockBackend();
-        const markDelivered = jest.fn();
-        const session = makeSession(mock, {
-          projectId: "proj-1",
-          getProjectContextUpdates: () => ({
-            epoch: 5,
-            block: "<project_context_updates>changed</project_context_updates>",
-          }),
-          markProjectContextUpdatesDelivered: markDelivered,
-        });
-
-        await session.sendPrompt("hi").turn;
-
-        const promptArg = mock.prompt.mock.calls[0][0] as { prompt: Array<{ text?: string }> };
-        expect(promptArg.prompt[0].text).toContain(
-          "<project_context_updates>changed</project_context_updates>"
-        );
-        expect(markDelivered).toHaveBeenCalledWith(5);
-      });
-
-      it("does not ack when the updates getter returns null", async () => {
-        const mock = makeMockBackend();
-        const markDelivered = jest.fn();
-        const session = makeSession(mock, {
-          projectId: "proj-1",
-          getProjectContextUpdates: () => null,
-          markProjectContextUpdatesDelivered: markDelivered,
-        });
-
-        await session.sendPrompt("hi").turn;
-
-        const promptArg = mock.prompt.mock.calls[0][0] as { prompt: Array<{ text?: string }> };
-        expect(promptArg.prompt[0].text).not.toContain("<project_context_updates>");
-        expect(markDelivered).not.toHaveBeenCalled();
-      });
-
-      const PROJECT_CONTEXT =
-        "<project_context>\n## Included folders\n- `/vault/Papers`\n</project_context>";
-      const UPDATES = {
-        epoch: 7,
-        block: "<project_context_updates>changed</project_context_updates>",
-      };
       const noteFile = mockTFile({ path: "Notes/Active.md", basename: "Active" });
       const richContext = {
         notes: [noteFile],
@@ -2366,8 +2323,6 @@ describe("AgentSession", () => {
         const session = startSession(mock, {
           cwd: "/vault/Projects/p",
           projectId: "proj-7",
-          getProjectContextBlock: () => PROJECT_CONTEXT,
-          getProjectContextUpdates: () => UPDATES,
           ...overrides,
         });
         await session.ready;
@@ -2413,23 +2368,6 @@ describe("AgentSession", () => {
         expect(promptBlocks(mock, 0)).toEqual([
           { type: "text", text: "/compact keep the API shapes" },
         ]);
-      });
-
-      it(` leaves project context and project-context updates for the next normal turn`, async () => {
-        const mock = makeMockBackend();
-        const markDelivered = jest.fn();
-        const session = await startProjectSession(mock, {
-          markProjectContextUpdatesDelivered: markDelivered,
-        });
-
-        await session.sendPrompt("/compact").turn;
-        expect(markDelivered).not.toHaveBeenCalled();
-
-        await session.sendPrompt("now continue").turn;
-        const nextText = (promptBlocks(mock, 1)[0] as { text: string }).text;
-        expect(nextText).toContain("<project_context>");
-        expect(nextText).toContain("<project_context_updates>changed</project_context_updates>");
-        expect(markDelivered).toHaveBeenCalledWith(7);
       });
 
       it(` does not title a chat from its /compact message`, async () => {
@@ -3366,59 +3304,6 @@ describe("AgentSession", () => {
         expect(output.text.length).toBe(300_000);
         expect(output.text === "y".repeat(300_000)).toBe(true);
         expect(output.text).not.toContain("Display trimmed");
-      });
-
-      it("builds the <project_context> block when the first prompt is sent and injects it into that prompt only", async () => {
-        const mock = makeMockBackend();
-        const getProjectContextBlock = jest.fn(
-          () => "<project_context>\n## Included folders\n- `/vault/Papers`\n</project_context>"
-        );
-        const session = startSession(mock, {
-          cwd: "/vault/Projects/p",
-          projectId: "proj-7",
-          getProjectContextBlock,
-        });
-        await session.ready;
-        expect(getProjectContextBlock).not.toHaveBeenCalled();
-
-        await session.sendPrompt("first").turn;
-        await session.sendPrompt("second").turn;
-
-        const promptText = (call: number): string => {
-          const input = mock.prompt.mock.calls[call][0] as {
-            prompt: Array<{ type: string; text?: string }>;
-          };
-          return input.prompt.map((b) => b.text ?? "").join("\n");
-        };
-        expect(promptText(0)).toContain("<project_context>");
-        expect(promptText(0)).toContain("`/vault/Papers`");
-        expect(promptText(0)).toContain("<user-message>\nfirst\n</user-message>");
-        expect(promptText(1)).not.toContain("<project_context>");
-        expect(getProjectContextBlock).toHaveBeenCalledTimes(1);
-      });
-
-      it("re-injects the <project_context> block on retry when the first prompt fails", async () => {
-        const mock = makeMockBackend();
-        mock.prompt.mockRejectedValueOnce(new Error("transport down"));
-        const session = startSession(mock, {
-          cwd: "/vault/Projects/p",
-          projectId: "proj-7",
-          getProjectContextBlock: () =>
-            "<project_context>\n## Included folders\n- `/vault/Papers`\n</project_context>",
-        });
-        await session.ready;
-
-        await expect(session.sendPrompt("first").turn).rejects.toThrow("transport down");
-        await session.sendPrompt("retry").turn;
-
-        const promptText = (call: number): string => {
-          const input = mock.prompt.mock.calls[call][0] as {
-            prompt: Array<{ type: string; text?: string }>;
-          };
-          return input.prompt.map((b) => b.text ?? "").join("\n");
-        };
-        expect(promptText(0)).toContain("<project_context>");
-        expect(promptText(1)).toContain("<project_context>");
       });
 
       describe("with the same web page on several turns", () => {
@@ -5170,6 +5055,35 @@ describe("AgentSession", () => {
         mock.emitUpdate({ sessionUpdate: "session_disconnected", error: new Error("exited") });
 
         expect(session.takeWithdrawnPrompts().map((p) => p.text)).toEqual(["second"]);
+      });
+    });
+
+    describe("getRequestContextPreview()", () => {
+      it("reads the existing chat preview without sending a prompt", async () => {
+        const mock = makeMockBackend();
+        const preview = {
+          requestId: "request-1",
+          modelId: "model-1",
+          provider: "provider-1",
+          content: "Saved input",
+        };
+        mock.asBackend.getRequestContextPreview = jest.fn(async () => preview);
+        const session = makeSession(mock);
+        await expect(session.getRequestContextPreview()).resolves.toBe(preview);
+        expect(mock.asBackend.getRequestContextPreview).toHaveBeenCalledWith({
+          sessionId: "session-1",
+        });
+        expect(mock.prompt).not.toHaveBeenCalled();
+      });
+      it("reports no preview before startup or when the backend cannot read saved requests", async () => {
+        const mock = makeMockBackend();
+        await expect(makeSession(mock).getRequestContextPreview()).resolves.toBeNull();
+        const read = jest.fn();
+        mock.asBackend.getRequestContextPreview = read;
+        const starting = startSession(mock);
+        await expect(starting.getRequestContextPreview()).resolves.toBeNull();
+        expect(read).not.toHaveBeenCalled();
+        await starting.ready;
       });
     });
 

@@ -14,7 +14,7 @@ describe("ProjectInstructionsField", () => {
         "Cite only #verified notes."
       );
       expect(screen.getByText(/保存在项目文件夹中的 AGENTS\.md/)).toBeTruthy();
-      expect(screen.getByText(/不能保证哪一项优先/)).toBeTruthy();
+      expect(screen.getByText(/本次要求、项目说明、资料库说明、Scribe 默认要求/)).toBeTruthy();
     });
     it("shows the draft and says where the text is saved", () => {
       render(<ProjectInstructionsField value="Cite only #verified notes." onChange={jest.fn()} />);
@@ -23,7 +23,11 @@ describe("ProjectInstructionsField", () => {
         "Cite only #verified notes."
       );
       expect(screen.getByText(/Saved to AGENTS\.md in the project folder/)).toBeTruthy();
-      expect(screen.getByText(/no priority is guaranteed/)).toBeTruthy();
+      expect(
+        screen.getByText(
+          /current request comes first, followed by project instructions, vault instructions/
+        )
+      ).toBeTruthy();
     });
 
     it("reports each edit so the dialog can hold the draft", () => {

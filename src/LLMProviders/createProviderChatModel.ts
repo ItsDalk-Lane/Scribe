@@ -138,7 +138,13 @@ export async function createProviderChatModel(input: CustomModel): Promise<Provi
   };
   const defaults: StreamOptions = {
     maxRetries: 3,
-    cacheRetention: "none",
+    cacheRetention:
+      anthropic &&
+      (model.enablePromptCaching ??
+        (npm === "@ai-sdk/google-vertex/anthropic" ||
+          new URL(descriptor.baseUrl).hostname === "api.anthropic.com"))
+        ? "short"
+        : "none",
     // SDK 的默认请求超时在此显式固化；SDK 的计时只保护到响应头，流空闲期限由统一调用层补足。https://github.com/ItsDalk-Lane/Scribe/issues/59
     timeoutMs: DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS,
     ...((api === "openai-responses" || npm === "gitlab-ai-provider") && model.reasoningEffort

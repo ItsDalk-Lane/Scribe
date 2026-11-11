@@ -2,7 +2,8 @@ import type { JsonValue } from "@earendil-works/pi-ai";
 import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import { compile } from "@earendil-works/pi-schema";
 
-import type { McpServerManager } from "./McpServerManager";
+import { McpToolCallError, type McpServerManager } from "@/agentMode/mcp/McpServerManager";
+import { withToolExecution } from "@/utils/toolResultProjection";
 import type { DeferredMcpToolRegistry } from "./deferredMcpTools";
 import type { McpServerConfig, McpToolContentPart, McpToolInfo } from "./types";
 
@@ -10,6 +11,15 @@ export const MCP_TOOL_NAME_PREFIX = "mcp__";
 
 export function buildMcpToolName(serverName: string, toolName: string): string {
   return `${MCP_TOOL_NAME_PREFIX}${serverName}__${toolName}`;
+}
+
+export function assertUniqueMcpToolNames(names: readonly string[]): void {
+  const seen = new Set<string>();
+  for (const name of names) {
+    // 组件中的双下划线可造成同名，不能让模型目录与实际处理器绑定到不同服务器。https://github.com/ItsDalk-Lane/Scribe/issues/70
+    if (seen.has(name)) throw new Error(`Duplicate MCP tool name: ${name}`);
+    seen.add(name);
+  }
 }
 
 export interface McpToolsBundle {
@@ -40,6 +50,7 @@ export function createMcpTools(
       if (server.autoApprovedTools?.includes(tool.name)) autoApproved.add(name);
     }
   }
+  assertUniqueMcpToolNames(tools.map((tool) => tool.name));
   return { tools, autoApprovedTools: autoApproved.size > 0 ? autoApproved : EMPTY_AUTO_APPROVED };
 }
 
@@ -56,6 +67,7 @@ function createDeferredSelectedTools({
     tools.push(registry.buildTool(entry));
     if (entry.autoApproved) autoApproved.add(entry.qualifiedName);
   }
+  assertUniqueMcpToolNames(tools.map((tool) => tool.name));
   return {
     tools: tools.length > 0 ? tools : EMPTY_MCP_TOOLS,
     autoApprovedTools: autoApproved.size > 0 ? autoApproved : EMPTY_AUTO_APPROVED,
@@ -87,11 +99,15 @@ export function buildMcpAgentTool(
     label: tool.name,
     description: tool.description ?? tool.name,
     parameters: inputSchema,
+    executionMode: "sequential",
+    replay: "never",
     async execute(_toolCallId, args, signal): Promise<AgentToolResult> {
-      signal?.throwIfAborted();
-      if (checkArgs && !checkArgs(args)) throw new Error(`Invalid arguments for ${tool.name}.`);
+      let dispatchAttempted = false;
       let result;
       try {
+        signal?.throwIfAborted();
+        if (checkArgs && !checkArgs(args)) throw new Error(`Invalid arguments for ${tool.name}.`);
+        dispatchAttempted = true;
         result = await manager.callTool(
           server.id,
           tool.name,
@@ -99,21 +115,54 @@ export function buildMcpAgentTool(
           signal
         );
       } catch (error) {
-        return {
-          content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }],
-          details: undefined,
-          isError: true,
-        };
+        // 只有派发前的明确拒绝可安全重试，传输异常不能证明远端没有执行。https://github.com/ItsDalk-Lane/Scribe/issues/70
+        const status =
+          error instanceof McpToolCallError
+            ? error.outcome
+            : dispatchAttempted
+              ? "outcome_unknown"
+              : "not_started";
+        return withToolExecution(
+          {
+            content: [
+              { type: "text", text: error instanceof Error ? error.message : String(error) },
+            ],
+            details: undefined,
+            isError: true,
+          },
+          {
+            status,
+            retry: status === "not_started" ? "safe" : "verify_before_retry",
+            complete: false,
+          }
+        );
       }
-      return {
-        content:
-          result.content.length === 0 && result.structuredContent !== undefined
-            ? [{ type: "text", text: JSON.stringify(result.structuredContent) }]
-            : mapMcpContent(result.content),
-        // MCP结果已通过SDK的JSON协议边界；保留其完整元信息供展示与重开，不重新解释数值。https://github.com/ItsDalk-Lane/Scribe/issues/52
-        details: { mcpResult: result as unknown as JsonValue },
-        isError: result.isError === true,
-      };
+      const content =
+        result.content.length > 0 || result.structuredContent === undefined
+          ? mapMcpContent(result.content)
+          : [];
+      // 结构化正文也是公开结果，混合返回时不能丢失；私有元信息仅留在原始结果中。https://github.com/ItsDalk-Lane/Scribe/issues/70
+      if (result.structuredContent !== undefined)
+        content.push({
+          type: "text",
+          text: `<mcp_structured_content>\n${JSON.stringify(result.structuredContent)}\n</mcp_structured_content>`,
+        });
+      return withToolExecution(
+        {
+          content,
+          ...(result.structuredContent !== undefined
+            ? { structuredContent: result.structuredContent as JsonValue }
+            : {}),
+          // MCP结果已通过SDK的JSON协议边界；保留其完整元信息供展示与重开，不重新解释数值。https://github.com/ItsDalk-Lane/Scribe/issues/52
+          details: { mcpResult: result as unknown as JsonValue },
+          isError: result.isError === true,
+        },
+        {
+          status: result.isError ? "failed" : "completed",
+          retry: result.isError ? "verify_before_retry" : "never",
+          complete: result.isError !== true,
+        }
+      );
     },
   };
 }

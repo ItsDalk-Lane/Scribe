@@ -25,7 +25,7 @@ Projects from earlier storage locations are not imported automatically. Their fi
 
 Open the Project info menu beside the name and select **AGENTS.md**. You can also choose **编辑项目** from the Projects list and edit **项目说明** (**Project instructions** in English). Both edit the instructions in the working folder. A hidden working folder is supported; its instruction file opens with the system's default application.
 
-Scribe provides both the vault-wide instructions and the Project `AGENTS.md` to the model for chats in that Project. Avoid conflicting rules: Scribe does not enforce a guaranteed winner when the files disagree.
+Scribe provides both the vault-wide instructions and the Project `AGENTS.md` to the model for chats in that Project. For adjustable preferences, your current request comes first, followed by Project instructions, vault instructions, and Scribe defaults. Tool permissions remain separate.
 
 Useful Project instructions include:
 
@@ -49,9 +49,11 @@ You can:
 
 Tags match tags stored in note properties. Properties can target notes by a frontmatter field, such as `Topics: Physics`.
 
-With the first ordinary message in a new Project chat, Scribe gives the agent a list of saved sources: folders, notes, and files by their location, and web pages and YouTube videos as links. The list contains at most 100 entries; if more are available, it reports how many were omitted. Files are not downloaded or converted in advance. The agent can try to inspect the sources when needed, subject to its available tools and access.
+Before each model step, Scribe gives the agent the current saved source declaration: folders, notes, file types, tags, properties, exclusions, web pages and YouTube links. All explicit choices remain listed. Automatically expanded file matches have a separate 100-entry limit; omitted matches are counted. Files are not downloaded or converted in advance. The agent can try to inspect the sources when needed, subject to its available tools and access.
 
-For an existing Project chat, Scribe reads the current instruction files when starting each response. Later changes to saved context can trigger a notice asking the agent to re-check the Project sources, rather than replacing the original list. Start a new chat when you need a fresh list. The `/compact` command does not carry the initial list or update notice; these wait for an ordinary message.
+For an existing Project chat, saved changes apply at the next model step, including after tools finish. The current source declaration replaces the earlier one; clearing the selection is explicit. Compression, reopening a chat, and inserting a message during a task use the same current declaration. Already submitted text, selections and attachments remain unchanged.
+
+项目排除项也会应用到按标题选中的同名笔记。默认生成的文件会放入项目工作文件夹的 `outputs/`。Scribe 会给文件工具提供从资料库根目录开始的完整相对位置。
 
 ### File and link support
 
@@ -59,7 +61,7 @@ The native agent can read Markdown, plain-text, and source files with its text t
 
 The agent can try to open saved links with its web tool or an enabled custom Skill. Access can fail, and a page or video transcript may not be available. If needed, provide the text or transcript yourself.
 
-> **Private Projects:** When a chat starts, Scribe does not upload a Project's files or fetch its links. The initial list of file paths and links goes to the selected model with the first ordinary message, subject to the entry limit. The agent can then request files or links with its tools. For work that stays on your device, use a local model, local tools, and review the agent's network access and enabled custom Skills.
+> **Private Projects:** When a chat starts, Scribe does not upload a Project's files or fetch its links. The current declaration of paths, selection rules and links goes to the selected model with each model step; automatically expanded matches are subject to the entry limit. The agent can then request files or links with its tools. For work that stays on your device, use a local model, local tools, and review the agent's network access and enabled custom Skills.
 
 **忽略文件** filters some matches when Scribe builds the source list. It does not necessarily remove notes or folders you explicitly included, and it is not a file permission setting. An agent can still find an ignored file through tools that can access it.
 

@@ -19,7 +19,6 @@ import {
   setSettings as mockedSetSettings,
 } from "@/settings/model";
 import * as projectsState from "@/projects/state";
-import { buildProjectContext } from "@/context/manifestBuilder";
 import { ProjectFileManager } from "@/projects/ProjectFileManager";
 import { type ProjectConfig } from "@/aiParams";
 import type { ProjectFileRecord } from "@/projects/type";
@@ -39,7 +38,6 @@ import type {
   SessionEvent,
 } from "./types";
 
-const mockBuildProjectContext = buildProjectContext as jest.Mock;
 const getSettingsMock = mockedGetSettings as jest.Mock;
 const setSettingsMock = mockedSetSettings as jest.Mock;
 const noticeMock = Notice as unknown as jest.Mock;
@@ -74,10 +72,6 @@ jest.mock("@/projects/ProjectFileManager", () => ({
       fetchProjects: mockFetchProjects,
     })),
   },
-}));
-
-jest.mock("@/context/manifestBuilder", () => ({
-  buildProjectContext: jest.fn(() => "<project_context>\n</project_context>"),
 }));
 
 let mockNotificationSound = true;
@@ -734,7 +728,6 @@ beforeEach(() => {
   getSettingsMock.mockImplementation(mockDefaultSettings);
   setSettingsMock.mockReset();
   noticeMock.mockClear();
-  mockBuildProjectContext.mockClear();
   mockTouchProjectLastUsed.mockClear();
   ensureAgentsFileForDiscoverySpy.mockClear();
   projectsState.updateCachedProjectRecords([]);
@@ -1456,25 +1449,6 @@ describe("AgentSessionManager", () => {
         );
       });
 
-      it("hands a project session a first-message context builder and a global session none", async () => {
-        seedProjects("proj-ctx");
-        mockBuildProjectContext.mockReturnValueOnce(
-          "<project_context>\n- `/vault/Shared`\n</project_context>"
-        );
-        const mgr = buildManager();
-
-        await mgr.createSession(undefined, "proj-ctx");
-        await mgr.createSession(undefined, GLOBAL_SCOPE);
-
-        const [projectOpts, globalOpts] = sessionCreateSpy.mock.calls.map(([opts]) => opts);
-        expect(projectOpts).toMatchObject({ projectId: "proj-ctx" });
-        expect(mockBuildProjectContext).not.toHaveBeenCalled();
-        expect(projectOpts.getProjectContextBlock!()).toBe(
-          "<project_context>\n- `/vault/Shared`\n</project_context>"
-        );
-        expect(globalOpts.getProjectContextBlock).toBeUndefined();
-      });
-
       it("only spawns the backend once across multiple createSession calls", async () => {
         const mgr = buildManager();
         await mgr.createSession();
@@ -1664,23 +1638,6 @@ describe("AgentSessionManager", () => {
           expect(readPersistedDefault(setSettingsMock, "native")).toBeUndefined();
         }
       );
-
-      it("wires the project-context update hooks into a project session but not a global one", async () => {
-        seedProjects("proj-hooks");
-        const mgr = buildManager();
-
-        await mgr.enterProject("proj-hooks");
-        const projectOpts = sessionCreateSpy.mock.calls[0][0];
-        expect(typeof projectOpts.getProjectContextUpdates).toBe("function");
-        expect(typeof projectOpts.markProjectContextUpdatesDelivered).toBe("function");
-
-        await mgr.exitProject();
-        sessionCreateSpy.mockClear();
-        await mgr.createSession();
-        const globalOpts = sessionCreateSpy.mock.calls[0][0];
-        expect(globalOpts.getProjectContextUpdates).toBeUndefined();
-        expect(globalOpts.markProjectContextUpdatesDelivered).toBeUndefined();
-      });
 
       it("chimes when a session starts awaiting permission", async () => {
         const mgr = buildManager();
@@ -5680,61 +5637,6 @@ describe("AgentSessionManager", () => {
 
         expect(sessionCreateSpy).toHaveBeenCalledTimes(1);
         expect(mgr.getActiveSession()).not.toBe(landing);
-      });
-
-      it("reuses an empty landing after vault content inside the project's sources changes, building its context at the first message", async () => {
-        jest.useFakeTimers();
-        publish(makeRecord({ inclusions: "Notes" }));
-        const app = buildApp();
-        const mgr = buildManager({ app });
-        await mgr.enterProject(PROJECT_ID);
-        const landing = mgr.getActiveSession()!;
-        await mgr.exitProject();
-
-        const onModify = (app.vault.on as jest.Mock).mock.calls.find(
-          ([event]) => event === "modify"
-        )![1];
-        onModify(mockTFile({ path: "Notes/topic.md", extension: "md" }));
-        jest.advanceTimersByTime(2000);
-
-        sessionCreateSpy.mockClear();
-        await mgr.enterProject(PROJECT_ID);
-
-        expect(sessionCreateSpy).not.toHaveBeenCalled();
-        expect(mgr.getActiveSession()).toBe(landing);
-      });
-
-      it("leaves the first message without an update note, since its context block is built from the current vault", async () => {
-        jest.useFakeTimers();
-        publish(makeRecord({ inclusions: "Notes" }));
-        const app = buildApp();
-        const mgr = buildManager({ app });
-        await mgr.enterProject(PROJECT_ID);
-        const hooks = sessionCreateSpy.mock.calls.at(-1)![0];
-
-        const onModify = (app.vault.on as jest.Mock).mock.calls.find(
-          ([event]) => event === "modify"
-        )![1];
-        onModify(mockTFile({ path: "Notes/topic.md", extension: "md" }));
-
-        hooks.getProjectContextBlock!();
-        expect(hooks.getProjectContextUpdates!()).toBeNull();
-      });
-
-      it("hands a project session the update note once per change until it acknowledges the epoch", async () => {
-        publish(makeRecord({ webUrls: "https://a.com" }));
-        const mgr = buildManager();
-        await mgr.enterProject(PROJECT_ID);
-        await flushTimers();
-        const hooks = sessionCreateSpy.mock.calls.at(-1)![0];
-        expect(hooks.getProjectContextUpdates!()).toBeNull();
-
-        publish(makeRecord({ webUrls: "https://a.com\nhttps://b.com" }));
-
-        const update = hooks.getProjectContextUpdates!();
-        expect(update?.block).toContain("<project_context_updates>");
-        hooks.markProjectContextUpdatesDelivered!(update!.epoch);
-        expect(hooks.getProjectContextUpdates!()).toBeNull();
       });
     });
 

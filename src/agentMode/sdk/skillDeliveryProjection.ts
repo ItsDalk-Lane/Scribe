@@ -46,11 +46,13 @@ export function projectDeliveredSkillPages(
     } else if (message.role === "toolResult") {
       const call = calls.get(message.toolCallId);
       calls.delete(message.toolCallId);
+      // 预算省略提示不是技能正文，不能形成送达凭据或触发正文版本撤销。https://github.com/ItsDalk-Lane/Scribe/issues/70
       if (
         !call ||
         message.toolName !== "invoke_skill" ||
         message.isError ||
         !isRecord(message.details) ||
+        message.details.skillContentOmitted === true ||
         message.details.name !== call.name ||
         message.details.file !== undefined ||
         typeof message.details.truncated !== "boolean" ||

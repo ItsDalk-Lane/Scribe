@@ -53,6 +53,7 @@ const meta = {
   component: ControlsStory,
   args: {
     onNewChat: () => undefined,
+    onPreviewRequest: () => undefined,
     chatHistoryItems: CHAT_HISTORY,
     onLoadChat: async () => {},
     onUpdateChatTitle: async () => {},
@@ -84,6 +85,10 @@ export const MoreActionsBookmarked: Story = {
 
 export const MoreActionsBookmarksOff: Story = {
   args: { openMoreActions: true, ...withBookmarkState("off") },
+};
+
+export const MoreActionsWithRequestPreview: Story = {
+  args: { openMoreActions: true, onPreviewRequest: () => undefined },
 };
 
 export const MoreActionsEmptyChat: Story = {

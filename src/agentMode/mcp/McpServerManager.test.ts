@@ -2,7 +2,9 @@ import {
   getMcpServerManager,
   initializeMcpServerManager,
   McpServerManager,
+  McpToolCallError,
 } from "@/agentMode/mcp/McpServerManager";
+import { buildMcpAgentTool } from "@/agentMode/mcp/mcpTools";
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
 
 jest.mock("@/settings/model", () => ({
@@ -120,6 +122,19 @@ function stdioServer(overrides: Partial<McpServerConfig> = {}): McpServerConfig 
 }
 
 describe("McpServerManager", () => {
+  describe("McpToolCallError", () => {
+    describe("constructor()", () => {
+      it("preserves the structured dispatch outcome independently of human wording https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+        const error = new McpToolCallError("outcome_unknown", "Connection interrupted");
+        expect(error).toBeInstanceOf(Error);
+        expect(error).toMatchObject({
+          name: "McpToolCallError",
+          message: "Connection interrupted",
+          outcome: "outcome_unknown",
+        });
+      });
+    });
+  });
   describe("McpServerManager", () => {
     describe("setServers()", () => {
       it("connects an active server and records version, tools, and state", async () => {
@@ -313,6 +328,125 @@ describe("McpServerManager", () => {
     });
 
     describe("callTool()", () => {
+      it("rejects dispatch as soon as manager shutdown begins https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const harness = createHarness();
+        await harness.apply([stdioServer()]);
+        const shutdown = harness.manager.shutdown();
+        try {
+          await expect(harness.manager.callTool("srv-1", "search", {})).rejects.toMatchObject({
+            outcome: "not_started",
+          });
+          expect(harness.connections[0].toolCalls).toEqual([]);
+        } finally {
+          await shutdown;
+        }
+      });
+
+      it.each(["timeout", "cancel", "disconnect"])(
+        "preserves an uncertain remote outcome after controlled %s without automatic replay https://github.com/ItsDalk-Lane/Scribe/issues/70",
+        async (failure) => {
+          const connection = createFakeConnection();
+          const harness = createHarness([connection]);
+          const config = stdioServer();
+          await harness.apply([config]);
+          const started = deferred<void>();
+          const response = deferred<never>();
+          const call = jest
+            .spyOn(connection, "callTool")
+            .mockImplementation(async (_name, _args, _timeout, _reset, signal) => {
+              started.resolve();
+              if (failure === "cancel")
+                signal?.addEventListener(
+                  "abort",
+                  () => response.reject(new Error("Aborted after remote dispatch")),
+                  { once: true }
+                );
+              return response.promise;
+            });
+          const tool = buildMcpAgentTool(
+            config,
+            harness.manager.getTools(config.id)[0],
+            harness.manager
+          );
+          const controller = new AbortController();
+          const pending = tool.execute("controlled-call", {}, controller.signal);
+          await started.promise;
+          if (failure === "cancel") controller.abort();
+          else {
+            if (failure === "disconnect") connection.input.onUnexpectedClose("Transport closed");
+            response.reject(
+              new Error(
+                failure === "timeout" ? "Timed out after remote dispatch" : "Transport closed"
+              )
+            );
+          }
+          const result = await pending;
+          expect(result.isError).toBe(true);
+          expect(result.details).toEqual({
+            execution: { status: "outcome_unknown", retry: "verify_before_retry", complete: false },
+          });
+          expect(result.content[0]).toMatchObject({
+            type: "text",
+            text: expect.stringContaining('"status":"outcome_unknown"'),
+          });
+          expect(call).toHaveBeenCalledTimes(1);
+          expect(tool.replay).toBe("never");
+        }
+      );
+
+      it("refuses a configured but disabled tool at final dispatch rather than calling its live connection https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const harness = createHarness();
+        await harness.apply([stdioServer({ disabledTools: ["search"] })]);
+        await expect(harness.manager.callTool("srv-1", "search", {})).rejects.toMatchObject({
+          outcome: "not_started",
+        });
+        expect(harness.connections[0].toolCalls).toEqual([]);
+      });
+
+      it("refuses a tool that was not discovered on the current connection https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const harness = createHarness();
+        await harness.apply([stdioServer()]);
+        await expect(harness.manager.callTool("srv-1", "missing", {})).rejects.toMatchObject({
+          outcome: "not_started",
+        });
+        expect(harness.connections[0].toolCalls).toEqual([]);
+      });
+
+      it("does not dispatch an already cancelled request https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const harness = createHarness();
+        await harness.apply([stdioServer()]);
+        const controller = new AbortController();
+        controller.abort();
+        await expect(
+          harness.manager.callTool("srv-1", "search", {}, controller.signal)
+        ).rejects.toMatchObject({ outcome: "not_started" });
+        expect(harness.connections[0].toolCalls).toEqual([]);
+      });
+
+      it("marks a thrown connection failure after dispatch as unknown without retrying https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const harness = createHarness();
+        await harness.apply([stdioServer()]);
+        const call = jest
+          .spyOn(harness.connections[0], "callTool")
+          .mockRejectedValue(new Error("Connection lost after dispatch"));
+        await expect(harness.manager.callTool("srv-1", "search", {})).rejects.toMatchObject({
+          outcome: "outcome_unknown",
+          message: "Connection lost after dispatch",
+        });
+        expect(call).toHaveBeenCalledTimes(1);
+      });
+
+      it("preserves a server-reported business failure as a definite response https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const harness = createHarness();
+        await harness.apply([stdioServer()]);
+        const failure = {
+          content: [{ type: "text", text: "The record was not changed." }],
+          isError: true,
+        };
+        jest.spyOn(harness.connections[0], "callTool").mockResolvedValue(failure);
+        await expect(harness.manager.callTool("srv-1", "search", {})).resolves.toEqual(failure);
+      });
+
       it("routes the call to the live connection with the configured timeout", async () => {
         const harness = createHarness();
         await harness.apply([stdioServer({ timeoutSeconds: 30 })]);
@@ -355,6 +489,96 @@ describe("McpServerManager", () => {
     });
 
     describe("signature()", () => {
+      it("leaves tools unavailable after discovery failure and recovers on a later notification https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const connection = createFakeConnection();
+        connection.listTools = jest
+          .fn()
+          .mockRejectedValueOnce(new Error("Catalog refresh timed out"))
+          .mockResolvedValueOnce([{ name: "replacement", inputSchema: { type: "object" } }]);
+        const harness = createHarness([connection]);
+        await harness.apply([stdioServer()]);
+        connection.input.onToolsChanged?.();
+        await waitForSettled(harness.manager, ["srv-1"]);
+        expect(harness.manager.getState("srv-1")).toMatchObject({
+          status: "error",
+          lastError: "Catalog refresh timed out",
+        });
+        expect(harness.manager.getTools("srv-1")).toEqual([]);
+        connection.input.onToolsChanged?.();
+        await waitForSettled(harness.manager, ["srv-1"]);
+        expect(harness.manager.getTools("srv-1").map((tool) => tool.name)).toEqual(["replacement"]);
+      });
+
+      it("ignores a notified catalog reply after the server was disabled https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const connection = createFakeConnection();
+        const reply = deferred<readonly McpToolInfo[]>();
+        connection.listTools = () => reply.promise;
+        const harness = createHarness([connection]);
+        await harness.apply([stdioServer()]);
+        connection.input.onToolsChanged?.();
+        await harness.apply([stdioServer({ isActive: false })]);
+        reply.resolve([{ name: "late", inputSchema: { type: "object" } }]);
+        await reply.promise;
+        expect(harness.manager.getState("srv-1")?.status).toBe("disabled");
+        expect(harness.manager.getTools("srv-1")).toEqual([]);
+      });
+
+      it("withdraws an outdated remote catalog until the latest notified snapshot is available https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const connection = createFakeConnection();
+        const first = deferred<readonly McpToolInfo[]>();
+        const second = deferred<readonly McpToolInfo[]>();
+        const secondStarted = deferred<void>();
+        connection.listTools = jest
+          .fn()
+          .mockReturnValueOnce(first.promise)
+          .mockImplementationOnce(() => {
+            secondStarted.resolve();
+            return second.promise;
+          });
+        const harness = createHarness([connection]);
+        await harness.apply([stdioServer()]);
+        const oldSignature = harness.manager.signature();
+
+        connection.input.onToolsChanged?.();
+        expect(harness.manager.getTools("srv-1")).toEqual([]);
+        await expect(harness.manager.callTool("srv-1", "search", {})).rejects.toMatchObject({
+          outcome: "not_started",
+        });
+        connection.input.onToolsChanged?.();
+        first.resolve([{ name: "obsolete", inputSchema: { type: "object" } }]);
+        await secondStarted.promise;
+        expect(harness.manager.getTools("srv-1")).toEqual([]);
+        const settled = waitForSettled(harness.manager, ["srv-1"]);
+        second.resolve([
+          { name: "search", inputSchema: { type: "object", required: ["newQuery"] } },
+        ]);
+        await settled;
+        expect(harness.manager.getTools("srv-1")[0].inputSchema.required).toEqual(["newQuery"]);
+        expect(harness.manager.signature()).not.toBe(oldSignature);
+      });
+
+      it("changes when a reconnect replaces a tool schema without changing count or version https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const original = createFakeConnection();
+        const replacement = createFakeConnection();
+        replacement.start = async () => ({
+          version: "2.1.0",
+          tools: [
+            {
+              name: "search",
+              description: "Search things",
+              inputSchema: { type: "object", required: ["newQuery"] },
+            },
+          ],
+        });
+        const harness = createHarness([original, replacement]);
+        await harness.apply([stdioServer()]);
+        const priorSignature = harness.manager.signature();
+        original.input.onUnexpectedClose("Transport closed");
+        await harness.apply([stdioServer()]);
+        expect(harness.manager.getTools("srv-1")[0].inputSchema.required).toEqual(["newQuery"]);
+        expect(harness.manager.signature()).not.toBe(priorSignature);
+      });
+
       it("changes after a server rename so existing chats refresh their model-visible tool names without reconnecting", async () => {
         const harness = createHarness();
         await harness.apply([stdioServer()]);

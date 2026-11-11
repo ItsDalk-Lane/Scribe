@@ -1,4 +1,6 @@
-import { Platform } from "obsidian";
+import { Platform, type App } from "obsidian";
+import { readAgentsFile } from "@/instructions/agentsFile";
+jest.mock("@/instructions/agentsFile", () => ({ readAgentsFile: jest.fn() }));
 jest.mock("@/utils/desktopStreamingFetch", () => ({
   loadDesktopStreamingFetch: () => (input: RequestInfo | URL, init?: RequestInit) =>
     window.fetch(input, init),
@@ -9,6 +11,7 @@ import type { CustomModel } from "@/aiParams";
 import { ChatModelProviders } from "@/constants";
 import { useStreamingChatSession } from "@/hooks/use-streaming-chat-session";
 import { fixtureSse } from "@/LLMProviders/testing/piFixtures";
+import ChatModelManager from "@/LLMProviders/chatModelManager";
 import * as obsidian from "obsidian";
 
 jest.mock("@/logger");
@@ -107,6 +110,95 @@ describe("use-streaming-chat-session", () => {
     afterEach(() => {
       window.fetch = originalFetch;
       Platform.isMobile = false;
+    });
+
+    it("refreshes shared vault rules for each quick request, removes cleared rules and preserves user history without adding agent tools", async () => {
+      const payloads: Array<{
+        messages: Array<{ role: string; content: string }>;
+        tools?: unknown;
+      }> = [];
+      window.fetch = jest.fn(async (_url, init) => {
+        payloads.push(JSON.parse(init?.body as string) as (typeof payloads)[number]);
+        return new Response(
+          'data: {"choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+          { status: 200, headers: { "content-type": "text/event-stream" } }
+        );
+      });
+      jest.mocked(readAgentsFile).mockResolvedValue("Vault first version");
+      const app = {} as App;
+      const { result } = renderHook(() =>
+        useStreamingChatSession({ model, systemPrompt: "Editing defaults", app })
+      );
+      await act(async () => {
+        await result.current.runTurn(async () => "First");
+      });
+      jest.mocked(readAgentsFile).mockResolvedValue("Vault updated version");
+      await act(async () => {
+        await result.current.runTurn(async () => "Second");
+      });
+      jest.mocked(readAgentsFile).mockResolvedValue("");
+      await act(async () => {
+        await result.current.runTurn(async () => "Third");
+      });
+      expect(payloads[0].messages[0].content).toContain("Vault first version");
+      expect(payloads[1].messages[0].content).toContain("Vault updated version");
+      expect(payloads[1].messages[0].content).not.toContain("Vault first version");
+      expect(payloads[2].messages[0].content).not.toContain("Vault updated version");
+      expect(payloads[2].messages[0].content).toContain(
+        "current user request > project instructions > vault instructions > application defaults"
+      );
+      expect(payloads[2].messages).toContainEqual(
+        expect.objectContaining({ role: "user", content: "First" })
+      );
+      expect(payloads.every((payload) => payload.tools === undefined)).toBe(true);
+    });
+
+    it("uses rules saved while the lightweight model is preparing without rebuilding it for later rule changes https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+      const manager = ChatModelManager.getInstance();
+      const createModel = manager.createModelInstanceFromBridged.bind(
+        manager
+      ) as typeof manager.createModelInstanceFromBridged;
+      const preparing = deferred<void>();
+      const release = deferred<void>();
+      const create = jest
+        .spyOn(manager, "createModelInstanceFromBridged")
+        .mockImplementationOnce(async (input) => {
+          preparing.resolve();
+          await release.promise;
+          return createModel(input);
+        });
+      const payloads: Array<{ messages: Array<{ role: string; content: string }> }> = [];
+      window.fetch = jest.fn(async (_url, init) => {
+        payloads.push(JSON.parse(init?.body as string) as (typeof payloads)[number]);
+        return new Response(
+          'data: {"choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n',
+          { status: 200, headers: { "content-type": "text/event-stream" } }
+        );
+      });
+      jest.mocked(readAgentsFile).mockResolvedValue("Earlier file rules");
+      const app = {} as App;
+      const { result } = renderHook(() =>
+        useStreamingChatSession({ model, systemPrompt: "Editing defaults", app })
+      );
+      try {
+        await act(async () => {
+          const turn = result.current.runTurn(async () => "First");
+          await preparing.promise;
+          jest.mocked(readAgentsFile).mockResolvedValue("Rules saved during preparation");
+          release.resolve();
+          await turn;
+        });
+        jest.mocked(readAgentsFile).mockResolvedValue("Rules saved before follow-up");
+        await act(async () => {
+          await result.current.runTurn(async () => "Follow-up");
+        });
+        expect(payloads[0].messages[0].content).toContain("Rules saved during preparation");
+        expect(payloads[0].messages[0].content).not.toContain("Earlier file rules");
+        expect(payloads[1].messages[0].content).toContain("Rules saved before follow-up");
+        expect(create).toHaveBeenCalledTimes(1);
+      } finally {
+        create.mockRestore();
+      }
     });
 
     it(`publishes each received text increment before the connection completes (${issue})`, async () => {

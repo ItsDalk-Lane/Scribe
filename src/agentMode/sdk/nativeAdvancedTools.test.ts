@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { estimateTextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { App, FileSystemAdapter } from "obsidian";
 import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
+import { getNativeToolPolicy } from "@/agentMode/sdk/nativeToolDefinition";
 import type { ExcalidrawApi } from "@/excalidraw/excalidrawTools";
 import {
   createNativeAdvancedTools,
@@ -46,7 +47,15 @@ describe("nativeAdvancedTools", () => {
         execute: jest.fn(async (request) => {
           if (request.command === "create" || request.command === "apply")
             await writeFile(join(root, String(request.path)), "new drawing");
-          return { ok: true, data: { revision: 1, idMap: {} } };
+          return {
+            ok: true,
+            data: {
+              revision: 1,
+              idMap: {},
+              elements: [{ id: "box-one", type: "rectangle", x: 0, y: 0, width: 100, height: 60 }],
+              nextOffset: null,
+            },
+          };
         }),
         connectLabelled: jest.fn(async () => ({ arrowId: "arrow", labelId: null })),
       };
@@ -58,6 +67,7 @@ describe("nativeAdvancedTools", () => {
         cwd: root,
         sessionId: "native-one",
         requester: "main",
+        observedFileVersions: new Map(),
         getMode: () => mode,
         emit: (update) => updates.push(update),
         requestPermission: jest.fn(
@@ -94,6 +104,238 @@ describe("nativeAdvancedTools", () => {
       if (!tool) throw new Error(`Missing tool ${name}`);
       return tool.execute(id, args, signal);
     }
+
+    it("绘图读取采用实时分页版本，旧版本修改被拒绝 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      let revision = "live-A";
+      api.execute = jest.fn(async (request) =>
+        request.command === "read"
+          ? {
+              ok: true,
+              data: {
+                revision,
+                elements: [{ id: "live-box", type: "rectangle", x: 0, y: 0, width: 5, height: 5 }],
+                total: 1,
+                nextOffset: null,
+              },
+            }
+          : { ok: true, data: { revision } }
+      );
+      const read = await execute("excalidraw_read", { path: "drawing.excalidraw.md" });
+      expect(JSON.stringify(read.content)).toContain("live-box");
+      expect(api.sceneElements).not.toHaveBeenCalled();
+      revision = "live-B";
+      const result = await execute("excalidraw_write", {
+        path: "drawing.excalidraw.md",
+        operations: [{ op: "update", id: "live-box", set: { x: 10 } }],
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toMatch(/changed|read/i);
+      expect(
+        jest.mocked(api.execute).mock.calls.some(([request]) => request.command === "apply")
+      ).toBe(false);
+    });
+
+    it("打开绘图期间撤销编辑权限会阻止后续真实修改 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      await execute("excalidraw_read", { path: "drawing.excalidraw.md" });
+      const original = api.execute;
+      api.execute = jest.fn(async (request) => {
+        if (request.command === "open") mode = "plan";
+        return original(request);
+      });
+      const result = await execute("excalidraw_write", {
+        path: "drawing.excalidraw.md",
+        operations: [{ op: "update", id: "box-one", set: { x: 10 } }],
+      });
+      expect(result.isError).toBe(true);
+      expect(
+        jest.mocked(api.execute).mock.calls.some(([request]) => request.command === "apply")
+      ).toBe(false);
+      expect(await readFile(join(root, "drawing.excalidraw.md"), "utf8")).toBe("old drawing");
+    });
+
+    it("hands a successful drawing read to the delivery owner without authorizing an early edit https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+      options.observeFileVersion = jest.fn();
+      const read = await execute(
+        "excalidraw_read",
+        { path: "drawing.excalidraw.md" },
+        "pending-drawing"
+      );
+      expect(read.isError).toBe(false);
+      expect(options.observeFileVersion).toHaveBeenCalledWith(
+        read,
+        "drawing.excalidraw.md",
+        expect.objectContaining({ kind: "drawing", revision: expect.anything() })
+      );
+      const result = await execute("excalidraw_write", {
+        path: "drawing.excalidraw.md",
+        operations: [{ op: "update", id: "box-one", set: { x: 10 } }],
+      });
+      expect(result.isError).toBe(true);
+      expect(JSON.stringify(result.content)).toMatch(/read the current drawing/i);
+    });
+
+    it("实时绘图分页固定版本，模型已读版本用于本次修改 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      api.execute = jest.fn(async (request) => {
+        if (request.command === "read")
+          return {
+            ok: true,
+            data: {
+              revision: "A",
+              elements: [
+                {
+                  id: request.offset ? "second" : "first",
+                  type: "rectangle",
+                  x: 0,
+                  y: 0,
+                  width: 5,
+                  height: 5,
+                },
+              ],
+              nextOffset: request.detail === "elements" && !request.offset ? 1 : null,
+            },
+          };
+        return { ok: true, revision: "B", data: { acceptedRevision: "B" } };
+      });
+      const read = await execute("excalidraw_read", { path: "drawing.excalidraw.md" });
+      expect(JSON.stringify(read.content)).toContain("second");
+      expect(api.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ command: "read", offset: 1, revision: "A" })
+      );
+      const result = await execute("excalidraw_write", {
+        path: "drawing.excalidraw.md",
+        operations: [{ op: "update", id: "first", set: { x: 20 } }],
+      });
+      expect(result.isError).toBe(false);
+      expect(api.execute).toHaveBeenCalledWith(
+        expect.objectContaining({ command: "apply", expectedRevision: "A" })
+      );
+      expect(options.observedFileVersions!.has("drawing.excalidraw.md")).toBe(false);
+    });
+
+    it("缺失实时版本拒绝读取，连接后没有提交凭据则报告已保存部分并停止继续连接 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      const original = api.execute;
+      api.execute = jest.fn(async () => ({ ok: true, data: { elements: [] } }));
+      expect((await execute("excalidraw_read", { path: "drawing.excalidraw.md" })).isError).toBe(
+        true
+      );
+      api.execute = original;
+      await execute("excalidraw_read", { path: "drawing.excalidraw.md" });
+      const result = await execute("excalidraw_write", {
+        path: "drawing.excalidraw.md",
+        operations: [
+          { op: "connect", from: "box-one", to: "box-two", label: "first" },
+          { op: "connect", from: "box-two", to: "box-three", label: "second" },
+        ],
+      });
+      expect(result.isError).toBe(true);
+      expect(api.connectLabelled).toHaveBeenCalledTimes(1);
+      expect(JSON.stringify(result.content)).toMatch(/Saved:.*first|Saved:.*Connected/);
+      expect(JSON.stringify(result.content)).toContain("Don't redo the saved changes");
+    });
+
+    it("绘图已确认修改后撤权保留部分完成事实，已派发异常不能当作未开始 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      await execute("excalidraw_read", { path: "drawing.excalidraw.md" });
+      const original = api.execute;
+      api.execute = jest.fn(async (request) => {
+        const reply = await original(request);
+        if (request.command === "apply") mode = "plan";
+        return reply;
+      });
+      const partial = await execute("excalidraw_write", {
+        path: "drawing.excalidraw.md",
+        operations: [
+          { op: "update", id: "box-one", set: { x: 10 } },
+          { op: "connect", from: "box-one", to: "box-two", label: "later" },
+        ],
+      });
+      expect(partial.isError).toBe(true);
+      expect(partial.details).toMatchObject({
+        confirmedOperations: ["apply"],
+        execution: { status: "partial", retry: "verify_before_retry", complete: false },
+      });
+      mode = "default";
+      api.execute = original;
+      await execute("excalidraw_read", { path: "drawing.excalidraw.md" });
+      api.execute = jest.fn(async (request) => {
+        if (request.command === "apply") throw new Error("connection lost after dispatch");
+        return original(request);
+      });
+      const unknown = await execute("excalidraw_write", {
+        path: "drawing.excalidraw.md",
+        operations: [{ op: "update", id: "box-one", set: { x: 20 } }],
+      });
+      expect(unknown.details).toMatchObject({
+        execution: { status: "outcome_unknown", retry: "verify_before_retry" },
+      });
+    });
+
+    it("取消到达已确认apply之后仍返回已保存事实而不重放 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      await execute("excalidraw_read", { path: "drawing.excalidraw.md" });
+      const original = api.execute;
+      const controller = new AbortController();
+      api.execute = jest.fn(async (request) => {
+        const reply = await original(request);
+        if (request.command === "apply") controller.abort();
+        return reply;
+      });
+      const result = await execute(
+        "excalidraw_write",
+        {
+          path: "drawing.excalidraw.md",
+          operations: [{ op: "update", id: "box-one", set: { x: 10 } }],
+        },
+        "cancelled-after-apply",
+        controller.signal
+      );
+      expect(result.isError).toBe(true);
+      expect(result.details).toMatchObject({
+        confirmedOperations: ["apply"],
+        execution: { status: "partial", complete: false },
+      });
+      expect(await readFile(join(root, "drawing.excalidraw.md"), "utf8")).toBe("new drawing");
+    });
+
+    it("小上下文技能以原生游标分页，显式小页不改变版本和停用校验 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      options.catalogBudget = { contextWindow: 10000 };
+      let status: "available" | "disabled" = "available";
+      options.skills = () => [
+        { name: "long", description: "long", body: "a".repeat(19000), status },
+        { name: "other", description: "other", body: "other", status: "available" },
+      ];
+      const first = await execute("invoke_skill", { name: "long" });
+      expect(first.details).toMatchObject({ truncated: true, nextCursor: expect.any(String) });
+      const small = await execute("invoke_skill", { name: "long", max_characters: 100 });
+      const continued = await execute("invoke_skill", {
+        name: "long",
+        max_characters: 100,
+        cursor: (small.details as { nextCursor: string }).nextCursor,
+      });
+      expect(continued.details).toMatchObject({ truncated: true });
+      status = "disabled";
+      await expect(
+        execute("invoke_skill", {
+          name: "long",
+          max_characters: 100,
+          cursor: (continued.details as { nextCursor: string }).nextCursor,
+        })
+      ).rejects.toThrow(/disabled/i);
+    });
+
+    it("原有技能创作白名单和工具模式含义保持一致 https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      options.reviewSkillDraft = async () => null;
+      const tools = createNativeAdvancedTools(options);
+      for (const name of ["fetch_url", "web_search"])
+        expect(getNativeToolPolicy(tools.find((tool) => tool.name === name)!)).toMatchObject({
+          kind: "fetch",
+          skillAuthoring: false,
+        });
+      expect(
+        getNativeToolPolicy(tools.find((tool) => tool.name === "propose_skill")!)
+      ).toMatchObject({ kind: "think", skillAuthoring: true });
+      expect(
+        getNativeToolPolicy(tools.find((tool) => tool.name === "invoke_skill")!)
+      ).toMatchObject({ kind: "read", skillAuthoring: true });
+    });
 
     it("reads a manually restricted skill only within an explicit transferred run scope and still refuses a disabled skill (https://github.com/ItsDalk-Lane/Scribe/issues/50)", async () => {
       let status: "manual-only" | "disabled" = "manual-only";
@@ -133,6 +375,47 @@ describe("nativeAdvancedTools", () => {
         "not registered"
       );
       expect(options.fetch).not.toHaveBeenCalled();
+    });
+
+    it("rejects skill instructions disabled while dependency checks were pending https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+      const previous = options.skills;
+      options.resolveSkillDependencies = async () => {
+        options.skills = () => previous().map((skill) => ({ ...skill, status: "disabled" }));
+        return [];
+      };
+      options.onSkillInvoked = jest.fn();
+      await expect(execute("invoke_skill", { name: "note-format" })).rejects.toThrow(/disabled/i);
+      expect(options.onSkillInvoked).not.toHaveBeenCalled();
+    });
+
+    it("rejects a supporting file read cancelled before delivery https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+      const controller = new AbortController();
+      options.readSkillFile = async () => {
+        controller.abort();
+        return "Not delivered";
+      };
+      await expect(
+        execute(
+          "invoke_skill",
+          { name: "note-format", file: "guide.md" },
+          "skill",
+          controller.signal
+        )
+      ).rejects.toThrow(/abort/i);
+    });
+
+    it("rejects skill pages too small to advance past a whole emoji https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+      options.skills = () => [
+        { name: "emoji", description: "Emoji", body: "😀A", status: "available" },
+      ];
+      await expect(execute("invoke_skill", { name: "emoji", max_characters: 1 })).rejects.toThrow(
+        /increase the page size/i
+      );
+      const first = await execute("invoke_skill", { name: "emoji", max_characters: 2 });
+      const cursor = (first.details as { nextCursor: string }).nextCursor;
+      expect(cursor).toMatch(/^2:/);
+      const next = await execute("invoke_skill", { name: "emoji", max_characters: 1, cursor });
+      expect(next.content).toEqual([{ type: "text", text: "A" }]);
     });
 
     it("shows the full proposed draft to the review callback and returns only the confirmed saved name", async () => {
@@ -467,6 +750,38 @@ describe("nativeAdvancedTools", () => {
       expect(complete.content[0]).not.toMatchObject({ text: expect.stringContaining("hidden") });
     });
 
+    it("网页显式长度上限可续读完整原文，改变后的网页拒绝旧游标 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      let body = "abcdefghijkl";
+      options.fetch = jest.fn(
+        async () => new Response(body, { headers: { "content-type": "text/plain" } })
+      );
+      const first = await execute("fetch_url", {
+        url: "https://example.invalid/page",
+        max_characters: 4,
+      });
+      expect(first.details).toMatchObject({ truncated: true, nextCursor: expect.any(String) });
+      const next = await execute("fetch_url", {
+        url: "https://example.invalid/page",
+        max_characters: 20,
+        cursor: (first.details as { nextCursor: string }).nextCursor,
+      });
+      expect(next.content[0]).toMatchObject({ text: "efghijkl" });
+      body = "changed";
+      await expect(
+        execute("fetch_url", {
+          url: "https://example.invalid/page",
+          max_characters: 4,
+          cursor: (first.details as { nextCursor: string }).nextCursor,
+        })
+      ).rejects.toThrow(/changed/i);
+      const full = await execute("fetch_url", { url: "https://example.invalid/page" });
+      expect(full.content[0]).toMatchObject({ text: "changed" });
+      body = "z".repeat(25000);
+      const canonical = await execute("fetch_url", { url: "https://example.invalid/page" });
+      expect(canonical.content[0]).toMatchObject({ text: body });
+      expect(canonical.details).toMatchObject({ complete: true, truncated: false });
+    });
+
     it("executes an encoded search against the configured engine and refuses unsupported URLs", async () => {
       options.searchUrlTemplate = "https://search.invalid/?q={query}";
       await execute("web_search", { query: "Obsidian & drawings" });
@@ -529,6 +844,7 @@ describe("nativeAdvancedTools", () => {
     });
 
     it("routes labelled drawing connections through the existing drawing API after approval", async () => {
+      await execute("excalidraw_read", { path: "drawing.excalidraw.md" });
       const result = await execute("excalidraw_write", {
         path: "drawing.excalidraw.md",
         operations: [{ op: "connect", from: "box-one", to: "box-two", label: "Linked" }],

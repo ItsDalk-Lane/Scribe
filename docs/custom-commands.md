@@ -94,3 +94,5 @@ Old command settings and files in previous locations are not imported or modifie
 - [Agent Chat](agent-mode-and-tools.md)
 - [Context and Mentions](context-and-mentions.md)
 - [Getting Started](getting-started.md)
+
+快捷问答和自定义编辑也会在每轮读取当前资料库说明；项目范围明确时还会带上该项目说明。偏好冲突时，本次明确要求优先，其次是项目说明、资料库说明和默认要求。快捷入口仍只处理这次编辑，不会因此获得完整 Agent 的工具。

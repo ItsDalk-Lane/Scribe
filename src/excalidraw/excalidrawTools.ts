@@ -135,7 +135,7 @@ Layout: one flow direction, 60-100 px gaps, and boxes wide enough for their labe
 Groups: groups [[ids..], ..] makes each list one group.
 Icons: icons [{id, icon, x, y, size}] places Lucide icons as editable shapes, each in its own group. An unknown icon name rejects the whole call.
 
-Existing drawing (operations): Change an existing Obsidian Excalidraw drawing; Obsidian opens it if it isn't open. Get ids from excalidraw_read. The operations apply together:
+Existing drawing (operations): Change an existing Obsidian Excalidraw drawing; Obsidian opens it if it isn't open. Get ids from excalidraw_read. The operations are applied in order; a later failure can leave earlier changes saved:
 - {"op":"update","id":..,"set":{..}} moves (x, y), resizes, restyles (the element style fields except roundness), links (link) or rewrites text. To change a label's text or font, update the label's own text id with {"text": ..} or {"fontFamily": ..}. This tool can't rename a frame, so name it when you create it. An arrow's points can't be updated: to reroute it, delete it and connect again with via.
 - {"op":"delete","ids":[..]} removes elements and their labels. Delete the arrows into and out of a removed shape too.
 - {"op":"add","elements":[..]} adds elements as for a new drawing, drawn on top. Its arrows can only attach to shapes added in the same operation; connect existing shapes with connect.
@@ -184,6 +184,8 @@ Make room before inserting by moving the shapes that follow. Keep every id you d
 
 export interface ExcalidrawCliReply {
   ok: boolean;
+  revision?: string | number;
+  mutation?: string;
   warnings?: ReadonlyArray<unknown>;
   data?: Record<string, unknown>;
   error?: { code?: string; message?: string };

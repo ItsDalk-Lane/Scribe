@@ -1,7 +1,10 @@
 import { FileSystemAdapter, type App } from "obsidian";
 import { DEFAULT_SETTINGS } from "@/constants";
 import { setSettings } from "@/settings/model";
-import { buildNativeSystemPrompt } from "@/agentMode/backends/native/nativeSystemPrompt";
+import {
+  buildNativeSystemPrompt,
+  buildNativeSystemPromptState,
+} from "@/agentMode/backends/native/nativeSystemPrompt";
 import { getMcpServerManager } from "@/agentMode/mcp/McpServerManager";
 import type { McpServerManager } from "@/agentMode/mcp/McpServerManager";
 import type { McpServerConfig, McpToolInfo } from "@/agentMode/mcp/types";
@@ -44,23 +47,136 @@ function mcpManagerStub(): McpServerManager {
     { name: "search", description: "Search notes.", inputSchema: { type: "object" } },
   ];
   return {
+    getRevision: () => 0,
     listEnabledServers: () => [server],
     getTools: () => tools,
   } as unknown as McpServerManager;
 }
 
 describe("nativeSystemPrompt", () => {
-  describe("buildNativeSystemPrompt()", () => {
-    beforeEach(() => {
-      jest.clearAllMocks();
-      jest
-        .mocked(readAgentsFile)
-        .mockImplementation(async (_app, folder) =>
-          folder ? "Project directory rules" : "Vault rules"
-        );
-      jest.mocked(getCachedProjectRecordById).mockReturnValue(undefined);
-      jest.mocked(getMcpServerManager).mockReturnValue(null);
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest
+      .mocked(readAgentsFile)
+      .mockImplementation(async (_app, folder) =>
+        folder ? "Project directory rules" : "Vault rules"
+      );
+    jest.mocked(getCachedProjectRecordById).mockReturnValue(undefined);
+    jest.mocked(getMcpServerManager).mockReturnValue(null);
+  });
+
+  describe("buildNativeSystemPromptState()", () => {
+    it("reuses an unchanged MCP catalog across model steps while still reading current rules https://github.com/ItsDalk-Lane/Scribe/issues/65", async () => {
+      const manager = mcpManagerStub();
+      const scan = jest.spyOn(manager, "listEnabledServers");
+      jest.mocked(getMcpServerManager).mockReturnValue(manager);
+      setSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: { ...DEFAULT_SETTINGS.agentMode, mcpToolLoading: "always" },
+      });
+      const target = app();
+      const first = await buildNativeSystemPromptState(target, { cwd: "/vault" });
+      for (let step = 1; step < 20; step++) {
+        const next = await buildNativeSystemPromptState(target, { cwd: "/vault" });
+        expect(next.sections.mcp_catalog).toBe(first.sections.mcp_catalog);
+      }
+      expect(scan).toHaveBeenCalledTimes(2);
+      expect(readAgentsFile).toHaveBeenCalledTimes(20);
+      jest.mocked(readAgentsFile).mockResolvedValue("Newly saved rules");
+      const updated = await buildNativeSystemPromptState(target, { cwd: "/vault" });
+      expect(updated.sections.vault_instructions).toContain("Newly saved rules");
+      expect(scan).toHaveBeenCalledTimes(2);
     });
+
+    it("rebuilds the MCP catalog for a new capability revision and coalesces intervening revisions https://github.com/ItsDalk-Lane/Scribe/issues/65", async () => {
+      const manager = mcpManagerStub();
+      let revision = 0;
+      let tools: McpToolInfo[] = [{ name: "old", inputSchema: {} }];
+      jest.spyOn(manager, "getRevision").mockImplementation(() => revision);
+      jest.spyOn(manager, "getTools").mockImplementation(() => tools);
+      const scan = jest.spyOn(manager, "listEnabledServers");
+      jest.mocked(getMcpServerManager).mockReturnValue(manager);
+      setSettings({
+        ...DEFAULT_SETTINGS,
+        agentMode: { ...DEFAULT_SETTINGS.agentMode, mcpToolLoading: "always" },
+      });
+      const target = app();
+      expect(
+        (await buildNativeSystemPromptState(target, { cwd: "/vault" })).sections.mcp_catalog
+      ).toContain("mcp__files__old");
+      revision += 3;
+      tools = [{ name: "current", description: "Current schema", inputSchema: {} }];
+      const updated = await buildNativeSystemPromptState(target, { cwd: "/vault" });
+      expect(updated.sections.mcp_catalog).toContain("mcp__files__current");
+      expect(updated.sections.mcp_catalog).not.toContain("mcp__files__old");
+      expect(scan).toHaveBeenCalledTimes(4);
+      revision++;
+      tools = [];
+      expect(
+        (await buildNativeSystemPromptState(target, { cwd: "/vault" })).sections.mcp_catalog
+      ).toBeNull();
+    });
+
+    it("invalidates the catalog for loading settings and keeps replacement managers isolated https://github.com/ItsDalk-Lane/Scribe/issues/65", async () => {
+      const manager = mcpManagerStub();
+      jest.mocked(getMcpServerManager).mockReturnValue(manager);
+      const target = app();
+      const settings = {
+        ...DEFAULT_SETTINGS,
+        agentMode: {
+          ...DEFAULT_SETTINGS.agentMode,
+          mcpToolLoading: "auto" as const,
+          mcpToolLoadingThresholdChars: 1,
+        },
+      };
+      setSettings(settings);
+      expect(
+        (await buildNativeSystemPromptState(target, { cwd: "/vault" })).sections.mcp_catalog
+      ).toContain("mcp__files__search");
+      setSettings({
+        ...settings,
+        agentMode: { ...settings.agentMode, mcpToolLoadingThresholdChars: 100000 },
+      });
+      expect(
+        (await buildNativeSystemPromptState(target, { cwd: "/vault" })).sections.mcp_catalog
+      ).toBeNull();
+      setSettings({ ...settings, agentMode: { ...settings.agentMode, mcpToolLoading: "off" } });
+      expect(
+        (await buildNativeSystemPromptState(target, { cwd: "/vault" })).sections.mcp_catalog
+      ).toBeNull();
+      setSettings(settings);
+      expect(
+        (await buildNativeSystemPromptState(target, { cwd: "/vault", purpose: "skill-authoring" }))
+          .sections.mcp_catalog
+      ).toBeNull();
+      const replacement = mcpManagerStub();
+      jest
+        .spyOn(replacement, "getTools")
+        .mockReturnValue([{ name: "replacement", inputSchema: {} }]);
+      jest.mocked(getMcpServerManager).mockReturnValue(replacement);
+      const updated = await buildNativeSystemPromptState(target, { cwd: "/vault" });
+      expect(updated.sections.mcp_catalog).toContain("mcp__files__replacement");
+      expect(updated.sections.mcp_catalog).not.toContain("mcp__files__search");
+    });
+
+    it("returns stable named sections and explicit removals rather than merging rule files into the base", async () => {
+      const initial = await buildNativeSystemPromptState(app(), { cwd: "/vault/Research" });
+      expect(initial.content).toContain("Scribe Obsidian identity");
+      expect(initial.content).not.toContain("Vault rules");
+      expect(initial.sections.vault_instructions).toContain("Vault rules");
+      expect(initial.sections.working_directory_instructions).toContain("Project directory rules");
+      jest.mocked(readAgentsFile).mockResolvedValue("");
+      const cleared = await buildNativeSystemPromptState(app(), { cwd: "/vault/Research" });
+      expect(cleared.sections).toEqual({
+        vault_instructions: null,
+        project_instructions: null,
+        working_directory_instructions: null,
+        mcp_catalog: null,
+      });
+    });
+  });
+
+  describe("buildNativeSystemPrompt()", () => {
     it("combines Scribe identity, vault rules and only the selected project's own instructions in a fixed order", async () => {
       const target = app();
       jest.mocked(getCachedProjectRecordById).mockReturnValue({

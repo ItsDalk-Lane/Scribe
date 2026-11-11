@@ -154,6 +154,7 @@ export function CustomCommandChatModalContent({
     reset: resetSession,
     getLatestStreamingText,
   } = useStreamingChatSession({
+    app,
     model: resolvedModel,
     systemPrompt: systemPrompt || "",
     excludeThinking: true,

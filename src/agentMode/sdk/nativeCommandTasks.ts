@@ -32,6 +32,33 @@ export interface NativeCommandResult {
   output: string;
   exitCode: number | null;
   status: "running" | "completed" | "failed" | "stopped";
+  truncated: boolean;
+  complete: boolean;
+}
+
+// 非空stdout不能遮掉失败、后台状态或完整输出位置，否则模型可能重复执行。https://github.com/ItsDalk-Lane/Scribe/issues/70
+export function formatCommandResult(result: NativeCommandResult): string {
+  const { status, exitCode, taskId, outputFile, truncated, complete } = result;
+  return [
+    JSON.stringify({
+      status,
+      exitCode,
+      taskId,
+      outputFile,
+      truncated,
+      complete,
+      retry: status === "completed" || status === "running" ? "never" : "verify_before_retry",
+    }),
+    truncated
+      ? "[Output truncated: showing the final portion. Read outputFile for the full original output.]"
+      : "",
+    status === "running"
+      ? "The background command is still running. Use this taskId to inspect or stop it; do not launch it again."
+      : "",
+    result.output,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
 }
 
 type ChildProcess = import("node:child_process").ChildProcess;
@@ -107,8 +134,6 @@ export class NativeCommandTasks {
     if (this.closed) throw new Error("The command runner is closed.");
     input.signal?.throwIfAborted();
     input.checkPermission?.();
-    fs.mkdirSync(this.options.outputDirectory, { recursive: true });
-    input.signal?.throwIfAborted();
     const taskId = `command-${uuidv4()}`;
     const outputFile = path.join(this.options.outputDirectory, `${taskId}.output`);
     if (input.background)
@@ -118,10 +143,23 @@ export class NativeCommandTasks {
         command: input.command,
         outputFile,
       });
+    // 准入保存期间运行器可能已经卸载，不能再创建输出或启动进程。https://github.com/ItsDalk-Lane/Scribe/issues/71
+    if (this.closed) throw new Error("The command runner is closed.");
     input.signal?.throwIfAborted();
     input.checkPermission?.();
+    fs.mkdirSync(this.options.outputDirectory, { recursive: true });
     const fd = fs.openSync(outputFile, "wx", 0o600);
     let output = "";
+    let truncated = false;
+    const appendOutput = (text: string): void => {
+      const combined = output + text;
+      let start = Math.max(0, combined.length - 65_536);
+      if (start > 0) truncated = true;
+      // 尾截不能留下半个emoji，完整原始字节仍保存在同一输出文件。https://github.com/ItsDalk-Lane/Scribe/issues/70
+      if (/[\uDC00-\uDFFF]/.test(combined[start]) && /[\uD800-\uDBFF]/.test(combined[start - 1]))
+        start++;
+      output = combined.slice(start);
+    };
     let stopped = false;
     let taskStarted = false;
     let failure: Error | undefined;
@@ -185,7 +223,7 @@ export class NativeCommandTasks {
     const record = (chunk: Uint8Array): void => {
       try {
         fs.writeSync(fd, chunk);
-        output = (output + decoder.decode(chunk, { stream: true })).slice(-65_536);
+        appendOutput(decoder.decode(chunk, { stream: true }));
         input.onUpdate?.(output);
         if (input.background) {
           this.options.emit({
@@ -212,7 +250,7 @@ export class NativeCommandTasks {
     this.tasks.set(taskId, { child, completion, stop });
     child.once("close", (exitCode) => {
       if (killTimer) window.clearTimeout(killTimer);
-      output = (output + decoder.decode()).slice(-65_536);
+      appendOutput(decoder.decode());
       if (stopped) {
         killDescendants("SIGKILL");
         if (processRuntime.platform !== "win32") killGroup("SIGKILL");
@@ -233,6 +271,8 @@ export class NativeCommandTasks {
         output: failure ? `${output}\n${failure.message}` : output,
         exitCode,
         status,
+        truncated,
+        complete: status === "completed" && !truncated,
       };
       if (input.background && taskStarted) {
         this.options.emit({
@@ -275,8 +315,17 @@ export class NativeCommandTasks {
     await this.options.flush?.();
     if (input.background) {
       input.signal?.removeEventListener("abort", abort);
-      if (stopped) return completion;
-      return { taskId, outputFile, output, exitCode: null, status: "running" };
+      // 短命令可能在启动记录落盘时已结束，返回真实结束状态。https://github.com/ItsDalk-Lane/Scribe/issues/71
+      if (stopped || !this.tasks.has(taskId)) return completion;
+      return {
+        taskId,
+        outputFile,
+        output,
+        exitCode: null,
+        status: "running",
+        truncated,
+        complete: false,
+      };
     }
     return completion;
   }

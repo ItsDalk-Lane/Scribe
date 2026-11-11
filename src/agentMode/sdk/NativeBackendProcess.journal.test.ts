@@ -52,7 +52,8 @@ function deferred() {
 
 function reply(
   text: string,
-  calls: Array<{ id: string; name: string; arguments: JsonObject }> = []
+  calls: Array<{ id: string; name: string; arguments: JsonObject }> = [],
+  usedTokens = 0
 ) {
   const stream = createAssistantMessageEventStream();
   const message = createAssistantMessage(MODEL);
@@ -61,6 +62,7 @@ function reply(
     ...calls.map((call) => ({ type: "toolCall" as const, ...call })),
   ];
   message.stopReason = calls.length ? "toolUse" : "stop";
+  message.usage.totalTokens = usedTokens;
   stream.push({ type: "start", partial: message });
   if (text) stream.push({ type: "text_delta", contentIndex: 0, delta: text, partial: message });
   stream.push({ type: "done", reason: message.stopReason, message });
@@ -106,6 +108,7 @@ function fixture(
       options?: JournalAppendOptions
     ) => Promise<void>;
     afterAppend?: (record: JournalRecord) => void;
+    beforeSave?: () => Promise<void> | void;
     beforeFlush?: () => Promise<void> | void;
     createTools?: (context: NativeToolContext) => AgentTool[];
     storage?: NativeSessionStorage;
@@ -119,6 +122,7 @@ function fixture(
     list: async () => [],
     save: async () => {
       await pending;
+      await options.beforeSave?.();
     },
     append: (_id, kind, payload, appendOptions) => {
       const operation = pending.then(async () => {
@@ -178,6 +182,136 @@ function fixture(
 describe("NativeBackendProcess.journal", () => {
   describe("NativeBackendProcess", () => {
     describe("prompt()", () => {
+      it("waits for a new turn's durable admission when the previous task is closing https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const closing = deferred();
+        const finishClosing = deferred();
+        const newAdmission = deferred();
+        const finishAdmission = deferred();
+        const secondStarted = deferred();
+        let closingFirstTask = false;
+        let requestNumber = 0;
+        const f = fixture({
+          beforeAppend: async (kind, payload) => {
+            if (kind !== "subagent_task") return;
+            const { task } = payload as { task: { active: boolean; requestIds: string[] } };
+            if (!task.active && !closingFirstTask) {
+              closingFirstTask = true;
+              closing.resolve();
+              await finishClosing.promise;
+            } else if (closingFirstTask && task.active && !task.requestIds.length) {
+              newAdmission.resolve();
+              await finishAdmission.promise;
+            }
+          },
+          request: (_context, options) => {
+            const stream = createAssistantMessageEventStream();
+            const requestId = `request-${++requestNumber}`;
+            void (async () => {
+              try {
+                await options.beforeRequest?.(requestId);
+                for await (const event of reply(requestId)) stream.push(event);
+              } catch (error) {
+                const message = createAssistantMessage(MODEL);
+                message.stopReason = "error";
+                message.errorMessage = error instanceof Error ? error.message : String(error);
+                stream.push({ type: "error", reason: "error", error: message });
+              }
+            })();
+            return stream;
+          },
+        });
+        const id = await f.open();
+        const first = f.send(id, "first", "First task");
+        await closing.promise;
+        const createModel = f.createModel.getMockImplementation()!;
+        f.createModel.mockImplementation(async () => {
+          secondStarted.resolve();
+          return createModel();
+        });
+        const second = f.send(id, "second", "Next task");
+        finishClosing.resolve();
+        await newAdmission.promise;
+        const beforeAdmission = await Promise.race([
+          first.then(() => "first closed"),
+          secondStarted.promise.then(() => "second started early"),
+        ]);
+        finishAdmission.resolve();
+        await Promise.all([first, second]);
+        expect(beforeAdmission).toBe("first closed");
+        const requests = f.entries
+          .filter((entry) => entry.kind === "request_context")
+          .map((entry) => entry.payload as { promptId: string; taskGenerationId: string });
+        expect(requests.map((request) => request.promptId)).toEqual(["first", "second"]);
+        expect(requests[0].taskGenerationId).not.toBe(requests[1].taskGenerationId);
+        expect(
+          f.entries
+            .filter(isTurnEnded)
+            .map((entry) => (entry.payload as { update: { stopReason: string } }).update.stopReason)
+        ).toEqual(["end_turn", "end_turn"]);
+      });
+
+      it("keeps the active turn in charge of its steering while an older turn finishes saving https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const closing = deferred();
+        const finishClosing = deferred();
+        const secondStarted = deferred();
+        const overlappingRun = deferred();
+        const secondStream = createAssistantMessageEventStream();
+        let firstEnded = false;
+        let heldSave = false;
+        let step = 0;
+        const f = fixture({
+          afterAppend: (entry) => {
+            if (isTurnEnded(entry)) firstEnded = true;
+          },
+          beforeSave: async () => {
+            if (!firstEnded || heldSave) return;
+            heldSave = true;
+            closing.resolve();
+            await finishClosing.promise;
+          },
+          request: () => {
+            if (++step === 2) {
+              secondStarted.resolve();
+              return secondStream;
+            }
+            return reply("Done");
+          },
+        });
+        const id = await f.open();
+        const first = f.send(id, "first", "First request");
+        await closing.promise;
+        const second = f.send(id, "second", "Second request");
+        await secondStarted.promise;
+        await f.send(id, "steering", "Steering for the second request");
+        const createModel = f.createModel.getMockImplementation()!;
+        f.createModel.mockImplementation(async () => {
+          overlappingRun.resolve();
+          return createModel();
+        });
+        finishClosing.resolve();
+        const whileSecondActive = await Promise.race([
+          first.then(() => "first closed"),
+          overlappingRun.promise.then(() => "another run started"),
+        ]);
+        const message = createAssistantMessage(MODEL);
+        message.stopReason = "stop";
+        secondStream.push({ type: "done", reason: "stop", message });
+        await Promise.all([first, second]);
+        expect(whileSecondActive).toBe("first closed");
+        expect(
+          f.entries
+            .filter(isTurnEnded)
+            .map(
+              (entry) =>
+                (entry.payload as { update: { turnId: string; stopReason: string } }).update
+            )
+        ).toEqual([
+          expect.objectContaining({ turnId: "first", stopReason: "end_turn" }),
+          expect.objectContaining({ turnId: "second", stopReason: "end_turn" }),
+          expect.objectContaining({ turnId: "steering", stopReason: "end_turn" }),
+        ]);
+      });
+
       it("settles both delivered steering rounds and keeps the newer command on its actual round https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
         const started = deferred();
         const initial = createAssistantMessageEventStream();
@@ -212,7 +346,8 @@ describe("NativeBackendProcess.journal", () => {
                   status: "completed",
                 });
                 return { content: [{ type: "text", text: "Complete" }], details: undefined };
-              }
+              },
+              { kind: "read" }
             ),
           ],
         });
@@ -331,15 +466,22 @@ describe("NativeBackendProcess.journal", () => {
             await durable.promise;
           },
           createTools: (context) => [
-            defineNativeTool("write_note", "Write", "Write fixture", obj({}), async (id) => {
-              await context.requestPermission({
-                sessionId: context.sessionId,
-                toolCall: { toolCallId: id, title: "Write fixture", kind: "edit" },
-                options: [...NATIVE_PERMISSION_OPTIONS],
-              });
-              changed = true;
-              return { content: [{ type: "text", text: "Saved fixture" }], details: undefined };
-            }),
+            defineNativeTool(
+              "write_note",
+              "Write",
+              "Write fixture",
+              obj({}),
+              async (id) => {
+                await context.requestPermission({
+                  sessionId: context.sessionId,
+                  toolCall: { toolCallId: id, title: "Write fixture", kind: "edit" },
+                  options: [...NATIVE_PERMISSION_OPTIONS],
+                });
+                changed = true;
+                return { content: [{ type: "text", text: "Saved fixture" }], details: undefined };
+              },
+              { kind: "edit" }
+            ),
           ],
         });
         const id = await f.open();
@@ -395,14 +537,28 @@ describe("NativeBackendProcess.journal", () => {
               fastSaved.resolve();
           },
           createTools: () => [
-            defineNativeTool("fast", "Fast", "Fast fixture", obj({}), async () => ({
-              content: [{ type: "text", text: "Fast result" }],
-              details: undefined,
-            })),
-            defineNativeTool("slow", "Slow", "Slow fixture", obj({}), async () => {
-              await slow.promise;
-              return { content: [{ type: "text", text: "Slow result" }], details: undefined };
-            }),
+            defineNativeTool(
+              "fast",
+              "Fast",
+              "Fast fixture",
+              obj({}),
+              async () => ({
+                content: [{ type: "text", text: "Fast result" }],
+                details: undefined,
+              }),
+              { kind: "read" }
+            ),
+            defineNativeTool(
+              "slow",
+              "Slow",
+              "Slow fixture",
+              obj({}),
+              async () => {
+                await slow.promise;
+                return { content: [{ type: "text", text: "Slow result" }], details: undefined };
+              },
+              { kind: "read" }
+            ),
           ],
         });
         const id = await f.open();
@@ -448,10 +604,17 @@ describe("NativeBackendProcess.journal", () => {
             return reply("The current request is complete.");
           },
           createTools: () => [
-            defineNativeTool("read_note", "Read", "Read fixture", obj({}), async () => ({
-              content: [{ type: "text", text: "ACTUAL TOOL RESULT" }],
-              details: undefined,
-            })),
+            defineNativeTool(
+              "read_note",
+              "Read",
+              "Read fixture",
+              obj({}),
+              async () => ({
+                content: [{ type: "text", text: "ACTUAL TOOL RESULT" }],
+                details: undefined,
+              }),
+              { kind: "read" }
+            ),
           ],
         });
         const id = await f.open();
@@ -520,21 +683,35 @@ describe("NativeBackendProcess.journal", () => {
               }
               normal++;
               if (normal <= toolRounds) {
-                return reply("", [{ id: `read-${normal}`, name: "read_note", arguments: {} }]);
+                return reply(
+                  "",
+                  [{ id: `read-${normal}`, name: "read_note", arguments: {} }],
+                  normal === 1 ? 100 : 1500
+                );
               }
               return reply("Finished");
             },
             createTools: () => [
-              defineNativeTool("read_note", "Read", "Read fixture", obj({}), async (id) => ({
-                content: [{ type: "text", text: `${id}: ` + "earlier note contents ".repeat(160) }],
-                details: undefined,
-              })),
+              defineNativeTool(
+                "read_note",
+                "Read",
+                "Read fixture",
+                obj({}),
+                async (id) => ({
+                  content: [
+                    { type: "text", text: `${id}: ` + "earlier note contents ".repeat(70) },
+                  ],
+                  details: undefined,
+                }),
+                { kind: "read" }
+              ),
             ],
           });
           try {
             const id = await f.open();
             await f.send(id, "original-requirement", requirement);
-            expect(summaries).toHaveLength(toolRounds - 1);
+            expect(normal).toBe(toolRounds + 1);
+            expect(summaries).toHaveLength(1);
             for (const summary of summaries) expect(summary).not.toContain(requirement);
             const saved = await storage.load(id);
             expect(
@@ -543,7 +720,7 @@ describe("NativeBackendProcess.journal", () => {
             await f.process.closeSession({ sessionId: id });
             await f.process.loadSession({ sessionId: id, cwd: "/fixture/vault" });
             await f.send(id, "manual-compact", "/compact");
-            expect(summaries).toHaveLength(toolRounds);
+            expect(summaries).toHaveLength(2);
             expect(summaries.at(-1)).toContain("Earlier tool work summary");
             expect(summaries.at(-1)).toContain(requirement);
             expect(summaries.at(-1)).not.toContain("read-1:");
@@ -564,15 +741,22 @@ describe("NativeBackendProcess.journal", () => {
             if (kind === "tool_admitted") throw new Error("Disk unavailable");
           },
           createTools: (context) => [
-            defineNativeTool("write_note", "Write", "Write fixture", obj({}), async (id) => {
-              await context.requestPermission({
-                sessionId: context.sessionId,
-                toolCall: { toolCallId: id, title: "Write fixture", kind: "edit" },
-                options: [...NATIVE_PERMISSION_OPTIONS],
-              });
-              changed = true;
-              return { content: [{ type: "text", text: "Saved" }], details: undefined };
-            }),
+            defineNativeTool(
+              "write_note",
+              "Write",
+              "Write fixture",
+              obj({}),
+              async (id) => {
+                await context.requestPermission({
+                  sessionId: context.sessionId,
+                  toolCall: { toolCallId: id, title: "Write fixture", kind: "edit" },
+                  options: [...NATIVE_PERMISSION_OPTIONS],
+                });
+                changed = true;
+                return { content: [{ type: "text", text: "Saved" }], details: undefined };
+              },
+              { kind: "edit" }
+            ),
           ],
         });
         const id = await f.open();
@@ -746,15 +930,22 @@ describe("NativeBackendProcess.journal", () => {
             throw new JournalConfirmationTimeout(30_000);
           },
           createTools: (context) => [
-            defineNativeTool("write_note", "Write", "Write fixture", obj({}), async (id) => {
-              await context.requestPermission({
-                sessionId: context.sessionId,
-                toolCall: { toolCallId: id, title: "Write fixture", kind: "edit" },
-                options: [...NATIVE_PERMISSION_OPTIONS],
-              });
-              changed = true;
-              return { content: [{ type: "text", text: "Saved" }], details: undefined };
-            }),
+            defineNativeTool(
+              "write_note",
+              "Write",
+              "Write fixture",
+              obj({}),
+              async (id) => {
+                await context.requestPermission({
+                  sessionId: context.sessionId,
+                  toolCall: { toolCallId: id, title: "Write fixture", kind: "edit" },
+                  options: [...NATIVE_PERMISSION_OPTIONS],
+                });
+                changed = true;
+                return { content: [{ type: "text", text: "Saved" }], details: undefined };
+              },
+              { kind: "edit" }
+            ),
           ],
         });
         const id = await f.open();
@@ -1505,13 +1696,20 @@ describe("NativeBackendProcess.journal", () => {
           const restored = fixture({
             storage: restoredStorage,
             createTools: () => [
-              defineNativeTool("write_note", "Write", "Write fixture", obj({}), async () => {
-                rerun = true;
-                return {
-                  content: [{ type: "text", text: "Unexpected write" }],
-                  details: undefined,
-                };
-              }),
+              defineNativeTool(
+                "write_note",
+                "Write",
+                "Write fixture",
+                obj({}),
+                async () => {
+                  rerun = true;
+                  return {
+                    content: [{ type: "text", text: "Unexpected write" }],
+                    details: undefined,
+                  };
+                },
+                { kind: "edit" }
+              ),
             ],
           });
           await restored.process.resumeSession({ sessionId: id, cwd: "/fixture/vault" });

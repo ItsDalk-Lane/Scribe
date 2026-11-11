@@ -211,8 +211,8 @@ export const settingsTranslations: Record<string, string> = {
   "e.g. Put new notes you create in Inbox/ and link them to a related note.":
     "例如：将新建笔记放入 Inbox/，并链接到相关笔记。",
   "Project instructions": "项目说明",
-  "Project and vault instructions are provided to the agent in this project. If they conflict, no priority is guaranteed. Saved to AGENTS.md in the project folder, which you can also edit as a note.":
-    "项目说明和资料库说明都会提供给代理；发生冲突时，不能保证哪一项优先。保存在项目文件夹中的 AGENTS.md 内，也可以像普通笔记一样编辑。",
+  "When instructions conflict, your current request comes first, followed by project instructions, vault instructions, then Scribe's defaults. Saved to AGENTS.md in the project folder, which you can also edit as a note.":
+    "发生冲突时依次采用：本次要求、项目说明、资料库说明、Scribe 默认要求。保存在项目文件夹中的 AGENTS.md 内，也可以像普通笔记一样编辑。",
   "Move this skill to the shared folder before changing its availability.":
     "请先将此技能迁移到共享文件夹，再切换可用性。",
   "Availability is checked automatically. Changes reach existing chats after their current tasks finish.":

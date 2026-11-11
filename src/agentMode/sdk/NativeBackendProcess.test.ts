@@ -1,6 +1,13 @@
+import {
+  defineNativeTool,
+  getNativeToolPolicy,
+  type NativeToolPolicy,
+} from "@/agentMode/sdk/nativeToolDefinition";
+import type { Schema } from "@earendil-works/pi-schema";
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import type { AssistantMessageEventStream, Context, JsonObject } from "@earendil-works/pi-ai";
+import { estimateContextTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { createAssistantMessage } from "@/LLMProviders/piChatModel";
 import {
@@ -49,6 +56,64 @@ function response(
   return stream;
 }
 
+const FIXTURE_NATIVE_TOOL_KINDS: Readonly<Record<string, NativeToolPolicy["kind"]>> = {
+  read_note: "read",
+  list_directory: "read",
+  find_paths: "search",
+  search_content: "search",
+  write_note: "edit",
+  edit_note: "edit",
+  run_command: "execute",
+  propose_plan: "switch_mode",
+  update_todos: "think",
+  delegate_task: "think",
+  web_search: "fetch",
+  fetch_url: "fetch",
+  excalidraw_write: "edit",
+  excalidraw_read: "read",
+  excalidraw_render: "read",
+  ask_user: "think",
+  invoke_skill: "read",
+  tool_search: "read",
+  propose_skill: "think",
+  send_subagent_message: "think",
+  list_subagent_sessions: "read",
+  read_subagent_result: "read",
+  wait_subagents: "think",
+  stop_subagent: "think",
+  send_parent_message: "think",
+  wait_for_message: "think",
+};
+const FIXTURE_SKILL_AUTHORING_TOOLS = new Set([
+  "read_note",
+  "list_directory",
+  "find_paths",
+  "search_content",
+  "ask_user",
+  "invoke_skill",
+  "propose_skill",
+]);
+
+function withFixtureNativePolicy(tool: AgentTool): AgentTool {
+  const kind = FIXTURE_NATIVE_TOOL_KINDS[tool.name];
+  if (getNativeToolPolicy(tool) || !kind) return tool;
+  // 旧测试替身补齐显式内置归属；生产不再根据名称豁免未知工具。https://github.com/ItsDalk-Lane/Scribe/issues/70
+  return {
+    ...tool,
+    ...defineNativeTool(
+      tool.name,
+      tool.label,
+      tool.description,
+      tool.parameters as Schema,
+      tool.execute,
+      {
+        kind,
+        skillAuthoring: FIXTURE_SKILL_AUTHORING_TOOLS.has(tool.name),
+      }
+    ),
+  };
+}
+
 function fixture(
   streamFn: (
     _model: typeof model,
@@ -73,10 +138,6 @@ function fixture(
     createModel: async () => provider,
     getDefaultModelId: () => model.id,
     getSystemPrompt: async () => "Obsidian fixture assistant",
-    createTools: (context) => {
-      toolContexts.push(context);
-      return { tools };
-    },
     storage: {
       load: async (id) => records.get(id) ?? null,
       save: async (record) => {
@@ -93,6 +154,11 @@ function fixture(
       },
     },
     ...overrides,
+    createTools: (context) => {
+      if (!overrides.createTools) toolContexts.push(context);
+      const runtimeTools = overrides.createTools?.(context) ?? { tools };
+      return { ...runtimeTools, tools: runtimeTools.tools.map(withFixtureNativePolicy) };
+    },
   });
   const open = async () => {
     const opened = await proc.newSession({ cwd: "/fixture/vault" });
@@ -107,6 +173,19 @@ function fixture(
 describe("NativeBackendProcess", () => {
   describe("NativeBackendProcess", () => {
     describe("newSession", () => {
+      it("rejects duplicate tool names before publishing a mismatched handler https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const tool = defineNativeTool(
+          "same",
+          "same",
+          "same",
+          { type: "object", properties: {} },
+          async () => ({ content: [], details: undefined }),
+          { kind: "read" }
+        );
+        const f = fixture(undefined, [tool, { ...tool }]);
+        await expect(f.open()).rejects.toThrow(/duplicate/i);
+      });
+
       it("uses the explicitly selected model before resolving an unusable saved default", async () => {
         const createModel = jest.fn(async (id: string) => {
           if (id !== model.id) throw new Error("Saved default has no credentials");
@@ -216,6 +295,118 @@ describe("NativeBackendProcess", () => {
     });
 
     describe("prompt", () => {
+      it("rejects dynamic tools outside the authoring contract and rejects duplicate registration https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const allowed = defineNativeTool(
+          "lookup",
+          "lookup",
+          "lookup",
+          { type: "object", properties: {} },
+          async () => ({ content: [], details: undefined }),
+          { kind: "read", skillAuthoring: true }
+        );
+        const unknown = { ...allowed, name: "extension" };
+        const f = fixture(undefined, [allowed]);
+        const id = await f.proc.newSession({ cwd: "/fixture/vault", purpose: "skill-authoring" });
+        expect(() => f.toolContexts[0].registerTool(allowed)).toThrow(/duplicate/i);
+        const untrusted = {
+          name: "read_note",
+          label: "extension",
+          description: "extension",
+          parameters: { type: "object" as const, properties: {} },
+          execute: unknown.execute,
+        };
+        expect(() => f.toolContexts[0].registerTool(untrusted)).toThrow(/allowed|限制|用途/);
+        await f.proc.closeSession({ sessionId: id.sessionId });
+      });
+
+      it("rechecks live capability after asynchronous admission before dispatch https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        let revision = "a";
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: "must not run" }],
+          details: undefined,
+        }));
+        const tool = defineNativeTool(
+          "lookup",
+          "lookup",
+          "lookup",
+          { type: "object", properties: {} },
+          execute,
+          { kind: "read" }
+        );
+        let seq = 0;
+        const f = fixture(
+          (_model, context) =>
+            context.messages.some((m) => m.role === "toolResult")
+              ? response("Done")
+              : response("", [{ id: "late", name: tool.name, arguments: {} }]),
+          [tool],
+          {
+            getCapabilityRevision: () => revision,
+            storage: {
+              load: async () => null,
+              list: async () => [],
+              save: async () => {},
+              append: async (_id, kind, payload) => {
+                if (kind === "tool_admitted") revision = "b";
+                return {
+                  version: 2,
+                  seq: ++seq,
+                  kind,
+                  payload,
+                  occurredAt: Date.now(),
+                  origin: "observed",
+                };
+              },
+            },
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(execute).not.toHaveBeenCalled();
+      });
+
+      it("bounds model output while preserving original display and scoped continuation https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const original = "large-result-".repeat(4000);
+        const seen: string[] = [];
+        const tool = defineNativeTool(
+          "lookup",
+          "lookup",
+          "lookup",
+          { type: "object", properties: {} },
+          async () => ({
+            content: [{ type: "text" as const, text: original }],
+            details: undefined,
+          }),
+          { kind: "read" }
+        );
+        const f = fixture(
+          (_model, context) => {
+            const result = context.messages.find((m) => m.role === "toolResult");
+            if (result) {
+              seen.push(JSON.stringify(result.content));
+              return response("Done");
+            }
+            return response("", [{ id: "large", name: tool.name, arguments: {} }]);
+          },
+          [tool]
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(seen[0].length).toBeLessThan(original.length);
+        expect(seen[0]).toContain("read_tool_result");
+        const saved = f.records.get(id)!.messages.find((m) => m.role === "toolResult");
+        expect(JSON.stringify(saved)).toContain(original);
+        expect(JSON.stringify(f.events)).toContain(original);
+        const page = await f.toolContexts[0].readToolResult!({
+          toolCallId: "large",
+          maxCharacters: 2000,
+        });
+        expect(JSON.stringify(page)).toContain("large-result-");
+        await expect(f.toolContexts[0].readToolResult!({ toolCallId: "missing" })).rejects.toThrow(
+          /result|结果/
+        );
+      });
+
       it("captures rules after asynchronous skill preparation so the step uses the same current configuration", async () => {
         let rules = "Rules before skill preparation";
         const seen: Context[] = [];
@@ -379,6 +570,7 @@ describe("NativeBackendProcess", () => {
         expect(JSON.stringify(seen[0])).toContain("Current vault rule");
         expect(JSON.stringify(seen[1])).not.toContain("Current vault rule");
         expect(JSON.stringify(seen[1])).toContain("Application defaults");
+        expect(seen[1].messages.at(-1)?.content).toContain("<current_context_update>");
       });
 
       it("stops a tool continuation when the current rule file cannot be read", async () => {
@@ -428,8 +620,8 @@ describe("NativeBackendProcess", () => {
         const f = fixture(
           (_model, context) => {
             seen.push(JSON.parse(JSON.stringify(context)));
-            return seen.length === 1
-              ? response("", [{ id: "refresh", name: "read_note", arguments: {} }])
+            return seen.length < 3
+              ? response("", [{ id: `refresh-${seen.length}`, name: "read_note", arguments: {} }])
               : response("Current sources received");
           },
           [
@@ -453,6 +645,16 @@ describe("NativeBackendProcess", () => {
         expect(JSON.stringify(seen[1])).toContain("Updated vault rules");
         expect(JSON.stringify(seen[1])).toContain("Current project sources: B; replaces A");
         expect(JSON.stringify(seen[1])).not.toContain("Original vault rules");
+        expect(seen[0].messages.at(-1)?.content).not.toContain("<current_context_update>");
+        for (const continuation of seen.slice(1)) {
+          const update = continuation.messages.at(-1);
+          expect(update).toMatchObject({ role: "user", timestamp: 0 });
+          expect(update?.content).toContain("<current_context_update>");
+          expect(update?.content).toContain("Current project sources: B; replaces A");
+          expect(continuation.messages.at(-2)?.role).toBe("toolResult");
+        }
+        await f.send(id, "followup", "Continue with the current state");
+        expect(JSON.stringify(seen.at(-1)?.messages.at(-1))).toContain("<current_context_update>");
         expect(
           f.records.get(id)?.messages.find((message) => message.role === "user")?.content
         ).toEqual([{ type: "text", text: "hi" }]);
@@ -1086,6 +1288,10 @@ describe("NativeBackendProcess", () => {
       });
 
       it("lets a manually selected skill read its support file only during that user turn (https://github.com/ItsDalk-Lane/Scribe/issues/41)", async () => {
+        const root = await mkdtemp(join(tmpdir(), "scribe-skill-support-"));
+        skillTestDirectory = root;
+        const adapter = new FileSystemAdapter();
+        adapter.getBasePath = () => root;
         const calls: string[] = [];
         let request = 0;
         const f = fixture(
@@ -1108,7 +1314,7 @@ describe("NativeBackendProcess", () => {
             createTools: (context) => ({
               tools: createNativeAdvancedTools({
                 ...context,
-                app: { vault: { adapter: new FileSystemAdapter() } } as unknown as App,
+                app: { vault: { adapter } } as unknown as App,
                 skills: () => [
                   {
                     name: "manual-review",
@@ -2980,29 +3186,239 @@ describe("NativeBackendProcess", () => {
         );
       });
 
-      it("stops with a context reason when the newest tool result alone cannot fit (https://github.com/ItsDalk-Lane/Scribe/issues/31)", async () => {
-        const request = jest.fn(() =>
-          response("", [{ id: "huge", name: "read_note", arguments: {} }])
-        );
+      it("bounds an oversized tool result without repeating its operation and keeps it bounded after reopening https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const original = "a".repeat(40000);
+        const contexts: Context[] = [];
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: original }],
+          details: undefined,
+        }));
+        const request = jest.fn((_model, context: Context) => {
+          contexts.push(JSON.parse(JSON.stringify(context)));
+          return contexts.length === 1
+            ? response("", [{ id: "huge", name: "read_note", arguments: {} }])
+            : response("Read result retained; no repeated operation.");
+        });
         const f = fixture(request, [
           {
             name: "read_note",
             label: "Read",
             description: "Read",
             parameters: { type: "object", properties: {} },
-            execute: async () => ({
-              content: [{ type: "text", text: "a".repeat(40000) }],
-              details: undefined,
-            }),
+            execute,
           },
         ]);
         const id = await f.open();
         await f.send(id);
-        expect(request).toHaveBeenCalledTimes(1);
+        expect(request).toHaveBeenCalledTimes(2);
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain(original);
+        expect(JSON.stringify(contexts[1].messages)).toContain("read_tool_result");
+        expect(JSON.stringify(contexts[1].messages)).not.toContain(original);
+        expect(estimateContextTokens(contexts[1].messages).tokens).toBeLessThan(
+          model.contextWindow * 0.8
+        );
         expect(f.events.map((event) => event.update)).toContainEqual(
+          expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "end_turn" })
+        );
+        await f.proc.closeSession({ sessionId: id });
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await f.send(id, "reopened", "Continue from the saved result without repeating the read.");
+        expect(request).toHaveBeenCalledTimes(3);
+        expect(execute).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(contexts[2].messages)).toContain("read_tool_result");
+        expect(JSON.stringify(contexts[2].messages)).not.toContain(original);
+        expect(estimateContextTokens(contexts[2].messages).tokens).toBeLessThan(
+          model.contextWindow * 0.8
+        );
+        expect(JSON.stringify(f.records.get(id)?.messages)).toContain(original);
+        expect(f.events.map((event) => event.update)).not.toContainEqual(
           expect.objectContaining({ sessionUpdate: "turn_ended", stopReason: "context_limit" })
         );
-        expect(JSON.stringify(f.records.get(id)?.messages)).toContain("a".repeat(40000));
+      });
+
+      it("makes every batch-budget omission visible with its saved-result reference and execution facts https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const contexts: Context[] = [];
+        const original = "batch output ".repeat(10000);
+        const execute = jest.fn(async () => ({
+          content: [{ type: "text" as const, text: original }],
+          details: undefined,
+        }));
+        const largeModel = { ...model, contextWindow: 100000 };
+        const request = (context: Context) => {
+          contexts.push(JSON.parse(JSON.stringify(context)));
+          return contexts.length === 1
+            ? response(
+                "",
+                Array.from({ length: 6 }, (_, index) => ({
+                  id: `batch-${index}`,
+                  name: "read_note",
+                  arguments: {},
+                }))
+              )
+            : response("Batch completed; use saved results for omitted content.");
+        };
+        const f = fixture(
+          undefined,
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ],
+          {
+            createModel: async () => ({ model: largeModel, stream: request, agentStream: request }),
+          }
+        );
+        const id = await f.open();
+        await f.send(id);
+        expect(contexts).toHaveLength(2);
+        expect(execute).toHaveBeenCalledTimes(6);
+        const results = contexts[1].messages.filter((message) => message.role === "toolResult");
+        expect(results).toHaveLength(6);
+        const omitted = results.filter((message) => message.content.length === 0);
+        expect(omitted.length).toBeGreaterThan(0);
+        const modelText = contexts[1].messages
+          .filter((message) => message.role === "user")
+          .map((message) =>
+            typeof message.content === "string" ? message.content : JSON.stringify(message.content)
+          )
+          .join("\n");
+        for (const message of omitted) {
+          expect(message.isError).toBe(false);
+          expect(message.details).toMatchObject({
+            execution: { status: "completed", retry: "safe" },
+            outputProjection: { noticeOmitted: true },
+          });
+          const reference = (message.details as { resultReference: string }).resultReference;
+          expect(reference).toEqual(expect.any(String));
+          expect(modelText).toContain(
+            JSON.stringify({
+              tool_call_id: reference,
+              execution: { status: "completed", retry: "safe" },
+            })
+          );
+        }
+        expect(modelText).toContain("Continue with read_tool_result");
+        expect(modelText).toContain("do not repeat the original operation");
+        expect(estimateContextTokens(contexts[1].messages).tokens).toBeLessThan(
+          largeModel.contextWindow * 0.8
+        );
+        expect(
+          f.records.get(id)?.messages.filter((message) => message.role === "toolResult")
+        ).toHaveLength(6);
+        expect(
+          f.records
+            .get(id)
+            ?.messages.filter((message) => message.role === "toolResult")
+            .map((message) =>
+              message.content.some((part) => part.type === "text" && part.text === original)
+            )
+        ).toEqual(Array(6).fill(true));
+      });
+
+      it("continues each legacy result with a reused raw call id from its own saved original https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const originals = ["Older A ".repeat(8000), "Newer B ".repeat(8000)];
+        const contexts: Context[] = [];
+        const execute = jest.fn(async () => ({ content: [], details: undefined }));
+        const largeModel = { ...model, contextWindow: 100000 };
+        const request = (context: Context) => {
+          contexts.push(JSON.parse(JSON.stringify(context)));
+          return response("Use the retained results without executing either operation again.");
+        };
+        const f = fixture(
+          undefined,
+          [
+            {
+              name: "read_note",
+              label: "Read",
+              description: "Read",
+              parameters: { type: "object", properties: {} },
+              execute,
+            },
+          ],
+          {
+            createModel: async () => ({ model: largeModel, stream: request, agentStream: request }),
+          }
+        );
+        const id = await f.open();
+        await f.proc.closeSession({ sessionId: id });
+        const saved = f.records.get(id)!;
+        saved.messages = originals.flatMap((text, index): Context["messages"] => [
+          { role: "user", content: `Earlier request ${index + 1}`, timestamp: index * 10 + 1 },
+          {
+            ...createAssistantMessage(largeModel),
+            content: [{ type: "toolCall", id: "reused-call", name: "read_note", arguments: {} }],
+            stopReason: "toolUse",
+            timestamp: index * 10 + 2,
+          },
+          {
+            role: "toolResult",
+            toolCallId: "reused-call",
+            toolName: "read_note",
+            content: [{ type: "text", text }],
+            isError: false,
+            timestamp: index * 10 + 3,
+          },
+          {
+            ...createAssistantMessage(largeModel),
+            content: [{ type: "text", text: `Earlier reply ${index + 1}` }],
+            timestamp: index * 10 + 4,
+          },
+        ]);
+        expect(
+          saved.messages
+            .filter((message) => message.role === "toolResult")
+            .every((message) => message.details === undefined)
+        ).toBe(true);
+        await f.proc.resumeSession({ sessionId: id, cwd: "/fixture/vault" });
+        await f.send(
+          id,
+          "legacy-continue",
+          "Review both retained results without repeating either read."
+        );
+        expect(contexts).toHaveLength(1);
+        expect(execute).not.toHaveBeenCalled();
+        const results = contexts[0].messages.filter((message) => message.role === "toolResult");
+        expect(results).toHaveLength(2);
+        const notices = results.map((message) => {
+          const last = message.content.at(-1);
+          expect(last?.type).toBe("text");
+          const line =
+            last?.type === "text"
+              ? last.text
+                  .split("\n")
+                  .find((text) => text.startsWith("Continue with read_tool_result "))
+              : undefined;
+          expect(line).toBeDefined();
+          return JSON.parse(line!.slice("Continue with read_tool_result ".length)) as {
+            tool_call_id: string;
+            cursor: string;
+          };
+        });
+        expect(new Set(notices.map((notice) => notice.tool_call_id)).size).toBe(2);
+        for (let index = 0; index < results.length; index++) {
+          const continued = await f.toolContexts.at(-1)!.readToolResult!({
+            toolCallId: notices[index].tool_call_id,
+            cursor: notices[index].cursor,
+            maxCharacters: 100000,
+          });
+          const prefix = results[index].content
+            .slice(0, -1)
+            .map((part) => (part.type === "text" ? part.text : ""))
+            .join("");
+          const remainder = continued.content
+            .map((part) => (part.type === "text" ? part.text : ""))
+            .join("");
+          expect(prefix + remainder).toBe(originals[index]);
+        }
+        expect(execute).not.toHaveBeenCalled();
+        expect(estimateContextTokens(contexts[0].messages).tokens).toBeLessThan(
+          largeModel.contextWindow * 0.8
+        );
       });
 
       it("keeps a normal final reply successful when it finishes on the step limit", async () => {

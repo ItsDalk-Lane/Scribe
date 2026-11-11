@@ -1,3 +1,12 @@
+import { getNativeToolPolicy } from "@/agentMode/sdk/nativeToolDefinition";
+import type { NativeObservedFileVersion } from "@/agentMode/sdk/nativeFileVersions";
+import { ConcurrencyLimiter } from "@/utils/ConcurrencyLimiter";
+import {
+  projectToolResult,
+  readToolResultPage,
+  withToolExecution,
+  type ToolResultProjectionBudget,
+} from "@/utils/toolResultProjection";
 import type { InstructionPromptState } from "@/instructions/instructionPolicy";
 import { fingerprintRequestContext } from "@/agentMode/session/requestContextFingerprint";
 import { readRequestContextPreview } from "@/agentMode/session/requestContextPreview";
@@ -57,7 +66,11 @@ import { sha256 } from "@/utils/hash";
 import { logWarn } from "@/logger";
 import type { AssistantMessage, AssistantMessageEvent, UserMessage } from "@earendil-works/pi-ai";
 import { getCurrentSystemMessage, getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
-import { estimateContextTokens, estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate";
+import {
+  estimateContextTokens,
+  estimateMessageTokens,
+  estimateTextAndImageContentTokens,
+} from "@earendil-works/pi-ai/utils/estimate";
 import {
   classifyProviderFailure,
   type ProviderRequestFailure,
@@ -104,16 +117,6 @@ import type {
   ToolCallSnapshot,
   TurnEnd,
 } from "@/agentMode/session/types";
-
-const SKILL_AUTHORING_TOOLS: ReadonlySet<string> = new Set([
-  "read_note",
-  "list_directory",
-  "find_paths",
-  "search_content",
-  "ask_user",
-  "invoke_skill",
-  "propose_skill",
-]);
 
 export interface NativeSessionRecord {
   subagents?: NativeSubagentState[];
@@ -166,6 +169,17 @@ export interface NativeSessionStorage {
 }
 
 export interface NativeToolContext {
+  observedFileVersions?: Map<string, NativeObservedFileVersion>;
+  observeFileVersion?(
+    result: AgentToolResult<unknown>,
+    path: string,
+    version: NativeObservedFileVersion
+  ): void;
+  readToolResult?(input: {
+    toolCallId: string;
+    cursor?: string;
+    maxCharacters?: number;
+  }): Promise<AgentToolResult>;
   projectId?: string;
   transferredSkills?: readonly string[];
   allowedTools?: readonly string[];
@@ -285,6 +299,10 @@ export interface NativeBackendProcessOptions {
 }
 
 interface NativeSessionContext {
+  // 并行结果已保存但Pi尚未逐条发布时，保留原件引用以免兼容保存覆盖为裁剪副本。https://github.com/ItsDalk-Lane/Scribe/issues/70
+  toolResultCache: Map<string, { scope: string; message: AgentMessage }>;
+  observedFileVersions: Map<string, Map<string, NativeObservedFileVersion>>;
+  requestContextStates: Map<string, { version: string; refreshRequired: boolean }>;
   independentTask?: Promise<void>;
   deliveredManualSkills: Map<
     string,
@@ -334,6 +352,7 @@ interface NativeSessionContext {
       name: string;
       taskId?: string;
       admitted: boolean;
+      denied?: boolean;
       roundId?: string;
       sourceId?: string;
     }
@@ -393,35 +412,6 @@ interface ChildExecution {
 interface NativeSession extends NativeSessionContext {
   agent: Agent;
 }
-
-const TOOL_KINDS: Readonly<Record<string, AgentToolKind>> = Object.freeze({
-  read_note: "read",
-  list_directory: "read",
-  find_paths: "search",
-  search_content: "search",
-  write_note: "edit",
-  edit_note: "edit",
-  run_command: "execute",
-  propose_plan: "switch_mode",
-  update_todos: "think",
-  delegate_task: "think",
-  web_search: "fetch",
-  fetch_url: "fetch",
-  excalidraw_write: "edit",
-  excalidraw_read: "read",
-  excalidraw_render: "read",
-  ask_user: "think",
-  invoke_skill: "read",
-  tool_search: "read",
-  propose_skill: "think",
-  send_subagent_message: "think",
-  list_subagent_sessions: "read",
-  read_subagent_result: "read",
-  wait_subagents: "think",
-  stop_subagent: "think",
-  send_parent_message: "think",
-  wait_for_message: "think",
-});
 
 const DENIED: PermissionDecision = Object.freeze({
   outcome: Object.freeze({ outcome: "cancelled" }),
@@ -636,6 +626,9 @@ export class NativeBackendProcess implements BackendProcess {
       queuedCollaboration: new Set(),
       recordedMessages: new WeakSet(record.messages),
       usageVersions: new WeakMap(),
+      requestContextStates: new Map(),
+      observedFileVersions: new Map(),
+      toolResultCache: new Map(),
       messageSeqs: new WeakMap(
         (record.journalRecords ?? []).flatMap((fact) => {
           const message = isRecord(fact.payload) ? fact.payload.message : undefined;
@@ -794,11 +787,88 @@ export class NativeBackendProcess implements BackendProcess {
         throw new Error("工具设置已变化，请在下一轮重新确认调用。");
       if (child?.allowedTools && !child.allowedTools.includes(name))
         throw new Error("此子会话的角色限制不允许调用该工具。");
-      const kind = TOOL_KINDS[name] ?? "execute";
+      const registered = agent.state.tools.find((tool) => tool.name === name);
+      const kind =
+        (registered ? getNativeToolPolicy(registered as AgentTool)?.kind : undefined) ?? "execute";
       if (getMode() === "plan" && (kind === "edit" || kind === "execute"))
         throw new Error("Plan approval is required before changing files or running commands.");
     };
+    const actorScope = child?.subagentId ?? "main";
+    let observations = session.observedFileVersions.get(actorScope);
+    if (!observations)
+      session.observedFileVersions.set(
+        actorScope,
+        (observations = new Map<string, NativeObservedFileVersion>())
+      );
+    const resultScope = `${session.record.sessionId}:${actorScope}`;
+    const fileReads = new WeakMap<
+      AgentToolResult<unknown>,
+      { path: string; version: NativeObservedFileVersion }
+    >();
+    const pendingFileReads = new Map<
+      string,
+      { path: string; version: NativeObservedFileVersion; content: string }
+    >();
+    const savedResult = (id: string): AgentToolResult | undefined => {
+      const cached = session.toolResultCache.get(id);
+      if (cached?.scope === actorScope) return cached.message as AgentToolResult;
+      const taskIds = child
+        ? new Set(
+            session
+              .subagentController!.state(child.subagentId)
+              .snapshot.runs.map((entry) => entry.id)
+          )
+        : undefined;
+      for (const fact of [...(session.record.journalRecords ?? [])].reverse()) {
+        if (fact.kind !== "tool_result" && fact.kind !== "subagent_delivery") continue;
+        const payload = fact.payload;
+        if (!isRecord(payload)) continue;
+        if (taskIds ? !taskIds.has(String(payload.taskId)) : payload.taskId !== undefined) continue;
+        const message = payload.message;
+        if (
+          isRecord(message) &&
+          message.role === "toolResult" &&
+          (message.toolCallId === id ||
+            (isRecord(message.details) && message.details.resultReference === id) ||
+            id === `legacy:${fingerprintRequestContext(message)}`)
+        )
+          return message as unknown as AgentToolResult;
+      }
+      const messages = child
+        ? session.subagentController!.state(child.subagentId).context
+        : session.record.messages;
+      return [...messages]
+        .reverse()
+        .find(
+          (message) =>
+            message.role === "toolResult" &&
+            (message.toolCallId === id ||
+              (isRecord(message.details) && message.details.resultReference === id) ||
+              id === `legacy:${fingerprintRequestContext(message)}`)
+        ) as AgentToolResult | undefined;
+    };
     const toolContext: NativeToolContext = {
+      observedFileVersions: observations,
+      observeFileVersion: (result, path, version) => fileReads.set(result, { path, version }),
+      readToolResult: async ({ toolCallId, cursor, maxCharacters }) => {
+        const result = savedResult(toolCallId);
+        if (!result)
+          throw new Error("The saved tool result is missing or outside this agent's scope.");
+        // 技能的旧正文和支持文件必须经过当前技能权限及版本检查，不能通过通用续读重新送达。https://github.com/ItsDalk-Lane/Scribe/issues/71
+        if (
+          "toolName" in result &&
+          result.toolName === "invoke_skill" &&
+          isRecord(result.details) &&
+          typeof result.details.name === "string"
+        )
+          throw new Error("Use invoke_skill to read the current authorized skill version.");
+        return readToolResultPage(
+          result,
+          { scope: resultScope, toolCallId },
+          cursor,
+          maxCharacters
+        );
+      },
       projectId: session.record.projectId,
       transferredSkills: child?.manualSkills,
       allowedTools: child?.allowedTools,
@@ -892,6 +962,12 @@ export class NativeBackendProcess implements BackendProcess {
           if (execution) assertCanExecute(execution.name);
         }
         const response = prompt.signal?.aborted ? DENIED : answer;
+        const execution = session.toolExecutions.get(prompt.toolCall.toolCallId);
+        if (execution)
+          execution.denied = !(
+            response.outcome.outcome === "selected" &&
+            ["allow_once", "allow_always"].includes(response.outcome.optionId)
+          );
         if (child)
           await session.subagentController!.setStatus(child.subagentId, child.taskId, "running");
         (session.record.decisions ??= []).push({
@@ -1104,6 +1180,9 @@ export class NativeBackendProcess implements BackendProcess {
         },
       },
       registerTool: (tool, autoApproved) => {
+        if (!isToolAllowed(tool)) throw new Error("当前用途或子会话角色限制不允许注册该工具。");
+        if (agent.state.tools.some((entry) => entry.name === tool.name))
+          throw new Error(`Duplicate tool name: ${tool.name}`);
         agent.state.tools = [...agent.state.tools, wrapToolForRun(tool, autoApproved === true)];
       },
     };
@@ -1150,6 +1229,11 @@ export class NativeBackendProcess implements BackendProcess {
     let requestMessages: AgentMessage[] | undefined;
     let requestVersion = "";
     let requestRuntimeContext = "";
+    const contextScope = child?.subagentId ?? "main";
+    const previousContextState = session.requestContextStates.get(contextScope);
+    let requestContextState = "";
+    let lastRespondedContextState = previousContextState?.version ?? "";
+    let contextRefreshRequired = previousContextState?.refreshRequired ?? false;
     let requestReserveTokens = 0;
     let assembleRequest = (messages: AgentMessage[]): AgentMessage[] => messages;
     let pendingManualSkill:
@@ -1170,94 +1254,191 @@ export class NativeBackendProcess implements BackendProcess {
       version: string;
       manual: boolean;
     }> = [];
-    const wrapToolForRun = (tool: AgentTool, autoApproved: boolean): AgentTool => ({
-      ...tool,
-      execute: async (id, args, signal, onUpdate) => {
-        assertCanExecute(tool.name);
-        const key = viewId(id);
-        session.toolExecutions.set(key, {
-          id,
-          name: tool.name,
-          taskId: child?.taskId,
-          roundId: toolOwners.get(key),
-          sourceId: child?.subagentId ?? "main",
-          admitted: false,
-        });
-        if (
-          !(tool.name in TOOL_KINDS) &&
-          !autoApproved &&
-          ![
-            "ask_user",
-            "invoke_skill",
-            "propose_skill",
-            "send_subagent_message",
-            "list_subagent_sessions",
-            "wait_subagents",
-            "stop_subagent",
-            "send_parent_message",
-            "wait_for_message",
-          ].includes(tool.name)
-        ) {
-          const decision = await toolContext.requestPermission({
-            sessionId: session.record.sessionId,
-            requester,
-            toolCall: { toolCallId: key, title: tool.name, kind: "execute", rawInput: args },
-            options: [
-              { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
-              { optionId: "reject_once", name: "Deny", kind: "reject_once" },
-            ],
-            signal,
-          });
-          if (decision.outcome.outcome !== "selected" || decision.outcome.optionId !== "allow_once")
-            throw new Error("Permission denied.");
-        }
-        this.assertWritable(session);
-        if (TOOL_KINDS[tool.name] !== "edit" && TOOL_KINDS[tool.name] !== "execute")
-          await this.admitTool(session, key);
-        try {
-          const result = await tool.execute(key, args, signal, onUpdate);
+    const readSlots = new ConcurrencyLimiter(() => ({ maxConcurrent: 8, maxQueued: 256 }));
+    let publishedTools = new Map<string, AgentTool>();
+    let resultBudget: ToolResultProjectionBudget = { maxTokens: 4000, remainingTokens: 12000 };
+    const deliveredResultProjections = new Map<string, string>();
+    let projectionRevision = 0;
+    const projectResult = (
+      result: AgentToolResult,
+      toolName: string,
+      reference: string,
+      budget: ToolResultProjectionBudget
+    ): AgentToolResult => {
+      const projected = projectToolResult(
+        result,
+        { scope: resultScope, toolCallId: reference },
+        budget
+      );
+      // 技能沿用原生版本分页与送达凭据；通用预算放不下时整页省略，不能发布无法撤销的半页指令。https://github.com/ItsDalk-Lane/Scribe/issues/70
+      if (
+        toolName === "invoke_skill" &&
+        isRecord(result.details) &&
+        typeof result.details.name === "string" &&
+        isRecord(projected.details) &&
+        isRecord(projected.details.outputProjection) &&
+        projected.details.outputProjection.truncated
+      ) {
+        const notice = [
+          {
+            type: "text" as const,
+            text: `Skill instructions omitted by the output budget. Call invoke_skill ${JSON.stringify({ name: result.details.name, max_characters: 1000 })} in a separate model step to read the current authorized version. This result contains no skill instructions.`,
+          },
+        ];
+        const available =
+          budget.remainingTokens + estimateTextAndImageContentTokens(projected.content);
+        const noticeFits = estimateTextAndImageContentTokens(notice) <= available;
+        budget.remainingTokens =
+          available - (noticeFits ? estimateTextAndImageContentTokens(notice) : 0);
+        return {
+          ...projected,
+          content: noticeFits ? notice : [],
+          details: {
+            ...projected.details,
+            skillContentOmitted: true,
+            outputProjection: {
+              ...projected.details.outputProjection,
+              ...(noticeFits ? {} : { noticeOmitted: true }),
+            },
+          },
+        };
+      }
+      return projected;
+    };
+    const isToolAllowed = (tool: AgentTool): boolean =>
+      (session.record.purpose !== "skill-authoring" ||
+        getNativeToolPolicy(tool)?.skillAuthoring === true) &&
+      (!child?.allowedTools || child.allowedTools.includes(tool.name));
+    const wrapToolForRun = (tool: AgentTool, autoApproved: boolean): AgentTool => {
+      const policy = getNativeToolPolicy(tool);
+      const wrapped: AgentTool = {
+        ...tool,
+        executionMode: policy ? tool.executionMode : "sequential",
+        execute: async (id, args, signal, onUpdate) => {
+          const key = viewId(id);
+          let started = false;
+          let release: (() => void) | undefined;
+          let fileRead: { path: string; version: NativeObservedFileVersion } | undefined;
+          let result: AgentToolResult;
+          try {
+            signal?.throwIfAborted();
+            if (publishedTools.get(tool.name) !== wrapped)
+              throw new Error(
+                "Tool was not published for this model request; discover it and call it in the next model step."
+              );
+            assertCanExecute(tool.name);
+            session.toolExecutions.set(key, {
+              id,
+              name: tool.name,
+              taskId: child?.taskId,
+              roundId: toolOwners.get(key),
+              sourceId: child?.subagentId ?? "main",
+              admitted: false,
+            });
+            if (!policy && !autoApproved) {
+              const decision = await toolContext.requestPermission({
+                sessionId: session.record.sessionId,
+                requester,
+                toolCall: { toolCallId: key, title: tool.name, kind: "execute", rawInput: args },
+                options: [
+                  { optionId: "allow_once", name: "Allow once", kind: "allow_once" },
+                  { optionId: "reject_once", name: "Deny", kind: "reject_once" },
+                ],
+                signal,
+              });
+              if (
+                decision.outcome.outcome !== "selected" ||
+                decision.outcome.optionId !== "allow_once"
+              )
+                throw new Error("Permission denied.");
+            }
+            if (
+              wrapped.executionMode === "parallel" &&
+              policy &&
+              ["read", "search", "fetch"].includes(policy.kind)
+            )
+              release = await readSlots.acquire(signal);
+            if (policy?.kind !== "edit" && policy?.kind !== "execute")
+              await this.admitTool(session, key);
+            // 批准、排队与日志准入都可能让资格失效，真正派发前必须重新检查。https://github.com/ItsDalk-Lane/Scribe/issues/70
+            signal?.throwIfAborted();
+            assertCanExecute(tool.name);
+            started = true;
+            result = await tool.execute(key, args, signal, onUpdate);
+            if (!signal?.aborted && !result.isError) fileRead = fileReads.get(result);
+            if (!isRecord(result.details) || !isRecord(result.details.execution)) {
+              const facts = {
+                status: result.isError ? ("failed" as const) : ("completed" as const),
+                retry:
+                  policy && ["read", "search", "fetch"].includes(policy.kind)
+                    ? ("safe" as const)
+                    : ("verify_before_retry" as const),
+              };
+              result = !policy
+                ? withToolExecution(result, facts)
+                : {
+                    ...result,
+                    details: {
+                      ...(isRecord(result.details) ? result.details : {}),
+                      execution: facts,
+                    },
+                  };
+            }
+          } catch (error) {
+            if (session.storageError) throw error;
+            const safe = !!policy && ["read", "search", "fetch"].includes(policy.kind);
+            // 只有明确拒绝或派发前停止才证明未执行；缺准入记录不能反推外部没有副作用。https://github.com/ItsDalk-Lane/Scribe/issues/70
+            const notStarted = !started || session.toolExecutions.get(key)?.denied === true;
+            result = withToolExecution(
+              {
+                content: [
+                  { type: "text", text: error instanceof Error ? error.message : String(error) },
+                ],
+                details: undefined,
+                isError: true,
+              },
+              {
+                status: notStarted ? "not_started" : safe ? "failed" : "outcome_unknown",
+                retry: notStarted || safe ? "safe" : "verify_before_retry",
+              }
+            );
+          } finally {
+            release?.();
+          }
+          const reference = `${key}:${uuidv4()}`;
+          result = {
+            ...result,
+            details: {
+              ...(isRecord(result.details) ? result.details : {}),
+              resultReference: reference,
+            },
+          };
           await this.recordToolResult(
             session,
             id,
             tool.name,
-            result as AgentToolResult,
-            "isError" in result && result.isError === true,
+            result,
+            result.isError === true,
             child?.taskId
           );
-          return result;
-        } catch (error) {
-          if (!session.storageError)
-            await this.recordToolResult(
-              session,
-              id,
-              tool.name,
-              {
-                content: [
-                  {
-                    type: "text",
-                    text: error instanceof Error ? error.message : String(error),
-                  },
-                ],
-                details: undefined,
-              },
-              true,
-              child?.taskId
-            );
-          throw error;
-        }
-      },
-    });
-    const wrapTools = (runtimeTools: NativeRuntimeTools): AgentTool[] =>
-      runtimeTools.tools
-        .filter(
-          (tool) =>
-            (session.record.purpose !== "skill-authoring" ||
-              SKILL_AUTHORING_TOOLS.has(tool.name)) &&
-            (!child?.allowedTools || child.allowedTools.includes(tool.name))
-        )
-        .map((tool) =>
-          wrapToolForRun(tool, runtimeTools.autoApproveTools?.has(tool.name) === true)
-        );
+          if (fileRead)
+            pendingFileReads.set(reference, {
+              ...fileRead,
+              content: sha256(JSON.stringify(result.content)),
+            });
+          return projectResult(result, tool.name, reference, resultBudget);
+        },
+      };
+      return wrapped;
+    };
+    const wrapTools = (runtimeTools: NativeRuntimeTools): AgentTool[] => {
+      const names = new Set<string>();
+      return runtimeTools.tools.filter(isToolAllowed).map((tool) => {
+        if (names.has(tool.name)) throw new Error(`Duplicate tool name: ${tool.name}`);
+        names.add(tool.name);
+        return wrapToolForRun(tool, runtimeTools.autoApproveTools?.has(tool.name) === true);
+      });
+    };
     const refreshCapabilities = (force = false): void => {
       const currentCapabilityRevision =
         this.options.getCapabilityRevision?.(session.record.cwd) ?? "";
@@ -1366,7 +1547,8 @@ export class NativeBackendProcess implements BackendProcess {
               }
             );
             const scope = child?.taskId ?? "main";
-            const pages = projectDeliveredSkillPages(requestMessages ?? context.messages, scope);
+            const actualMessages = requestMessages ?? context.messages;
+            const pages = projectDeliveredSkillPages(actualMessages, scope);
             for await (const event of source) {
               if (event.type === "error") {
                 terminalError = event;
@@ -1396,7 +1578,6 @@ export class NativeBackendProcess implements BackendProcess {
                       ? revoked.throughSeq
                       : 0
                   );
-                  const actualMessages = requestMessages ?? context.messages;
                   const resultSeq = session.messageSeqs.get(actualMessages[page.resultIndex]);
                   const callSeq = session.messageSeqs.get(actualMessages[page.callIndex]);
                   if (resultSeq === undefined || callSeq === undefined)
@@ -1450,6 +1631,31 @@ export class NativeBackendProcess implements BackendProcess {
                   this.options.onManualSkillInvoked?.(manualSelection.name);
                 }
               }
+              // 只有模型收到未裁剪的原文并正常回应，读取才能成为之后修改的版本证据。https://github.com/ItsDalk-Lane/Scribe/issues/71
+              if (event.type === "done" && !options?.signal?.aborted && pendingFileReads.size) {
+                for (const message of actualMessages) {
+                  if (
+                    message.role !== "toolResult" ||
+                    message.isError ||
+                    !isRecord(message.details) ||
+                    typeof message.details.resultReference !== "string"
+                  )
+                    continue;
+                  const read = pendingFileReads.get(message.details.resultReference);
+                  if (!read || sha256(JSON.stringify(message.content)) !== read.content) continue;
+                  const previous = observations.get(read.path);
+                  if (
+                    read.version.kind === "text" &&
+                    previous?.kind === "text" &&
+                    previous.fingerprint === read.version.fingerprint &&
+                    (previous.complete ||
+                      (previous.readThrough ?? 0) > (read.version.readThrough ?? 0))
+                  )
+                    continue;
+                  observations.set(read.path, read.version);
+                }
+                pendingFileReads.clear();
+              }
               if (
                 event.type === "text_delta" ||
                 event.type === "thinking_delta" ||
@@ -1466,6 +1672,13 @@ export class NativeBackendProcess implements BackendProcess {
               stream.push(event);
             }
             const result = await source.result();
+            if (result.stopReason !== "error" && result.stopReason !== "aborted") {
+              lastRespondedContextState = requestContextState;
+              session.requestContextStates.set(contextScope, {
+                version: requestContextState,
+                refreshRequired: contextRefreshRequired,
+              });
+            }
             session.usageVersions.set(result, requestVersion);
             if (
               failure?.kind !== "context" ||
@@ -1528,21 +1741,8 @@ export class NativeBackendProcess implements BackendProcess {
           emit({ sessionUpdate: "current_mode_update", currentModeId: "plan" });
           emit({ sessionUpdate: "state_changed", state: this.state(session) });
         }
-        const kind =
-          TOOL_KINDS[toolCall.name] ??
-          ([
-            "ask_user",
-            "invoke_skill",
-            "propose_skill",
-            "send_subagent_message",
-            "list_subagent_sessions",
-            "wait_subagents",
-            "stop_subagent",
-            "send_parent_message",
-            "wait_for_message",
-          ].includes(toolCall.name)
-            ? "think"
-            : "execute");
+        const published = publishedTools.get(toolCall.name);
+        const kind = (published ? getNativeToolPolicy(published)?.kind : undefined) ?? "execute";
         if (getMode() === "plan" && (kind === "edit" || kind === "execute"))
           return {
             block: true,
@@ -1886,6 +2086,54 @@ export class NativeBackendProcess implements BackendProcess {
             })
           );
         }
+        const historyBudget = {
+          maxTokens: Math.max(
+            256,
+            Math.min(8000, Math.floor((provider.model.contextWindow || 100000) / 2))
+          ),
+          remainingTokens: Math.max(
+            512,
+            Math.min(24000, Math.floor(((provider.model.contextWindow || 100000) * 2) / 3))
+          ),
+        };
+        const projectHistoryResult = (message: AgentMessage): AgentMessage => {
+          if (message.role !== "toolResult") return message;
+          const reference =
+            isRecord(message.details) && typeof message.details.resultReference === "string"
+              ? message.details.resultReference
+              : isRecord(message.details) &&
+                  isRecord(message.details.outputProjection) &&
+                  typeof message.details.outputProjection.toolCallId === "string"
+                ? message.details.outputProjection.toolCallId
+                : `legacy:${fingerprintRequestContext(message)}`;
+          const source =
+            isRecord(message.details) &&
+            isRecord(message.details.outputProjection) &&
+            message.details.skillContentOmitted !== true
+              ? (savedResult(reference) ?? { ...message, details: message.details })
+              : { ...message, details: message.details };
+          const projected = projectResult(source, message.toolName, reference, historyBudget);
+          const fingerprint = sha256(JSON.stringify(projected.content));
+          const previousProjection = deliveredResultProjections.get(reference);
+          if (previousProjection !== undefined && previousProjection !== fingerprint)
+            projectionRevision++;
+          deliveredResultProjections.set(reference, fingerprint);
+          // 请求裁剪保留来源序号用于压缩，但快照仍会核对正文并单独保存变体。https://github.com/ItsDalk-Lane/Scribe/issues/70
+          if (JSON.stringify(projected.content) === JSON.stringify(message.content)) return message;
+          const replacement = {
+            ...message,
+            content: projected.content,
+            details: projected.details,
+          };
+          const seq = session.messageSeqs.get(message);
+          if (seq !== undefined) session.messageSeqs.set(replacement, seq);
+          return replacement;
+        };
+        // 先留出最新一轮工具结果的预算，否则历史大输出会让续读一直返回空正文。https://github.com/ItsDalk-Lane/Scribe/issues/71
+        const latestBatchStart =
+          history.findLastIndex((message) => message.role === "assistant") + 1;
+        const latestBatch = history.slice(latestBatchStart).map(projectHistoryResult);
+        history = [...history.slice(0, latestBatchStart).map(projectHistoryResult), ...latestBatch];
         const original = history.filter((message) => message.role !== "system");
         const previous = this.findMatchingCompaction(session, original, child?.subagentId);
         // 旧摘要无法证明已排除失效正文，必须停止而不是重新发送。https://github.com/ItsDalk-Lane/Scribe/issues/68
@@ -1912,6 +2160,8 @@ export class NativeBackendProcess implements BackendProcess {
           signal!
         );
         signal?.throwIfAborted();
+        // 异步读取规则期间项目可能改了工作位置，不能把新资料与旧位置一起发送。https://github.com/ItsDalk-Lane/Scribe/issues/71
+        this.options.assertScope?.(session.record);
         refreshCapabilities();
         const childInstructions = child
           ? session.subagentController!.state(child.subagentId).instructions
@@ -1920,6 +2170,16 @@ export class NativeBackendProcess implements BackendProcess {
         requestRuntimeContext = [
           `<runtime_context>\nCurrent execution mode: ${mode}. ${mode === "plan" ? "File changes and command execution require plan approval." : "Tool execution remains subject to current authorization checks."}\n</runtime_context>`,
           this.options.getRequestContext?.(session.record),
+          ...history.flatMap((message) =>
+            message.role === "toolResult" &&
+            isRecord(message.details) &&
+            isRecord(message.details.outputProjection) &&
+            message.details.outputProjection.noticeOmitted === true
+              ? [
+                  `Saved tool output omitted by the batch budget: ${JSON.stringify({ tool_call_id: typeof message.details.resultReference === "string" ? message.details.resultReference : message.details.outputProjection.toolCallId, execution: isRecord(message.details.execution) ? message.details.execution : undefined })}. Content is incomplete. ${message.details.skillContentOmitted === true ? `Read the current authorized skill with invoke_skill ${JSON.stringify({ name: message.details.name, max_characters: 1000 })} in a separate step.` : "Continue with read_tool_result using that tool_call_id; do not repeat the original operation."}`,
+                ]
+              : []
+          ),
         ]
           .filter(Boolean)
           .join("\n\n");
@@ -1935,22 +2195,51 @@ export class NativeBackendProcess implements BackendProcess {
             .filter(Boolean)
             .join("\n\n"),
         });
+        publishedTools = new Map(
+          (run.closing ? [] : agent.state.tools).map((tool) => [tool.name, tool])
+        );
+        const window = provider.model.contextWindow || 100000;
+        resultBudget = {
+          maxTokens: Math.max(256, Math.min(8000, Math.floor(window / 2))),
+          remainingTokens: Math.max(512, Math.min(24000, Math.floor((window * 2) / 3))),
+        };
+        currentSystem.toolsAdded = [...publishedTools.values()].map(
+          ({ name, description, parameters }) => ({ name, description, parameters })
+        );
+        requestContextState = sha256(JSON.stringify([currentSystem, requestRuntimeContext]));
+        contextRefreshRequired ||=
+          lastRespondedContextState === ""
+            ? history.filter((message) => message.role !== "system").length > 1
+            : lastRespondedContextState !== requestContextState;
+        const contextUpdate = contextRefreshRequired
+          ? [
+              "<current_context_update>",
+              "Use the complete current runtime state below and the current leading system instructions and tool definitions. Earlier assistant reasoning, plans, tool calls, summaries and replies may reflect outdated sources or withdrawn rules. Revise those assumptions before continuing. Do not carry forward formatting or behavioral requirements from instruction sources that are now empty or absent. This update does not change the user's request or grant tool permissions.",
+              `Named instruction sources with no current rules (withdrawn): ${
+                Object.entries(currentSystem.sections ?? {})
+                  .filter(([, content]) => content === null)
+                  .map(([name]) => name)
+                  .join(", ") || "none"
+              }.`,
+              requestRuntimeContext,
+              "</current_context_update>",
+            ].join("\n")
+          : "";
         const injected = [
           requestRuntimeContext,
+          contextUpdate,
           manualSkill?.instruction ?? transferredSkills,
           restored,
           ...missingBefore.map((page) => page.text),
         ]
           .filter(Boolean)
           .join("\n\n");
-        currentSystem.toolsAdded = (run.closing ? [] : agent.state.tools).map(
-          ({ name, description, parameters }) => ({ name, description, parameters })
-        );
         requestVersion = sha256(
           JSON.stringify([
             currentSystem,
             injected,
             previous?.summary ?? null,
+            ["tool_output_budget_v1", historyBudget.maxTokens, projectionRevision],
             provider.model.provider,
             provider.model.id,
             provider.model.api,
@@ -1997,6 +2286,7 @@ export class NativeBackendProcess implements BackendProcess {
         ) {
           const all = [
             requestRuntimeContext,
+            contextUpdate,
             manualSkill?.instruction ?? transferredSkills,
             restored,
             ...completePages.map((page) => page.text),
@@ -2066,6 +2356,9 @@ export class NativeBackendProcess implements BackendProcess {
             ...injectedMessages.slice(0, insertAt),
             injectedContext,
             ...injectedMessages.slice(insertAt),
+            ...(contextUpdate
+              ? [{ role: "user" as const, timestamp: 0, content: contextUpdate }]
+              : []),
           ];
         };
         requestMessages = assembleRequest(messages);
@@ -2223,7 +2516,12 @@ export class NativeBackendProcess implements BackendProcess {
           child !== undefined,
           viewId,
           segmentSeq,
-          childProvider ?? session.provider
+          childProvider ?? session.provider,
+          (name) => {
+            const tool = publishedTools.get(name);
+            return (tool ? getNativeToolPolicy(tool)?.kind : undefined) ?? "other";
+          },
+          savedResult
         );
       if (event.type === "message_end") {
         const message = event.message;
@@ -2253,7 +2551,13 @@ export class NativeBackendProcess implements BackendProcess {
           await session.subagentController!.recordContext(
             child.subagentId,
             child.taskId,
-            [...agent.state.messages],
+            agent.state.messages.map((entry) =>
+              entry.role === "toolResult" &&
+              isRecord(entry.details) &&
+              typeof entry.details.resultReference === "string"
+                ? (session.toolResultCache.get(entry.details.resultReference)?.message ?? entry)
+                : entry
+            ),
             collaboration ? [collaboration.id] : [],
             agent.state.messages.map((entry) => session.messageSeqs.get(entry) ?? -1),
             collaboration ? seq : undefined
@@ -2373,6 +2677,8 @@ export class NativeBackendProcess implements BackendProcess {
     let current: { promptId: string; message: UserMessage } | undefined = first;
     while (current && !session.closed) {
       const reason = await this.executeTurn(session, current.promptId, current.message);
+      // 上一轮仍在收尾时，后来的执行可能已接管队列；不能抢走它的输入或撤回它们。https://github.com/ItsDalk-Lane/Scribe/issues/71
+      if (session.run) return;
       // 前置准备失败同样属于自动停止，不能绕过请求层直接续发排队消息。https://github.com/ItsDalk-Lane/Scribe/issues/31
       if (
         reason === "quota_exhausted" ||
@@ -2387,8 +2693,9 @@ export class NativeBackendProcess implements BackendProcess {
         if (ids.length) this.emit(session, { sessionUpdate: "messages_withdrawn", promptIds: ids });
         break;
       }
+      // 待显示的输入可能仍在接纳新任务，必须等任务归属和输入都已保存再开始执行。https://github.com/ItsDalk-Lane/Scribe/issues/71
       const next = [...session.pending.entries()].find(
-        ([promptId]) => !session.inFlight.has(promptId)
+        ([promptId]) => session.accepted.has(promptId) && !session.inFlight.has(promptId)
       );
       current = next ? { promptId: next[0], message: next[1] } : undefined;
     }
@@ -3021,7 +3328,9 @@ export class NativeBackendProcess implements BackendProcess {
     child: boolean,
     viewId: (id: string) => string,
     segmentSeq?: number,
-    provider = session.provider
+    provider = session.provider,
+    toolKind: (name: string) => AgentToolKind = () => "other",
+    savedResult?: (id: string) => AgentToolResult | undefined
   ): void {
     if (
       event.type === "message_start" &&
@@ -3094,7 +3403,7 @@ export class NativeBackendProcess implements BackendProcess {
         sessionUpdate: "tool_call",
         toolCallId: viewId(event.toolCallId),
         title: resolvedTool.mcpServer ? resolvedTool.tool : event.toolName,
-        kind: TOOL_KINDS[event.toolName] ?? "other",
+        kind: toolKind(event.toolName),
         vendorToolName: event.toolName,
         ...(mcpServer ? { mcpServer } : {}),
         rawInput: event.args,
@@ -3103,8 +3412,14 @@ export class NativeBackendProcess implements BackendProcess {
       });
     }
     if (event.type === "tool_execution_update" || event.type === "tool_execution_end") {
-      const result: unknown =
+      const raw: unknown =
         event.type === "tool_execution_update" ? event.partialResult : event.result;
+      const reference =
+        isRecord(raw) && isRecord(raw.details) && typeof raw.details.resultReference === "string"
+          ? raw.details.resultReference
+          : undefined;
+      const result: unknown =
+        event.type === "tool_execution_end" && reference ? (savedResult?.(reference) ?? raw) : raw;
       emit({
         sessionUpdate: "tool_call_update",
         toolCallId: viewId(event.toolCallId),
@@ -3214,6 +3529,10 @@ export class NativeBackendProcess implements BackendProcess {
       remove: async (id) => {
         if (!this.options.storage.removeSubagent) throw new Error("当前保存组件不支持删除子会话。");
         await this.options.storage.removeSubagent(session.record.sessionId, id);
+        session.requestContextStates.delete(id);
+        session.observedFileVersions.delete(id);
+        for (const [reference, entry] of session.toolResultCache)
+          if (entry.scope === id) session.toolResultCache.delete(reference);
         session.record.subagents = session.record.subagents?.filter(
           (state) => state.snapshot.id !== id
         );
@@ -3946,6 +4265,8 @@ export class NativeBackendProcess implements BackendProcess {
             },
             true
           );
+        // 等待请求记录落盘期间也可能迁移项目，派发前最后一次复核。https://github.com/ItsDalk-Lane/Scribe/issues/71
+        this.options.assertScope?.(session.record);
         if (run) {
           run.requestUsage ??= new Map();
           if (snapshot) run.lastRequestFingerprint = snapshot.fingerprint;
@@ -5037,6 +5358,9 @@ export class NativeBackendProcess implements BackendProcess {
       toolName: name,
       content: result.content,
       details: result.details,
+      ...(result.structuredContent === undefined
+        ? {}
+        : { structuredContent: result.structuredContent }),
       isError,
       timestamp: Date.now(),
     };
@@ -5080,6 +5404,14 @@ export class NativeBackendProcess implements BackendProcess {
       session.toolResultSeqs.set(`${taskId ?? "main"}:${id}`, fact.seq);
     }
     session.recordedToolResults.add(`${taskId ?? "main"}:${id}`);
+    if (isRecord(result.details) && typeof result.details.resultReference === "string") {
+      const scope = taskId
+        ? session
+            .subagentController!.list()
+            .find((entry) => entry.runs.some((run) => run.id === taskId))?.id
+        : "main";
+      if (scope) session.toolResultCache.set(result.details.resultReference, { scope, message });
+    }
     if (!taskId) session.record.messages.push(message);
   }
 
@@ -5173,7 +5505,26 @@ export class NativeBackendProcess implements BackendProcess {
   }
 
   private async saveTranscript(session: NativeSessionContext, agent: Agent): Promise<void> {
-    if (!this.options.storage.append) session.record.messages = [...agent.state.messages];
+    if (!this.options.storage.append) {
+      const saved = new Map(
+        session.record.messages.flatMap((message) =>
+          message.role === "toolResult" &&
+          isRecord(message.details) &&
+          typeof message.details.resultReference === "string"
+            ? [[message.details.resultReference, message] as const]
+            : []
+        )
+      );
+      session.record.messages = agent.state.messages.map((message) =>
+        message.role === "toolResult" &&
+        isRecord(message.details) &&
+        typeof message.details.resultReference === "string"
+          ? (session.toolResultCache.get(message.details.resultReference)?.message ??
+            saved.get(message.details.resultReference) ??
+            message)
+          : message
+      );
+    }
     session.record.updatedAt = Date.now();
     this.assertWritable(session);
     try {

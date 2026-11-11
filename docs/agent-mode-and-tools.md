@@ -28,9 +28,9 @@ Quick Ask、Quick Command 继续用于编辑器旁的简短提问和改写，也
 
 提问卡支持多题导航、选项和自行填写。提交后，答案回到提出这组问题的工具；取消会结束这次等待。
 
-笔记工具原本限定在当前资料库内，但隔离测试发现：如果文件夹在检查后、写入前被替换，写入可能覆盖资料库外的文件；如果资料库内外的两个文件入口指向同一份文件，正常写入也会同时改动库外内容。系统拒绝写入时，原笔记也可能受损，或留下不完整的新文件。修复前，请暂时不要让代理写入或编辑笔记，包括使用 **Auto** 或已记住的授权；需要修改时，请先确认文件未与库外文件共用，再手动编辑，不确定时先另存为新笔记。经批准的系统命令使用你的电脑权限，可能访问资料库以外的文件或服务。
+笔记工具在写入前检查目标仍是资料库内的普通文本文件，并拒绝多个入口共用的同一份文件。编辑器有未保存内容、文件在读取或批准后发生变化，或助手尚未实际收到完整原文时，Scribe 会停止相应覆盖。经批准的系统命令使用你的电脑权限，可能访问资料库以外的文件或服务；文件工具也无法替其他应用或进程锁住文件。
 
-Note tools are intended to stay inside the current vault. Isolated tests found that replacing a folder after the check but before a write can overwrite an outside file. A normal write can also change an outside file when the vault entry and outside entry refer to the same file. If the system refuses a write, an existing note can be damaged or a new file left incomplete. Until this is fixed, do not ask the agent to write or edit notes, including through **Auto** or saved permissions. Before editing manually, confirm that the note does not share a file with an outside entry; if unsure, first save its contents as a new note. Approved system commands use your computer's permissions and may access files or services outside the vault.
+Note writes check that the target is still a regular text file in the current vault, and refuse files shared by multiple hard links. Scribe stops a replacement when there are unsaved editor changes, when the file changed after reading or approval, or when the assistant has yet to receive the complete source. Approved commands run with your computer's permissions. Scribe cannot lock a file against unrelated apps or processes.
 
 ## Context and history
 
@@ -204,3 +204,13 @@ Skill imports and edits preserve untouched metadata text, including high-precisi
 ### 规则和资料的更新
 
 每次模型生成前，Scribe 都会重新组装当前规则、模式、项目资料声明和可用工具。同一任务里修改说明或更换资料后，从下一步开始生效；已发出的请求和你原先发送的选区、附件不变。压缩或重开聊天后仍使用当前声明。聊天更多菜单中的“查看上次请求”读取保存的实际输入，方便核对过去那次回答采用了哪些内容，不会自动重发请求。
+
+### 工具执行、文件保护与长结果
+
+普通独立读取可以同时进行，但数量有限；文件修改和需要你回答或批准的操作按顺序处理。不同子任务仍使用独立的提问、批准和结果，不会把一个子任务的允许用于另一个。工具停用、项目位置或权限改变后，尚未开始的调用会在执行前再次检查。
+
+整篇替换已有笔记前，助手必须在此前的模型步骤实际收到完整当前版本。同一次回复同时发出读取和覆盖，或读取结果被裁去一部分，都不能据此覆盖；你随后修改笔记时也需要重新读取。局部替换只改指定的原文。未保存的编辑内容也会阻止整篇覆盖。绘图修改使用最近实际读到的场景版本；多个修改步骤中途出错时，会如实说明已经保存的部分。
+
+长结果可能分段提供给模型，完整原件仍随聊天或原有命令任务保存。结果会说明是否完整，并提供继续读取的入口；继续读取不会重新执行原来的写入、命令或远程操作。目录、搜索和网页也可继续读取，来源改变后旧游标失效。旧输出占满预算时优先保留刚读的新页。已保存的技能正文仅供历史查看，助手要继续使用技能须重新读取当前启用版本。命令结果始终显示状态、退出码、任务编号和完整输出位置。远程调用超时只表示无法确定结果，助手必须先核实，不能直接重复可能已经完成的操作。
+
+这些保护覆盖 Scribe 自己管理的文件工具。任意命令、其他应用和其他进程仍可能修改同一文件，不能把项目工作位置理解为系统隔离环境。

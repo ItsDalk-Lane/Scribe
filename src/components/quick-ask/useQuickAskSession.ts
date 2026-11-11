@@ -58,6 +58,7 @@ export function useQuickAskSession(params: UseQuickAskSessionParams): QuickAskSe
     stop: stopStreaming,
     reset,
   } = useStreamingChatSession({
+    app,
     model: resolvedModel,
     systemPrompt: QUICK_COMMAND_SYSTEM_PROMPT,
     excludeThinking: true,

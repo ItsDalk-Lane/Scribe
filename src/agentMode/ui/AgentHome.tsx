@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n";
 import AgentChatMessages from "@/agentMode/ui/AgentChatMessages";
+import { RequestContextPreviewModal } from "@/agentMode/ui/RequestContextPreview";
 import { AgentChatControls } from "@/agentMode/ui/AgentChatControls";
 import { AgentChatInput } from "@/agentMode/ui/AgentChatInput";
 import AgentContextMeter from "@/agentMode/ui/AgentContextMeter";
@@ -728,6 +729,15 @@ const AgentHomeInternal: React.FC<AgentHomeProps> = ({
                       ) : null}
                       {queuedMessagesNode}
                       <AgentChatControls
+                        onPreviewRequest={
+                          activeSession
+                            ? () => {
+                                new RequestContextPreviewModal(app, () =>
+                                  activeSession.getRequestContextPreview()
+                                ).open();
+                              }
+                            : undefined
+                        }
                         onCopyChatLink={
                           activeSession?.hasUserVisibleMessages() ? handleCopyChatLink : undefined
                         }

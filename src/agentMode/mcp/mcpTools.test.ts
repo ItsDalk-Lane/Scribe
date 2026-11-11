@@ -1,6 +1,11 @@
-import { buildMcpToolName, createMcpTools } from "@/agentMode/mcp/mcpTools";
+import {
+  assertUniqueMcpToolNames,
+  buildMcpToolName,
+  createMcpTools,
+} from "@/agentMode/mcp/mcpTools";
+import { getNativeToolPolicy } from "@/agentMode/sdk/nativeToolDefinition";
 import { DeferredMcpToolRegistry } from "@/agentMode/mcp/deferredMcpTools";
-import type { McpServerManager } from "@/agentMode/mcp/McpServerManager";
+import { McpServerManager, McpToolCallError } from "@/agentMode/mcp/McpServerManager";
 import type { McpServerConfig, McpToolCallResult, McpToolInfo } from "@/agentMode/mcp/types";
 
 interface ManagerStubInput {
@@ -51,7 +56,35 @@ describe("mcpTools", () => {
     });
   });
 
+  describe("assertUniqueMcpToolNames()", () => {
+    it("accepts empty and unique names and rejects an ambiguous name https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      expect(() => assertUniqueMcpToolNames([])).not.toThrow();
+      expect(() => assertUniqueMcpToolNames(["a", "b"])).not.toThrow();
+      expect(() => assertUniqueMcpToolNames(["a", "a"])).toThrow("Duplicate MCP tool name: a");
+    });
+  });
+
   describe("createMcpTools()", () => {
+    it("rejects ambiguous qualified names instead of advertising one server while executing another https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      const manager = managerStub({
+        servers: [server({ name: "a__b" }), server({ id: "srv-2", name: "a" })],
+        toolsByServer: {
+          "srv-1": [{ name: "c", inputSchema: {} }],
+          "srv-2": [{ name: "b__c", inputSchema: {} }],
+        },
+      });
+      expect(() => createMcpTools(manager)).toThrow("Duplicate MCP tool name: mcp__a__b__c");
+    });
+
+    it("keeps remote tools sequential with no automatic replay or managed-native approval exemption https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      const [tool] = createMcpTools(
+        managerStub({ servers: [server({})], toolsByServer: { "srv-1": [SEARCH_TOOL] } })
+      ).tools;
+      expect(tool.executionMode).toBe("sequential");
+      expect(tool.replay).toBe("never");
+      expect(getNativeToolPolicy(tool)).toBeUndefined();
+    });
+
     it("exposes discovered tools under qualified names", () => {
       const bundle = createMcpTools(
         managerStub({ servers: [server({})], toolsByServer: { "srv-1": [SEARCH_TOOL] } })
@@ -167,7 +200,41 @@ describe("mcpTools", () => {
   });
 
   describe("MCP tool execute()", () => {
-    it("keeps the original mixed result for display without rewriting model text and supplies structured-only content https://github.com/ItsDalk-Lane/Scribe/issues/52", async () => {
+    it("reports typed predispatch refusal without guessing from the error wording https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      const bundle = createMcpTools(
+        managerStub({
+          servers: [server({})],
+          toolsByServer: { "srv-1": [SEARCH_TOOL] },
+          callTool: async () => {
+            throw new McpToolCallError("not_started", "Unavailable");
+          },
+        })
+      );
+      const result = await bundle.tools[0].execute("call", { query: "x" });
+      expect(result.details).toMatchObject({
+        execution: { status: "not_started", retry: "safe", complete: false },
+      });
+      expect(result.content[0]).toEqual({
+        type: "text",
+        text: '<tool_execution>\n{"status":"not_started","retry":"safe","complete":false}\n</tool_execution>',
+      });
+    });
+
+    it("reports cancellation before dispatch as not_started and never calls the manager https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      const callTool = jest.fn();
+      const bundle = createMcpTools(
+        managerStub({ servers: [server({})], toolsByServer: { "srv-1": [SEARCH_TOOL] }, callTool })
+      );
+      const controller = new AbortController();
+      controller.abort();
+      const result = await bundle.tools[0].execute("call", { query: "x" }, controller.signal);
+      expect(result.details).toMatchObject({
+        execution: { status: "not_started", retry: "safe", complete: false },
+      });
+      expect(callTool).not.toHaveBeenCalled();
+    });
+
+    it("keeps the original mixed result for display and exposes public structured content without private metadata https://github.com/ItsDalk-Lane/Scribe/issues/52 https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
       const original = {
         content: [
           { type: "text", text: '{"id":900719925474099312345}' },
@@ -185,10 +252,27 @@ describe("mcpTools", () => {
         })
       );
       const first = await bundle.tools[0].execute("call-1", { query: "x" });
-      expect(first.content[0]).toEqual(original.content[0]);
-      expect(first.details).toEqual({ mcpResult: original });
+      expect(first.content.slice(1)).toEqual([
+        original.content[0],
+        { type: "text", text: JSON.stringify(original.content[1]) },
+        {
+          type: "text",
+          text: '<mcp_structured_content>\n{"answer":42}\n</mcp_structured_content>',
+        },
+      ]);
+      expect(first.structuredContent).toEqual(original.structuredContent);
+      expect(first.details).toEqual({
+        mcpResult: original,
+        execution: { status: "completed", retry: "never", complete: true },
+      });
+      expect(JSON.stringify(first.content)).not.toContain("original");
       const structured = await bundle.tools[0].execute("call-2", { query: "x" });
-      expect(structured.content).toEqual([{ type: "text", text: '{"answer":42}' }]);
+      expect(structured.content.slice(1)).toEqual([
+        {
+          type: "text",
+          text: '<mcp_structured_content>\n{"answer":42}\n</mcp_structured_content>',
+        },
+      ]);
     });
     it("routes the call to its server and maps text results", async () => {
       const callTool = jest.fn(
@@ -211,9 +295,10 @@ describe("mcpTools", () => {
         { query: "notes" },
         controller.signal
       );
-      expect(result).toMatchObject({
-        content: [{ type: "text", text: "found 2 notes" }],
-        isError: false,
+      expect(result.content.slice(1)).toEqual([{ type: "text", text: "found 2 notes" }]);
+      expect(result.isError).toBe(false);
+      expect(result.details).toMatchObject({
+        execution: { status: "completed", retry: "never", complete: true },
       });
     });
 
@@ -228,7 +313,9 @@ describe("mcpTools", () => {
         })
       );
       const result = await bundle.tools[0].execute("call-1", {});
-      expect(result.content).toEqual([{ type: "image", data: "aGVsbG8=", mimeType: "image/jpeg" }]);
+      expect(result.content.slice(1)).toEqual([
+        { type: "image", data: "aGVsbG8=", mimeType: "image/jpeg" },
+      ]);
     });
 
     it("propagates the server's own error flag", async () => {
@@ -244,6 +331,9 @@ describe("mcpTools", () => {
       );
       const result = await bundle.tools[0].execute("call-1", { query: "x" });
       expect(result.isError).toBe(true);
+      expect(result.details).toMatchObject({
+        execution: { status: "failed", retry: "verify_before_retry", complete: false },
+      });
     });
 
     it("wraps transport failures as error results instead of throwing", async () => {
@@ -259,9 +349,12 @@ describe("mcpTools", () => {
       const result = await bundle.tools[0].execute("call-1", { query: "x" });
       expect(result.isError).toBe(true);
       expect(JSON.stringify(result.content)).toContain("not connected");
+      expect(result.details).toMatchObject({
+        execution: { status: "outcome_unknown", retry: "verify_before_retry", complete: false },
+      });
     });
 
-    it("rejects arguments that violate the server's input schema", async () => {
+    it("reports not_started without dispatching arguments that violate the server's input schema https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
       const callTool = jest.fn(
         async (): Promise<McpToolCallResult> => ({
           content: [{ type: "text", text: "unused" }],
@@ -274,9 +367,12 @@ describe("mcpTools", () => {
           callTool,
         })
       );
-      await expect(bundle.tools[0].execute("call-1", { wrong: true })).rejects.toThrow(
-        /Invalid arguments/
-      );
+      const result = await bundle.tools[0].execute("call-1", { wrong: true });
+      expect(result.isError).toBe(true);
+      expect(result.details).toMatchObject({
+        execution: { status: "not_started", retry: "safe", complete: false },
+      });
+      expect(JSON.stringify(result.content)).toContain("Invalid arguments");
       expect(callTool).not.toHaveBeenCalled();
     });
 
@@ -291,8 +387,9 @@ describe("mcpTools", () => {
         })
       );
       const result = await bundle.tools[0].execute("call-1", {});
-      expect(result.content).toHaveLength(1);
-      expect(result.content[0]).toMatchObject({ type: "text" });
+      expect(result.content.slice(1)).toEqual([
+        { type: "text", text: '{"type":"audio","data":"AAEC"}' },
+      ]);
     });
 
     it("falls back to a placeholder when the server returns no content", async () => {
@@ -304,7 +401,7 @@ describe("mcpTools", () => {
         })
       );
       const result = await bundle.tools[0].execute("call-1", {});
-      expect(result.content).toEqual([{ type: "text", text: "(empty result)" }]);
+      expect(result.content.slice(1)).toEqual([{ type: "text", text: "(empty result)" }]);
     });
   });
 });

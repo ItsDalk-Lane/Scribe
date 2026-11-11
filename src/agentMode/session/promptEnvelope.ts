@@ -70,14 +70,10 @@ export function buildPromptBlocks(
   context?: MessageContext,
   content?: PromptContent[],
   webTabBlock?: string,
-  projectContextBlock?: string | null,
   leadingContextBlock?: string | null,
-  projectContextUpdatesBlock?: string | null,
   leadingContextContent: readonly PromptContent[] = []
 ): PromptContent[] {
   const sections = [
-    projectContextBlock?.trim() || null,
-    projectContextUpdatesBlock?.trim() || null,
     leadingContextBlock?.trim() || null,
     buildContextEnvelope(context),
     buildWebSelectionBlocks(context),
@@ -122,7 +118,7 @@ function buildContextEnvelope(context: MessageContext | undefined): string | nul
 
   const lines: string[] = [
     "<scribe-context>",
-    "The user attached the following vault items as context. The vault is your current working directory; open them if you need their contents.",
+    "The user attached the following vault items as context. File tool paths are relative to the vault root. Open attached notes if you need their contents.",
   ];
   if (notePaths.length > 0) {
     lines.push("", "Notes:");

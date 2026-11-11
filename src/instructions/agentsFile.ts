@@ -31,6 +31,7 @@ export async function writeAgentsFile(
   const existing = findCachedInstructionFile(app, agentsPath);
   const conflict = "项目说明已被其他窗口或同步更新，请核对后重试。";
   if (existing) {
+    await assertInstructionPath(app, existing.path);
     if (expectedContent !== undefined) {
       await app.vault.process(existing, (current) => {
         if (current.replace(GENERATED_MIRROR_HEADER, "$1") !== expectedContent)
@@ -38,6 +39,8 @@ export async function writeAgentsFile(
         return content;
       });
     } else if ((await app.vault.read(existing)) !== content) {
+      // 比较正文期间可能换了文件链接，库设置保存前要再次核对实际位置。https://github.com/ItsDalk-Lane/Scribe/issues/71
+      await assertInstructionPath(app, existing.path);
       await app.vault.modify(existing, content);
     }
     return;
@@ -86,27 +89,33 @@ export async function restoreInstructionFiles(
       throw new Error("项目说明已被其他窗口或同步更新，已保留最新内容，请核对后重试。");
     return snapshot.agents ?? "";
   };
-  if (file) await app.vault.process(file, restore);
-  else if ((await readIfPresent(app, filePath)) !== null)
+  if (file) {
+    await assertInstructionPath(app, file.path);
+    await app.vault.process(file, restore);
+  } else if ((await readIfPresent(app, filePath)) !== null)
     await app.vault.adapter.process(filePath, restore);
 }
 
 async function readIfPresent(app: App, filePath: string): Promise<string | null> {
   const file = findCachedInstructionFile(app, filePath);
-  if (file) return app.vault.read(file);
-  if (!(await app.vault.adapter.exists(filePath))) return null;
-  if (app.vault.adapter instanceof FileSystemAdapter) {
-    const folderPath = filePath.split("/").slice(0, -1).join("/");
-    await validateProjectWorkspace(app, folderPath);
-    const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
-    const path = requireNodeModule<typeof import("node:path")>("path");
-    const root = await fs.realpath(app.vault.adapter.getBasePath());
-    const target = await fs.realpath(app.vault.adapter.getFullPath(filePath));
-    const relative = path.relative(root, target);
-    if (path.isAbsolute(relative) || relative === ".." || relative.startsWith(`..${path.sep}`))
-      throw new Error("项目说明文件不能通过链接指向库外。");
-  }
-  return app.vault.adapter.read(filePath);
+  if (!file && !(await app.vault.adapter.exists(filePath))) return null;
+  const actualPath = file?.path ?? filePath;
+  await assertInstructionPath(app, actualPath);
+  return file ? app.vault.read(file) : app.vault.adapter.read(actualPath);
+}
+
+// Obsidian 的索引不保证目标仍在库内，读取、保存和恢复都检查实际位置。https://github.com/ItsDalk-Lane/Scribe/issues/71
+async function assertInstructionPath(app: App, filePath: string): Promise<void> {
+  const adapter = app.vault.adapter;
+  if (!(adapter instanceof FileSystemAdapter)) return;
+  await validateProjectWorkspace(app, filePath.split("/").slice(0, -1).join("/"));
+  const fs = requireNodeModule<typeof import("node:fs/promises")>("fs/promises");
+  const path = requireNodeModule<typeof import("node:path")>("path");
+  const root = await fs.realpath(adapter.getBasePath());
+  const target = await fs.realpath(adapter.getFullPath(filePath));
+  const relative = path.relative(root, target);
+  if (path.isAbsolute(relative) || relative === ".." || relative.startsWith(`..${path.sep}`))
+    throw new Error("项目说明文件不能通过链接指向库外。");
 }
 
 export async function ensureAgentsFile(

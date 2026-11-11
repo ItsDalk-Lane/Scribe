@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { safeAsyncHandler } from "@/utils/safeAsyncHandler";
-import { Bookmark, History, Link, MessageCirclePlus, MoreHorizontal } from "lucide-react";
+import { Bookmark, FileText, History, Link, MessageCirclePlus, MoreHorizontal } from "lucide-react";
 import React, { useCallback, useState } from "react";
 
 const resolveDeleteSummary = describeChatDelete;
@@ -46,6 +46,7 @@ interface AgentChatControlsProps {
   openChatIds?: ReadonlySet<string>;
   runningChatIds?: ReadonlySet<string>;
   onCopyChatLink?: () => void | Promise<void>;
+  onPreviewRequest?: () => void;
   getChatBookmarkState?: () => Promise<ChatBookmarkState>;
   onSetChatBookmarked?: (bookmarked: boolean) => Promise<void>;
   usageMeter?: React.ReactNode;
@@ -63,6 +64,7 @@ export const AgentChatControls: React.FC<AgentChatControlsProps> = ({
   openChatIds,
   runningChatIds,
   onCopyChatLink,
+  onPreviewRequest,
   getChatBookmarkState,
   onSetChatBookmarked,
   usageMeter,
@@ -136,6 +138,12 @@ export const AgentChatControls: React.FC<AgentChatControlsProps> = ({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" container={moreActionsBody}>
+              {onPreviewRequest && (
+                <DropdownMenuItem onSelect={onPreviewRequest}>
+                  <FileText />
+                  {t("View last request")}
+                </DropdownMenuItem>
+              )}
               {onCopyChatLink ? (
                 <DropdownMenuItem onSelect={() => void onCopyChatLink()}>
                   <Link />

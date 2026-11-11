@@ -202,17 +202,7 @@ export interface AgentSessionListener {
   onDisconnected?(): void;
 }
 
-export interface ProjectContextUpdates {
-  epoch: number;
-  block: string;
-}
-
-export interface ProjectContextUpdatesHooks {
-  getProjectContextUpdates?: () => ProjectContextUpdates | null;
-  markProjectContextUpdatesDelivered?: (epoch: number) => void;
-}
-
-export interface AgentSessionStartOptions extends ProjectContextUpdatesHooks {
+export interface AgentSessionStartOptions {
   purpose?: AgentSessionPurpose;
   beforePrompt?: () => void;
   backend: BackendProcess;
@@ -226,11 +216,10 @@ export interface AgentSessionStartOptions extends ProjectContextUpdatesHooks {
   getDescriptor?: () => BackendDescriptor | undefined;
   getDisplayName?: (backendId: BackendId) => string;
   getApp?: () => App;
-  getProjectContextBlock?: () => string;
   mcpServers?: ReadonlyArray<AgentMcpServer>;
 }
 
-export interface AgentSessionStateOptions extends ProjectContextUpdatesHooks {
+export interface AgentSessionStateOptions {
   purpose?: AgentSessionPurpose;
   beforePrompt?: () => void;
   backend: BackendProcess;
@@ -266,14 +255,10 @@ export class AgentSession {
   private backendSuspended = false;
   private readonly beforePrompt: (() => void) | undefined;
   readonly cwd: string | null;
-  private readonly getProjectContextBlockFn: (() => string) | null;
-  private firstPromptSent = false;
   private lastSentWebTabBlock: string | null = null;
   private readonly getDescriptor: (() => BackendDescriptor | undefined) | null;
   private readonly getDisplayName: ((backendId: BackendId) => string) | null;
   private readonly getApp: (() => App) | null;
-  private readonly getProjectContextUpdatesFn: (() => ProjectContextUpdates | null) | null;
-  private readonly markProjectContextUpdatesDeliveredFn: ((epoch: number) => void) | null;
   private cachedStatus: AgentSessionStatus = "starting";
   private cachedReplyRunning = false;
   private startupFailed = false;
@@ -362,10 +347,6 @@ export class AgentSession {
     this.getDescriptor = opts.getDescriptor ?? null;
     this.getDisplayName = opts.getDisplayName ?? null;
     this.getApp = opts.getApp ?? null;
-    this.getProjectContextUpdatesFn = opts.getProjectContextUpdates ?? null;
-    this.markProjectContextUpdatesDeliveredFn = opts.markProjectContextUpdatesDelivered ?? null;
-    this.getProjectContextBlockFn =
-      "getProjectContextBlock" in opts ? (opts.getProjectContextBlock ?? null) : null;
     this.requests = new InteractiveRequests({
       store: this.store,
       internalId: this.internalId,
@@ -432,6 +413,11 @@ export class AgentSession {
   > {
     if (!this.backendSessionId || !this.backend.getExtensionRuntime) return null;
     return this.backend.getExtensionRuntime({ sessionId: this.backendSessionId });
+  }
+
+  async getRequestContextPreview(): Promise<import("./types").RequestContextPreview | null> {
+    if (!this.backendSessionId || !this.backend.getRequestContextPreview) return null;
+    return this.backend.getRequestContextPreview({ sessionId: this.backendSessionId });
   }
 
   getBackendSessionId(): SessionId | null {
@@ -1074,8 +1060,6 @@ export class AgentSession {
           context,
           promptContent,
           webTabBlock === this.lastSentWebTabBlock ? "" : webTabBlock,
-          null,
-          null,
           null
         );
         if (webTabBlock) this.lastSentWebTabBlock = webTabBlock;
@@ -1135,13 +1119,6 @@ export class AgentSession {
           `This chat's model is unavailable for ${this.displayNameFor(this.backendId)}. Pick a configured model to continue.`
         );
       }
-      const isFirstTurn = !this.firstPromptSent && !sendsCompact;
-      const projectContextBlock = isFirstTurn ? (this.getProjectContextBlockFn?.() ?? null) : null;
-      const projectContextUpdates = sendsCompact
-        ? null
-        : (this.getProjectContextUpdatesFn?.() ?? null);
-      const projectContextUpdatesBlock = projectContextUpdates?.block ?? null;
-
       const sendsBranchHistory = this.branchState?.historyPending === true && !sendsCompact;
       const branchHistory = sendsBranchHistory
         ? buildBranchHistoryContent(this.priorDisplayMessages(userMessageId))
@@ -1160,9 +1137,7 @@ export class AgentSession {
         context,
         promptContent,
         webTabPromptBlock,
-        projectContextBlock,
         leadingContextBlock,
-        projectContextUpdatesBlock,
         branchHistory
       );
 
@@ -1180,11 +1155,7 @@ export class AgentSession {
       if (sendsSavedHistory && outcome.stopReason !== "cancelled") {
         this.resendSavedHistory = false;
       }
-      if (isFirstTurn) this.firstPromptSent = true;
       if (webTabBlock) this.lastSentWebTabBlock = webTabBlock;
-      if (projectContextUpdates) {
-        this.markProjectContextUpdatesDeliveredFn?.(projectContextUpdates.epoch);
-      }
       if (outcome.stopReason === "max_tokens" && !signal.aborted) {
         return await this.turns.submit(
           {

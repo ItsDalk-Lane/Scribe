@@ -1,4 +1,5 @@
 import type { AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
+import { defineNativeTool } from "@/agentMode/sdk/nativeToolDefinition";
 
 export const TOOL_SEARCH_TOOL_NAME = "tool_search";
 
@@ -57,18 +58,19 @@ const TOOL_SEARCH_PARAMETERS = {
 const TOOL_SEARCH_DESCRIPTION =
   "Search and register deferred MCP tools. MCP tools are not all loaded upfront; the available tools are listed as a one-line catalog in the system prompt. " +
   "Call this tool with `query` to search the catalog by keywords, or with `select` and an exact qualified name to register that tool. " +
-  "After a select, the registered tool can be called directly in this and later turns. " +
+  "After a select, the registered tool can be called directly from the next model step onward. " +
   "Use this whenever no registered tool fits the task but a catalog entry might.";
 
 export function createToolSearchTool(hooks: ToolSearchHooks): AgentTool {
-  return {
-    name: TOOL_SEARCH_TOOL_NAME,
-    label: "ToolSearch",
-    description: TOOL_SEARCH_DESCRIPTION,
-    parameters: TOOL_SEARCH_PARAMETERS,
-    execute: async (_toolCallId, args): Promise<AgentToolResult> =>
+  return defineNativeTool(
+    TOOL_SEARCH_TOOL_NAME,
+    "ToolSearch",
+    TOOL_SEARCH_DESCRIPTION,
+    TOOL_SEARCH_PARAMETERS,
+    async (_toolCallId, args): Promise<AgentToolResult> =>
       runToolSearch(hooks, args as Record<string, unknown> | undefined),
-  };
+    { kind: "read", skillAuthoring: false, executionMode: "sequential" }
+  );
 }
 
 async function runToolSearch(
@@ -102,8 +104,9 @@ function selectTool(hooks: ToolSearchHooks, qualifiedName: string): AgentToolRes
       `No deferred tool matches "${qualifiedName}". Available catalog entries:\n${catalogNameListing(hooks.catalog)}`
     );
   if (!hooks.selections.names().includes(entry.qualifiedName)) {
-    hooks.selections.select(entry.qualifiedName);
+    // 注册可能因实时权限而拒绝，成功前不能记为已选中。https://github.com/ItsDalk-Lane/Scribe/issues/70
     hooks.registerTool(hooks.catalog.buildTool(entry), entry.autoApproved);
+    hooks.selections.select(entry.qualifiedName);
   }
   return textResult(selectConfirmation(entry));
 }
@@ -136,7 +139,7 @@ function catalogNameListing(catalog: ToolSearchCatalog): string {
 
 function selectConfirmation(entry: ToolSearchCatalogEntry): string {
   return [
-    `${entry.qualifiedName} is registered and ready to call directly (server: ${entry.serverName}).`,
+    `${entry.qualifiedName} is registered and ready to call directly from the next model step (server: ${entry.serverName}).`,
     "",
     `Description: ${entry.description}`,
     "",

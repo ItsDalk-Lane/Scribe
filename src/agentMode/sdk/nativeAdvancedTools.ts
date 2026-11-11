@@ -4,7 +4,11 @@ import { raceWithAbortSignal } from "@earendil-works/pi-ai/utils/abort";
 import { App, FileSystemAdapter } from "obsidian";
 import type { NativeToolContext } from "@/agentMode/sdk/NativeBackendProcess";
 import { defineNativeTool, NATIVE_PERMISSION_OPTIONS } from "@/agentMode/sdk/nativeToolDefinition";
-import { resolveNativeVaultPath, withNativeWriteLock } from "@/agentMode/sdk/nativeVaultPath";
+import {
+  resolveNativeVaultPath,
+  withNativeWriteLock,
+  getNativeVaultIdentity,
+} from "@/agentMode/sdk/nativeVaultPath";
 import {
   buildEmptySkillCatalog,
   buildSkillCatalog,
@@ -25,7 +29,9 @@ import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
 import { htmlToMarkdown } from "@/services/webViewerService/webViewerServiceHelpers";
 import { isRecord } from "@/utils/obsidianInternals";
 import { safeFetchNoThrow } from "@/utils";
-import { sha256 } from "@/utils/hash";
+import type { SceneElement } from "@/excalidraw/excalidrawOutline";
+import type { NativeObservedFileVersion } from "@/agentMode/sdk/nativeFileVersions";
+import { pageToolText, withToolExecution } from "@/utils/toolResultProjection";
 
 export interface SkillDraftProposal {
   name: string;
@@ -71,11 +77,14 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
   if (!(candidate instanceof FileSystemAdapter))
     throw new Error("Native drawing tools require a desktop vault.");
   const adapter = candidate;
+  const vaultBase = getNativeVaultIdentity(adapter);
+  const observed = options.observedFileVersions ?? new Map<string, NativeObservedFileVersion>();
 
   async function readPage(
     requested: string,
-    maxCharacters: number,
-    signal?: AbortSignal
+    maxCharacters: number | undefined,
+    signal?: AbortSignal,
+    cursor?: string
   ): Promise<AgentToolResult> {
     const url = new URL(requested);
     if (url.protocol !== "http:" && url.protocol !== "https:")
@@ -93,15 +102,22 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
     if (contentType && !/^(text\/|application\/(?:json|xml|xhtml\+xml))/i.test(contentType))
       throw new Error(`Unsupported web content type: ${contentType}`);
     const content = /html/i.test(contentType) ? htmlToMarkdown(original, finalUrl) : original;
-    const truncated = content.length > maxCharacters;
+    const page = pageToolText(
+      content,
+      finalUrl,
+      cursor,
+      maxCharacters ?? Math.max(1, content.length)
+    );
+    const { text: pageText, ...pageDetails } = page;
     return {
-      content: [
-        {
-          type: "text",
-          text: content.slice(0, maxCharacters) + (truncated ? "\n\n[Output truncated]" : ""),
-        },
-      ],
-      details: { url: finalUrl, status: response.status, truncated, characters: content.length },
+      content: [{ type: "text", text: pageText }],
+      details: {
+        url: finalUrl,
+        status: response.status,
+        ...pageDetails,
+        characters: content.length,
+        complete: !page.truncated,
+      },
     };
   }
 
@@ -134,34 +150,32 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
       : entry.body;
   }
 
-  // 续读绑定内容和资源，避免文件变化后拼接不同版本。https://github.com/ItsDalk-Lane/Scribe/issues/68
-  function pageSkillText(text: string, identity: string, cursor?: string) {
-    const fingerprint = sha256(JSON.stringify([identity, text]));
-    const match = cursor?.match(/^(\d+):([a-f0-9]{64})$/);
-    if (cursor && (!match || match[2] !== fingerprint))
-      throw new Error("Skill content changed or the continuation cursor is invalid; start again.");
-    const offset = match ? Number(match[1]) : 0;
-    if (!Number.isSafeInteger(offset) || offset < 0 || (cursor && offset >= text.length))
-      throw new Error("Invalid skill continuation cursor; start again.");
-    let end = Math.min(offset + SKILL_DELIVERY_MAX_CHARS, text.length);
-    if (
-      end < text.length &&
-      /[\uD800-\uDBFF]/.test(text[end - 1]) &&
-      /[\uDC00-\uDFFF]/.test(text[end])
-    )
-      end--;
-    const truncated = end < text.length;
-    const nextCursor = truncated ? `${end}:${fingerprint}` : undefined;
-    return {
-      text:
-        text.slice(offset, end) +
-        (nextCursor ? `\n\n[Output truncated]\nContinue with cursor: ${nextCursor}` : ""),
-      truncated,
-      ...(nextCursor ? { nextCursor } : {}),
-    };
+  function confirmSkillDelivery(entry: SkillToolEntry, signal?: AbortSignal): void {
+    // 依赖与支撑文件读取期间，停用、修改或取消都可能撤销旧正文的投递资格。https://github.com/ItsDalk-Lane/Scribe/issues/71
+    signal?.throwIfAborted();
+    const current = requireInvocableSkill(entry.name);
+    if (current.body !== entry.body || current.dirPath !== entry.dirPath)
+      throw new Error("Skill content changed while preparing its delivery; start again.");
+    options.assertCanExecute?.("invoke_skill");
   }
 
-  function listSkillsResult(cursor?: string): AgentToolResult {
+  // 续读绑定内容和资源，避免文件变化后拼接不同版本。https://github.com/ItsDalk-Lane/Scribe/issues/68
+  function pageSkillText(text: string, identity: string, cursor?: string, maxCharacters?: number) {
+    const window = options.catalogBudget?.contextWindow;
+    // 小窗口先用技能自身的可校验分页，避免通用裁剪切断技能交付。https://github.com/ItsDalk-Lane/Scribe/issues/70
+    const defaultPageSize =
+      window !== undefined && Number.isFinite(window) && window > 0
+        ? Math.min(SKILL_DELIVERY_MAX_CHARS, Math.max(256, Math.floor(window / 2) * 3 - 512))
+        : SKILL_DELIVERY_MAX_CHARS;
+    return pageToolText(
+      text,
+      identity,
+      cursor,
+      Math.min(defaultPageSize, maxCharacters ?? defaultPageSize)
+    );
+  }
+
+  function listSkillsResult(cursor?: string, maxCharacters?: number): AgentToolResult {
     const lines = options
       .skills()
       .map((skill) => `- ${skill.name} (${skill.status}): ${skill.description}`);
@@ -170,7 +184,8 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
         ? `Registered skills:\n${lines.join("\n")}`
         : "No skills are registered in this session.",
       "list",
-      cursor
+      cursor,
+      maxCharacters
     );
     return {
       content: [{ type: "text", text: delivered.text }],
@@ -223,19 +238,23 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
               name: opt(str({ minLength: 1 })),
               file: opt(str({ minLength: 1 })),
               cursor: opt(str({ minLength: 1 })),
+              max_characters: opt(int({ minimum: 1, maximum: 20000 })),
             }),
             async (_id, args, signal) => {
-              if (args.name === undefined) return listSkillsResult(args.cursor);
+              if (args.name === undefined)
+                return listSkillsResult(args.cursor, args.max_characters);
               const entry = requireInvocableSkill(args.name);
               if (args.file !== undefined) {
                 // 支撑文件读取以技能名为锚点并复用管理器的路径防护与二进制判定。https://github.com/ItsDalk-Lane/Scribe/issues/41
                 if (!options.readSkillFile)
                   throw new Error("Skill support-file reading is unavailable in this session.");
                 const content = await options.readSkillFile(entry.name, args.file, signal);
+                confirmSkillDelivery(entry, signal);
                 const delivered = pageSkillText(
                   `Skill file ${entry.name}/${args.file}:\n\n${content}`,
                   JSON.stringify([entry.name, args.file]),
-                  args.cursor
+                  args.cursor,
+                  args.max_characters
                 );
                 return {
                   content: [{ type: "text", text: delivered.text }],
@@ -251,10 +270,12 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
               const dependencyReadings = options.resolveSkillDependencies
                 ? await options.resolveSkillDependencies(entry.name)
                 : [];
+              confirmSkillDelivery(entry, signal);
               const delivered = pageSkillText(
                 buildSkillDependencyBlock(dependencyReadings) + skillInvocationText(entry),
                 JSON.stringify([entry.name, null]),
-                args.cursor
+                args.cursor,
+                args.max_characters
               );
               // 模型侧技能投递计入本地使用台账。https://github.com/ItsDalk-Lane/Scribe/issues/48
               if (!args.cursor) options.onSkillInvoked?.(entry.name);
@@ -267,19 +288,22 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
                   ...(delivered.nextCursor ? { nextCursor: delivered.nextCursor } : {}),
                 },
               };
-            }
+            },
+            { kind: "read", skillAuthoring: true }
           ),
         ]
       : []),
     defineNativeTool(
       "fetch_url",
       "Fetch web page",
-      "Fetch actual content from an HTTP or HTTPS URL. HTML is returned as Markdown with source links.",
+      "Fetch actual HTTP or HTTPS content, with HTML converted to Markdown and source links. Optional max_characters caps one page; continue with cursor for the unchanged page. Without an explicit cap, the canonical result retains the whole response for read_tool_result after generic output trimming.",
       obj({
         url: str({ minLength: 1 }),
         max_characters: opt(int({ minimum: 1, maximum: 200000 })),
+        cursor: opt(str()),
       }),
-      (_id, args, signal) => readPage(args.url, args.max_characters ?? 20000, signal)
+      (_id, args, signal) => readPage(args.url, args.max_characters, signal, args.cursor),
+      { kind: "fetch", skillAuthoring: false }
     ),
     defineNativeTool(
       "web_search",
@@ -288,6 +312,7 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
       obj({
         query: str({ minLength: 1 }),
         max_characters: opt(int({ minimum: 1, maximum: 200000 })),
+        cursor: opt(str()),
       }),
       (_id, args, signal) => {
         const template = options.searchUrlTemplate ?? "https://html.duckduckgo.com/html/?q={query}";
@@ -295,10 +320,12 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
           throw new Error("The search URL template must contain {query}.");
         return readPage(
           template.replaceAll("{query}", encodeURIComponent(args.query)),
-          args.max_characters ?? 20000,
-          signal
+          args.max_characters,
+          signal,
+          args.cursor
         );
-      }
+      },
+      { kind: "fetch", skillAuthoring: false }
     ),
   ];
 
@@ -329,7 +356,8 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
             ],
             details: { name: saved.name, saved: true },
           };
-        }
+        },
+        { kind: "think", skillAuthoring: true }
       )
     );
   }
@@ -351,6 +379,49 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
             throw new Error("A drawing path is required.");
           const path = await resolveNativeVaultPath(adapter, args.path, writes);
           const input = { ...args, path };
+          let dispatched = 0;
+          const confirmedOperations: string[] = [];
+          let outcomeUnknown = false;
+          const finishWrite = (result: AgentToolResult): AgentToolResult => {
+            const failed = result.isError === true || signal?.aborted === true;
+            const status = outcomeUnknown
+              ? "outcome_unknown"
+              : failed
+                ? confirmedOperations.length
+                  ? "partial"
+                  : dispatched
+                    ? "failed"
+                    : "not_started"
+                : "completed";
+            return withToolExecution(
+              {
+                ...result,
+                isError: failed || outcomeUnknown,
+                content: [
+                  ...(confirmedOperations.length
+                    ? [
+                        {
+                          type: "text" as const,
+                          text: `Confirmed drawing operations: ${JSON.stringify(confirmedOperations)}. Do not repeat these operations.`,
+                        },
+                      ]
+                    : []),
+                  ...result.content,
+                ],
+                details: {
+                  path,
+                  dispatchedOperations: dispatched,
+                  confirmedOperations: [...confirmedOperations],
+                },
+              },
+              {
+                status,
+                retry: status === "completed" ? "never" : "verify_before_retry",
+                complete: status === "completed",
+                truncated: false,
+              }
+            );
+          };
 
           async function run(): Promise<AgentToolResult> {
             signal?.throwIfAborted();
@@ -394,23 +465,148 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
             }
 
             const api = getExcalidrawApi(options.app);
+            let readRevision: string | number | undefined;
+            let expectedRevision =
+              observed.get(path)?.kind === "drawing"
+                ? (observed.get(path) as Extract<NativeObservedFileVersion, { kind: "drawing" }>)
+                    .revision
+                : undefined;
+            const guardWrite = () => {
+              signal?.throwIfAborted();
+              if (options.getMode() === "plan")
+                throw new Error("Plan approval is required before changing drawings.");
+              options.assertCanExecute?.("excalidraw_write");
+            };
+            const checkRevision = (revision: unknown) => {
+              if (
+                (typeof revision !== "string" && typeof revision !== "number") ||
+                expectedRevision === undefined ||
+                revision !== expectedRevision
+              )
+                throw new Error(
+                  "The drawing changed or has not been read in this execution scope; read the current drawing before editing."
+                );
+            };
             const guardedApi: ExcalidrawApi | null = api
               ? {
-                  sceneElements: (requested) => {
+                  sceneElements: async (requested) => {
                     signal?.throwIfAborted();
-                    return api.sceneElements(requested);
+                    const opened = await guardedApi!.execute({
+                      apiVersion: 1,
+                      command: "open",
+                      path: requested,
+                    });
+                    if (!opened.ok) throw new Error("Could not open the drawing for a live read.");
+                    const elements: SceneElement[] = [];
+                    let offset = 0;
+                    let revision: string | number | undefined;
+                    do {
+                      const reply = await guardedApi!.execute({
+                        apiVersion: 1,
+                        command: "read",
+                        path: requested,
+                        source: "live",
+                        detail: "elements",
+                        limit: 200,
+                        offset,
+                        ...(revision === undefined ? {} : { revision }),
+                      });
+                      const data = reply.data;
+                      if (
+                        !reply.ok ||
+                        !Array.isArray(data?.elements) ||
+                        (typeof data.revision !== "string" && typeof data.revision !== "number")
+                      )
+                        throw new Error(
+                          "The drawing plugin did not return a versioned live scene; update the plugin and read again."
+                        );
+                      if (revision !== undefined && data.revision !== revision)
+                        throw new Error("The drawing changed during its read; read again.");
+                      revision = data.revision;
+                      elements.push(...(data.elements as SceneElement[]));
+                      if (data.nextOffset === null || data.nextOffset === undefined) break;
+                      if (
+                        typeof data.nextOffset !== "number" ||
+                        !Number.isSafeInteger(data.nextOffset) ||
+                        data.nextOffset <= offset
+                      )
+                        throw new Error("The drawing plugin returned an invalid page offset.");
+                      offset = data.nextOffset;
+                    } while (offset > 0);
+                    readRevision = revision;
+                    return elements;
                   },
                   renderPng: (requested) => {
                     signal?.throwIfAborted();
                     return api.renderPng(requested);
                   },
-                  execute: (request) => {
+                  execute: async (request) => {
                     signal?.throwIfAborted();
-                    return api.execute(request);
+                    if (writes) guardWrite();
+                    const mutating = request.command === "apply" || request.command === "create";
+                    if (writes && mutating) {
+                      if (request.command === "apply") {
+                        checkRevision(request.expectedRevision);
+                        request = { ...request, expectedRevision };
+                      }
+                    }
+                    if (writes && mutating) {
+                      dispatched++;
+                      observed.delete(path);
+                    }
+                    let reply: Awaited<ReturnType<ExcalidrawApi["execute"]>>;
+                    try {
+                      reply = await api.execute(request);
+                    } catch (error) {
+                      if (writes && mutating) outcomeUnknown = true;
+                      throw error;
+                    }
+                    // 取消不能抹掉插件已经明确确认的真实修改。https://github.com/ItsDalk-Lane/Scribe/issues/70
+                    if (writes && mutating) {
+                      if (reply.ok) confirmedOperations.push(String(request.command));
+                      else if (reply.mutation === "applied" || reply.mutation === "unknown")
+                        outcomeUnknown = true;
+                    }
+                    signal?.throwIfAborted();
+                    if (writes && request.command === "read") checkRevision(reply.data?.revision);
+                    if (writes && mutating) {
+                      const revision =
+                        reply.data?.acceptedRevision ?? reply.revision ?? reply.data?.revision;
+                      expectedRevision =
+                        reply.ok && (typeof revision === "string" || typeof revision === "number")
+                          ? revision
+                          : undefined;
+                      observed.delete(path);
+                    }
+                    return reply;
                   },
-                  connectLabelled: (requested, connection) => {
-                    signal?.throwIfAborted();
-                    return api.connectLabelled(requested, connection);
+                  connectLabelled: async (requested, connection) => {
+                    guardWrite();
+                    const live = await api.execute({
+                      apiVersion: 1,
+                      command: "read",
+                      path: requested,
+                      source: "live",
+                    });
+                    if (!live.ok)
+                      throw new Error("Could not read the live drawing before connecting.");
+                    checkRevision(live.data?.revision);
+                    guardWrite();
+                    // 旧连接接口没有提交版本凭据，不能把后续外部修改当作自己的新基线。https://github.com/ItsDalk-Lane/Scribe/issues/70
+                    expectedRevision = undefined;
+                    observed.delete(path);
+                    dispatched++;
+                    let confirmed = false;
+                    try {
+                      const result = await api.connectLabelled(requested, connection);
+                      confirmedOperations.push("connectLabelled");
+                      confirmed = true;
+                      signal?.throwIfAborted();
+                      return result;
+                    } catch (error) {
+                      if (!confirmed) outcomeUnknown = true;
+                      throw error;
+                    }
                   },
                 }
               : null;
@@ -432,14 +628,48 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
                   content: [{ type: "diff", path, oldText: before, newText: after ?? "" }],
                 });
             }
-            signal?.throwIfAborted();
+            if (!writes || dispatched === 0) signal?.throwIfAborted();
             const content: AgentToolResult["content"] = [{ type: "text", text: result.text }];
             if (result.image) content.push({ type: "image", ...result.image });
-            return { content, details: { path }, isError: result.isError };
+            const delivered = { content, details: { path }, isError: result.isError };
+            // 只有成功生成的绘图读取结果能排队登记，运行时负责确认已交付模型。https://github.com/ItsDalk-Lane/Scribe/issues/71
+            if (
+              definition.name === EXCALIDRAW_READ_TOOL.name &&
+              !result.isError &&
+              readRevision !== undefined
+            ) {
+              const version = { kind: "drawing" as const, revision: readRevision };
+              if (options.observeFileVersion) options.observeFileVersion(delivered, path, version);
+              else observed.set(path, version);
+            }
+            return writes ? finishWrite(delivered) : delivered;
           }
 
-          return writes ? withNativeWriteLock(`${adapter.getBasePath()}/${path}`, run) : run();
-        }
+          return writes
+            ? withNativeWriteLock(
+                `${vaultBase}/${path}`,
+                async () => {
+                  try {
+                    return await run();
+                  } catch (error) {
+                    if (dispatched === 0) throw error;
+                    return finishWrite({
+                      content: [
+                        {
+                          type: "text",
+                          text: `Drawing operation interrupted: ${error instanceof Error ? error.message : String(error)}. Inspect the drawing before retrying.`,
+                        },
+                      ],
+                      details: { path },
+                      isError: true,
+                    });
+                  }
+                },
+                signal
+              )
+            : run();
+        },
+        { kind: writes ? "edit" : "read", skillAuthoring: false, executionMode: "sequential" }
       )
     );
   }
