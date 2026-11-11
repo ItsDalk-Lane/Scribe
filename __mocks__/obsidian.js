@@ -1,5 +1,4 @@
 import { parse as parseYamlString } from "yaml";
-import nodePath from "node:path";
 
 let requestUrlImpl = jest.fn().mockResolvedValue({
   status: 200,
@@ -64,7 +63,7 @@ module.exports = {
     }
     getFullPath(p) {
       const rel = String(p).replace(/\\/g, "/").replace(/^\/+/, "");
-      return rel ? nodePath.join(this._basePath, rel) : this._basePath;
+      return rel ? jest.requireActual("node:path").join(this._basePath, rel) : this._basePath;
     }
   },
   normalizePath: (p) => String(p).replace(/\\\\/g, "/").replace(/\/+/g, "/"),
