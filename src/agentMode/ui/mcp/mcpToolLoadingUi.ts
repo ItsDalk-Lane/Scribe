@@ -17,5 +17,6 @@ export function setMcpToolLoadingThresholdChars(chars: number): void {
 export function isDeferredMcpLoadingActive(app: App): boolean {
   const manager = getMcpServerManager(app);
   if (!manager) return false;
-  return resolveMcpLoadingState(manager, getSettings().agentMode) === "deferred";
+  const settings = getSettings().agentMode;
+  return resolveMcpLoadingState(manager, settings, settings.webSearch?.mcp) === "deferred";
 }

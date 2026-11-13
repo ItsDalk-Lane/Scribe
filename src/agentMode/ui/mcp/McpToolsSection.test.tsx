@@ -30,6 +30,7 @@ function mountTools(disabledTools: string[] = []) {
       autoApprovedTools={[]}
       onToggleTool={onToggleTool}
       onToggleAutoApprove={onToggleAutoApprove}
+      onToggleDirect={jest.fn()}
     />
   );
   return { onToggleTool, onToggleAutoApprove };
@@ -67,6 +68,36 @@ describe("McpToolsSection", () => {
       expect(onToggleAutoApprove).not.toHaveBeenCalled();
     });
 
+    it("keeps direct calls off until confirmation and blocks a managed search tool from opting in", () => {
+      const onToggleDirect = jest.fn();
+      render(
+        <McpToolsSection
+          tools={tools}
+          disabledTools={[]}
+          autoApprovedTools={["read", "search"]}
+          directToolStates={new Map([["search", "web-search"]])}
+          onToggleTool={jest.fn()}
+          onToggleAutoApprove={jest.fn()}
+          onToggleDirect={onToggleDirect}
+        />
+      );
+      const read = screen.getByRole("switch", { name: "Allow direct calls for read (non-search)" });
+      const search = screen.getByRole("switch", {
+        name: "Allow direct calls for search (non-search)",
+      });
+      expect(read.getAttribute("aria-checked")).toBe("false");
+      expect(search.getAttribute("aria-disabled")).toBe("true");
+      expect(
+        screen.getByText("Confirm this tool does not search the web before allowing direct calls.")
+      ).toBeTruthy();
+      expect(screen.getByText("Web search tools use the configured search order.")).toBeTruthy();
+      fireEvent.click(search);
+      expect(onToggleDirect).not.toHaveBeenCalled();
+      fireEvent.click(read);
+      expect(onToggleDirect).toHaveBeenCalledWith("read", true);
+      expect(screen.queryByText("Registered")).toBeNull();
+    });
+
     it("filters tools by name and description and explains an unmatched search", () => {
       mountTools();
       const search = screen.getByPlaceholderText("Search tools…");
@@ -91,6 +122,7 @@ describe("McpToolsSection", () => {
           autoApprovedTools={[]}
           onToggleTool={onToggleTool}
           onToggleAutoApprove={onToggleAutoApprove}
+          onToggleDirect={jest.fn()}
         />
       );
       fireEvent.click(screen.getByRole("switch", { name: "Enable search" }));
@@ -107,6 +139,7 @@ describe("McpToolsSection", () => {
           autoApprovedTools={[]}
           onToggleTool={jest.fn()}
           onToggleAutoApprove={jest.fn()}
+          onToggleDirect={jest.fn()}
         />
       );
       expect(
@@ -114,30 +147,39 @@ describe("McpToolsSection", () => {
       ).toBeTruthy();
     });
 
-    it("marks every enabled tool as deferred when deferred loading is active https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+    it("marks only enabled, confirmed tools as deferred when deferred loading is active https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
       render(
         <McpToolsSection
           tools={tools}
           disabledTools={[]}
           autoApprovedTools={[]}
+          directToolStates={new Map([["read", "approved"]])}
           deferred
           onToggleTool={jest.fn()}
           onToggleAutoApprove={jest.fn()}
+          onToggleDirect={jest.fn()}
         />
       );
-      expect(screen.getAllByText("Deferred")).toHaveLength(tools.length);
+      expect(screen.getAllByText("Deferred")).toHaveLength(1);
       expect(screen.getByText(/Deferred loading is active/)).toBeTruthy();
     });
 
-    it("marks enabled tools as fully registered when deferred loading is off https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
+    it("marks enabled, confirmed tools as fully registered when deferred loading is off https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
       render(
         <McpToolsSection
           tools={tools}
           disabledTools={["read"]}
           autoApprovedTools={[]}
+          directToolStates={
+            new Map([
+              ["search", "approved"],
+              ["read", "approved"],
+            ])
+          }
           deferred={false}
           onToggleTool={jest.fn()}
           onToggleAutoApprove={jest.fn()}
+          onToggleDirect={jest.fn()}
         />
       );
       expect(screen.getAllByText("Registered")).toHaveLength(1);

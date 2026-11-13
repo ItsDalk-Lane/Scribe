@@ -118,6 +118,7 @@ export async function discoverManagedSkills(
         enabledAgents: fm.enabledAgents,
         dependencies: fm.dependencies,
         uiMetadata: fm.uiMetadata,
+        ...(fm.webSearchCommand ? { webSearchCommand: fm.webSearchCommand } : {}),
         location: { kind: "canonical" },
       };
     }

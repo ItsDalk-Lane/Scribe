@@ -6,6 +6,7 @@ import { SecretStore } from "@/services/secretStore";
 import { sha256 } from "@/utils/hash";
 
 import { effectiveTimeoutSeconds, mcpServerConnectionFingerprint } from "./configSchema";
+import { canCallMcpToolDirectly, type McpWebSearchTarget } from "./mcpDirectPolicy";
 import { resolveMcpValues } from "./secretRefs";
 import {
   type McpServerConfig,
@@ -42,6 +43,8 @@ export type McpConnectionFactory = (
 ) => McpConnectionInstance | Promise<McpConnectionInstance>;
 
 export interface McpServerManagerOptions {
+  getWebSearchSelection?(): McpWebSearchTarget | undefined;
+  getServerConfiguration?(serverId: string): McpServerConfig | undefined;
   createConnection: McpConnectionFactory;
   resolveValues(
     server: McpServerConfig
@@ -109,6 +112,8 @@ export class McpServerManager {
         entry.state.version ?? null,
         entry.state.toolCount,
         entry.catalogSignature,
+        entry.config.description,
+        entry.config.directToolApprovals,
       ]);
     }
     return JSON.stringify(parts);
@@ -146,11 +151,30 @@ export class McpServerManager {
     }));
   }
 
-  async callTool(
+  callTool(
     serverId: string,
     name: string,
     args: Record<string, unknown> | undefined,
     signal?: AbortSignal
+  ): Promise<McpToolCallResult> {
+    return this.dispatchTool(serverId, name, args, signal, false);
+  }
+
+  callWebSearchTool(
+    serverId: string,
+    name: string,
+    args: Record<string, unknown> | undefined,
+    signal?: AbortSignal
+  ): Promise<McpToolCallResult> {
+    return this.dispatchTool(serverId, name, args, signal, true);
+  }
+
+  private async dispatchTool(
+    serverId: string,
+    name: string,
+    args: Record<string, unknown> | undefined,
+    signal: AbortSignal | undefined,
+    viaWebSearch: boolean
   ): Promise<McpToolCallResult> {
     // 开始卸载即停止派发，不能等异步连接清理走到此服务器。https://github.com/ItsDalk-Lane/Scribe/issues/71
     if (this.disposed)
@@ -173,11 +197,38 @@ export class McpServerManager {
         "not_started",
         `MCP tool "${name}" is disabled on "${entry.config.name}".`
       );
-    if (!this.getTools(serverId).some((tool) => tool.name === name))
+    const tool = this.getTools(serverId).find((candidate) => candidate.name === name);
+    if (!tool)
       throw new McpToolCallError(
         "not_started",
         `MCP tool "${name}" was not discovered on "${entry.config.name}".`
       );
+    const config = this.options.getServerConfiguration
+      ? this.options.getServerConfiguration(serverId)
+      : entry.config;
+    // 设置写入和服务重连不同步，派发须同时核对已保存配置与当前连接。https://github.com/ItsDalk-Lane/Scribe/issues/70
+    if (
+      !config ||
+      config.name !== entry.config.name ||
+      mcpServerConnectionFingerprint(config) !== entry.fingerprint
+    )
+      throw new McpToolCallError(
+        "not_started",
+        "The MCP server configuration changed before dispatch."
+      );
+    const selected = this.options.getWebSearchSelection?.();
+    if (viaWebSearch) {
+      if (selected?.serverId !== serverId || selected.toolName !== name)
+        throw new McpToolCallError(
+          "not_started",
+          "This MCP tool is not the configured web search source."
+        );
+    } else if (!canCallMcpToolDirectly(config, tool, selected)) {
+      throw new McpToolCallError(
+        "not_started",
+        "Direct MCP call blocked. Use web_search for web searches. Other tools require non-search confirmation in MCP settings."
+      );
+    }
     try {
       return await entry.connection.callTool(
         name,
@@ -393,6 +444,8 @@ export function initializeMcpServerManager(
   const existing = MANAGERS.get(app);
   if (existing) return existing;
   const manager = new McpServerManager({
+    getWebSearchSelection: () => getSettings().agentMode?.webSearch?.mcp,
+    getServerConfiguration: (id) => getSettings().mcp?.servers.find((server) => server.id === id),
     createConnection: (input) =>
       import("./McpConnection").then((module) => new module.McpSdkConnection(input)),
     resolveValues: (server) => resolveMcpValues(SecretStore.getInstance(app), server),

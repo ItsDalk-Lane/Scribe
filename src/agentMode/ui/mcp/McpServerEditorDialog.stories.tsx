@@ -46,6 +46,12 @@ const TOOLS = [
   },
 ];
 
+const SEARCH_TOOL = {
+  name: "lookup",
+  description: "Find current public web results.",
+  inputSchema: { type: "object", properties: { query: { type: "string" } } },
+};
+
 const meta = {
   title: "Modal/MCP server editor",
   component: (props: McpServerEditorContentProps) => (
@@ -110,8 +116,9 @@ export const ToolsTab: StoryObj<McpServerEditorContentProps> = {
   args: {
     mode: "edit",
     server: server({ isActive: true }),
-    runtime: runtime({ status: "connected", version: "1.2.0", tools: TOOLS }),
+    runtime: runtime({ status: "connected", version: "1.2.0", tools: [...TOOLS, SEARCH_TOOL] }),
     initialTab: "tools",
+    webSearchToolName: "lookup",
   },
 };
 

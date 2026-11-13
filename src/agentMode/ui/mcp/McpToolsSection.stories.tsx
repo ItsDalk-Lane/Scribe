@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@/lib/story";
 import React from "react";
 
-import { McpToolsSection, type McpToolsSectionProps } from "./McpToolsSection";
+import {
+  McpToolsSection,
+  type McpDirectToolState,
+  type McpToolsSectionProps,
+} from "./McpToolsSection";
 
 const TOOLS = [
   {
@@ -47,6 +51,11 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "search_web",
+    description: "Find current information on the public web.",
+    inputSchema: { type: "object", properties: { query: { type: "string" } } },
+  },
 ];
 
 const meta = {
@@ -55,6 +64,8 @@ const meta = {
   args: {
     onToggleTool: () => undefined,
     onToggleAutoApprove: () => undefined,
+    onToggleDirect: () => undefined,
+    directToolStates: new Map([["search_web", "web-search"]]),
   },
   parameters: { gallery: { host: "settings-tab", layout: "padded" } },
 } satisfies Meta<McpToolsSectionProps>;
@@ -69,6 +80,10 @@ export const MixedToggles: StoryObj<McpToolsSectionProps> = {
     tools: TOOLS,
     disabledTools: ["run_query"],
     autoApprovedTools: ["read_file"],
+    directToolStates: new Map([
+      ["read_file", "approved"],
+      ["search_web", "web-search"],
+    ]),
   },
 };
 
@@ -80,11 +95,23 @@ export const Interactive: StoryObj<McpToolsSectionProps> = {
   render: function InteractivePreview() {
     const [disabled, setDisabled] = React.useState<readonly string[]>([]);
     const [approved, setApproved] = React.useState<readonly string[]>([]);
+    const [direct, setDirect] = React.useState<ReadonlyMap<string, McpDirectToolState>>(
+      () => new Map([["search_web", "web-search"]])
+    );
     return (
       <McpToolsSection
         tools={TOOLS}
         disabledTools={disabled}
         autoApprovedTools={approved}
+        directToolStates={direct}
+        onToggleDirect={(name, value) =>
+          setDirect((current) => {
+            const next = new Map(current);
+            if (value) next.set(name, "approved");
+            else next.delete(name);
+            return next;
+          })
+        }
         onToggleTool={(name, enabled) =>
           setDisabled((current) =>
             enabled ? current.filter((entry) => entry !== name) : [...new Set([...current, name])]
@@ -110,6 +137,10 @@ export const DeferredLoading: StoryObj<McpToolsSectionProps> = {
     tools: TOOLS,
     disabledTools: [],
     autoApprovedTools: ["read_file"],
+    directToolStates: new Map([
+      ["read_file", "approved"],
+      ["search_web", "web-search"],
+    ]),
     deferred: true,
   },
 };
@@ -120,5 +151,9 @@ export const FullRegistration: StoryObj<McpToolsSectionProps> = {
     disabledTools: ["run_query"],
     autoApprovedTools: [],
     deferred: false,
+    directToolStates: new Map([
+      ["read_file", "approved"],
+      ["search_web", "web-search"],
+    ]),
   },
 };

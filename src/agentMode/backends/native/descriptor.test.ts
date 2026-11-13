@@ -31,6 +31,8 @@ import { buildObsidianCommandEnv } from "@/agentMode/backends/shared/obsidianCom
 import { EMPTY_PROJECT_CONFIG } from "@/projects/constants";
 import { getCachedProjectRecords, updateCachedProjectRecords } from "@/projects/state";
 import type { AgentExtensionRuntimeSnapshot } from "@/agentMode/session/extensionInventory";
+import { mcpDirectToolFingerprint } from "@/agentMode/mcp/mcpDirectPolicy";
+import type { McpServerConfig, McpToolInfo } from "@/agentMode/mcp/types";
 
 const mockStop = jest.fn().mockResolvedValue(undefined);
 const mockShutdown = jest.fn().mockResolvedValue(undefined);
@@ -678,6 +680,62 @@ describe("nativeDescriptor", () => {
         return jest.mocked(NativeBackendProcess).mock.calls.at(-1)![0];
       }
 
+      it("reserves the configured MCP search alias and rebuilds the tools even when the connection has not changed https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+        const searchAlias = { name: "lookup", inputSchema: {} } satisfies McpToolInfo;
+        const unrelated = { name: "read_notes", inputSchema: {} } satisfies McpToolInfo;
+        const server: McpServerConfig = {
+          id: "search-server-id",
+          name: "search_server",
+          type: "stdio",
+          command: "npx",
+          isActive: true,
+          createdAt: "",
+          updatedAt: "",
+        };
+        server.directToolApprovals = Object.fromEntries(
+          [searchAlias, unrelated].map((tool) => [
+            tool.name,
+            mcpDirectToolFingerprint(server, tool),
+          ])
+        );
+        mockGetMcpServerManager.mockReturnValue({
+          ...managerStub({}),
+          listEnabledServers: () => [server],
+          getTools: () => [searchAlias, unrelated],
+        });
+        const { createMcpTools } = jest.requireActual<typeof import("@/agentMode/mcp/mcpTools")>(
+          "@/agentMode/mcp/mcpTools"
+        );
+        mockCreateMcpTools
+          .mockImplementationOnce(createMcpTools)
+          .mockImplementationOnce(createMcpTools);
+        setSettings(({ agentMode }) => ({ agentMode: { ...agentMode, mcpToolLoading: "off" } }));
+        const options = createAndCaptureOptions();
+        const context = toolContext();
+        const previousRevision = options.getCapabilityRevision?.(context.cwd);
+        expect(options.createTools(context).tools.map((tool) => tool.name)).toContain(
+          "mcp__search_server__lookup"
+        );
+
+        setSettings(({ agentMode }) => ({
+          agentMode: {
+            ...agentMode,
+            webSearch: {
+              preferred: "builtin",
+              mcp: {
+                serverId: "search-server-id",
+                toolName: "lookup",
+                queryParameter: "query",
+              },
+            },
+          },
+        }));
+        expect(options.getCapabilityRevision?.(context.cwd)).not.toBe(previousRevision);
+        const current = options.createTools(context).tools.map((tool) => tool.name);
+        expect(current).not.toContain("mcp__search_server__lookup");
+        expect(current).toContain("mcp__search_server__read_notes");
+      });
+
       it("appends mcp tools and their auto-approval list to the session tool bundle", () => {
         const mcpTool = { name: "mcp__files__search" };
         mockGetMcpServerManager.mockReturnValue(managerStub({}));
@@ -703,10 +761,7 @@ describe("nativeDescriptor", () => {
         });
         const options = createAndCaptureOptions();
         const bundle = options.createTools(toolContext());
-        expect(mockCreateMcpTools).toHaveBeenLastCalledWith(
-          expect.anything(),
-          expect.objectContaining({ selectedNames: [] })
-        );
+        expect(mockCreateMcpTools.mock.lastCall?.[1]).toMatchObject({ selectedNames: [] });
         expect(bundle.tools).toContain(mcpTool);
         expect(bundle.tools.map((tool) => tool.name)).toContain("tool_search");
       });
@@ -724,10 +779,9 @@ describe("nativeDescriptor", () => {
         const context = toolContext();
         context.mcpToolSelections.select("mcp__files__search");
         options.createTools(context);
-        expect(mockCreateMcpTools).toHaveBeenLastCalledWith(
-          expect.anything(),
-          expect.objectContaining({ selectedNames: ["mcp__files__search"] })
-        );
+        expect(mockCreateMcpTools.mock.lastCall?.[1]).toMatchObject({
+          selectedNames: ["mcp__files__search"],
+        });
       });
 
       it("keeps full registration below the auto threshold without registering tool_search https://github.com/ItsDalk-Lane/Scribe/issues/65", () => {
@@ -738,7 +792,7 @@ describe("nativeDescriptor", () => {
         });
         const options = createAndCaptureOptions();
         const bundle = options.createTools(toolContext());
-        expect(mockCreateMcpTools).toHaveBeenLastCalledWith(expect.anything());
+        expect(mockCreateMcpTools.mock.lastCall?.[1]).toBeUndefined();
         expect(bundle.tools.map((tool) => tool.name)).not.toContain("tool_search");
       });
 
@@ -753,7 +807,7 @@ describe("nativeDescriptor", () => {
         });
         const options = createAndCaptureOptions();
         const bundle = options.createTools(toolContext({ allowedTools: ["mcp__files__search"] }));
-        expect(mockCreateMcpTools).toHaveBeenLastCalledWith(expect.anything());
+        expect(mockCreateMcpTools.mock.lastCall?.[1]).toBeUndefined();
         expect(bundle.tools.map((tool) => tool.name)).not.toContain("tool_search");
       });
 

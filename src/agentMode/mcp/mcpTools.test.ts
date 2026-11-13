@@ -6,6 +6,7 @@ import {
 import { getNativeToolPolicy } from "@/agentMode/sdk/nativeToolDefinition";
 import { DeferredMcpToolRegistry } from "@/agentMode/mcp/deferredMcpTools";
 import { McpServerManager, McpToolCallError } from "@/agentMode/mcp/McpServerManager";
+import { mcpDirectToolFingerprint } from "@/agentMode/mcp/mcpDirectPolicy";
 import type { McpServerConfig, McpToolCallResult, McpToolInfo } from "@/agentMode/mcp/types";
 
 interface ManagerStubInput {
@@ -19,8 +20,19 @@ interface ManagerStubInput {
 }
 
 function managerStub({ servers, toolsByServer, callTool }: ManagerStubInput): McpServerManager {
+  const approvedServers = servers.map((entry) => ({
+    ...entry,
+    directToolApprovals:
+      entry.directToolApprovals ??
+      Object.fromEntries(
+        (toolsByServer[entry.id] ?? []).map((tool) => [
+          tool.name,
+          mcpDirectToolFingerprint(entry, tool),
+        ])
+      ),
+  }));
   return {
-    listEnabledServers: () => servers.filter((entry) => entry.isActive),
+    listEnabledServers: () => approvedServers.filter((entry) => entry.isActive),
     getTools: (serverId: string) => toolsByServer[serverId] ?? [],
     callTool: callTool ?? (async () => ({ content: [{ type: "text", text: "done" }] })),
   } as unknown as McpServerManager;
@@ -94,6 +106,33 @@ describe("mcpTools", () => {
         label: "search",
         description: "Search notes.",
       });
+    });
+
+    it("keeps unconfirmed aliases and advertised web search out of full registration even if auto-approved https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      const web: McpToolInfo = { name: "web_search", inputSchema: {} };
+      const alias: McpToolInfo = { name: "lookup", inputSchema: {} };
+      const config = server({ autoApprovedTools: [web.name, alias.name, SEARCH_TOOL.name] });
+      config.directToolApprovals = Object.fromEntries(
+        [web, SEARCH_TOOL].map((tool) => [tool.name, mcpDirectToolFingerprint(config, tool)])
+      );
+      const bundle = createMcpTools(
+        managerStub({ servers: [config], toolsByServer: { "srv-1": [web, alias, SEARCH_TOOL] } })
+      );
+
+      expect(bundle.tools.map((tool) => tool.name)).toEqual(["mcp__files__search"]);
+      expect([...bundle.autoApprovedTools]).toEqual(["mcp__files__search"]);
+    });
+
+    it("keeps the reserved search alias out of full registration despite its previous confirmation https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      const config = server({ autoApprovedTools: [SEARCH_TOOL.name] });
+      const manager = managerStub({ servers: [config], toolsByServer: { "srv-1": [SEARCH_TOOL] } });
+      const bundle = createMcpTools(manager, undefined, {
+        serverId: config.id,
+        toolName: SEARCH_TOOL.name,
+      });
+
+      expect(bundle.tools).toEqual([]);
+      expect([...bundle.autoApprovedTools]).toEqual([]);
     });
 
     it("passes the MCP input schema through as the tool parameters", () => {
@@ -196,6 +235,26 @@ describe("mcpTools", () => {
       const full = createMcpTools(manager);
       expect(deferred.tools.map((tool) => tool.name)).toEqual(full.tools.map((tool) => tool.name));
       expect([...deferred.autoApprovedTools].sort()).toEqual([...full.autoApprovedTools].sort());
+    });
+
+    it("ignores saved selections for unconfirmed aliases and advertised web search https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+      const web: McpToolInfo = { name: "web_search", inputSchema: {} };
+      const alias: McpToolInfo = { name: "lookup", inputSchema: {} };
+      const config = server({ autoApprovedTools: [web.name, alias.name, SEARCH_TOOL.name] });
+      config.directToolApprovals = Object.fromEntries(
+        [web, SEARCH_TOOL].map((tool) => [tool.name, mcpDirectToolFingerprint(config, tool)])
+      );
+      const manager = managerStub({
+        servers: [config],
+        toolsByServer: { "srv-1": [web, alias, SEARCH_TOOL] },
+      });
+      const bundle = createMcpTools(manager, {
+        registry: DeferredMcpToolRegistry.fromManager(manager),
+        selectedNames: ["mcp__files__web_search", "mcp__files__lookup", "mcp__files__search"],
+      });
+
+      expect(bundle.tools.map((tool) => tool.name)).toEqual(["mcp__files__search"]);
+      expect([...bundle.autoApprovedTools]).toEqual(["mcp__files__search"]);
     });
   });
 

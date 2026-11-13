@@ -24,6 +24,10 @@ import {
   parseArgLines,
   parseKeyValueLines,
 } from "@/agentMode/mcp/configSchema";
+import {
+  isAdvertisedMcpWebSearch,
+  mcpDirectToolFingerprint,
+} from "@/agentMode/mcp/mcpDirectPolicy";
 import { deleteUnusedMcpSecretEntries, persistMcpSecretEntries } from "@/agentMode/mcp/secretRefs";
 import type {
   McpServerConfig,
@@ -32,8 +36,8 @@ import type {
   McpToolInfo,
 } from "@/agentMode/mcp/types";
 import { SecretStore } from "@/services/secretStore";
-import { useSettingsValue } from "@/settings/model";
-import { McpToolsSection } from "./McpToolsSection";
+import { getSettings, useSettingsValue } from "@/settings/model";
+import { McpToolsSection, type McpDirectToolState } from "./McpToolsSection";
 import { isDeferredMcpLoadingActive } from "./mcpToolLoadingUi";
 import { useMcpServerRuntime, writeMcpServers } from "./mcpUiState";
 
@@ -51,7 +55,10 @@ export interface McpServerDraft {
   isActive: boolean;
   disabledTools: string[];
   autoApprovedTools: string[];
+  directToolChanges: Record<string, string | null>;
 }
+
+const EMPTY_DIRECT_TOOL_CHANGES: McpServerDraft["directToolChanges"] = Object.freeze({});
 
 export function draftFromServer(server: McpServerConfig): McpServerDraft {
   return {
@@ -68,6 +75,7 @@ export function draftFromServer(server: McpServerConfig): McpServerDraft {
     isActive: server.isActive,
     disabledTools: [...(server.disabledTools ?? [])],
     autoApprovedTools: [...(server.autoApprovedTools ?? [])],
+    directToolChanges: EMPTY_DIRECT_TOOL_CHANGES,
   };
 }
 
@@ -85,6 +93,7 @@ export const EMPTY_MCP_SERVER_DRAFT: McpServerDraft = Object.freeze({
   isActive: false,
   disabledTools: [],
   autoApprovedTools: [],
+  directToolChanges: EMPTY_DIRECT_TOOL_CHANGES,
 });
 
 export function validateMcpServerDraft(
@@ -111,6 +120,17 @@ export function draftChanged(draft: McpServerDraft, server: McpServerConfig | nu
   if (!server) return true;
   const original = draftFromServer(server);
   return (
+    draftConnectionChanged(draft, original) ||
+    draft.timeoutText !== original.timeoutText ||
+    draft.longRunning !== original.longRunning ||
+    !arraysEqual(draft.disabledTools, original.disabledTools) ||
+    !arraysEqual(draft.autoApprovedTools, original.autoApprovedTools) ||
+    Object.keys(draft.directToolChanges).length > 0
+  );
+}
+
+function draftConnectionChanged(draft: McpServerDraft, original: McpServerDraft): boolean {
+  return (
     draft.name !== original.name ||
     draft.type !== original.type ||
     draft.description !== original.description ||
@@ -118,11 +138,7 @@ export function draftChanged(draft: McpServerDraft, server: McpServerConfig | nu
     draft.url !== original.url ||
     draft.argsText !== original.argsText ||
     draft.envText !== original.envText ||
-    draft.headersText !== original.headersText ||
-    draft.timeoutText !== original.timeoutText ||
-    draft.longRunning !== original.longRunning ||
-    !arraysEqual(draft.disabledTools, original.disabledTools) ||
-    !arraysEqual(draft.autoApprovedTools, original.autoApprovedTools)
+    draft.headersText !== original.headersText
   );
 }
 
@@ -177,6 +193,7 @@ const McpServerEditorBridge: React.FC<{
   const settings = useSettingsValue();
   const server = settings.mcp.servers.find((entry) => entry.id === serverId) ?? null;
   const { state, tools } = useMcpServerRuntime(serverId ?? null);
+  const webSearch = settings.agentMode?.webSearch?.mcp;
   const [saving, setSaving] = useState(false);
 
   const handleToggleActive = (checked: boolean): void => {
@@ -236,7 +253,23 @@ const McpServerEditorBridge: React.FC<{
       };
       await writeMcpServers(app, (servers) =>
         server
-          ? servers.map((entry) => (entry.id === resolvedId ? next : entry))
+          ? servers.map((entry) => {
+              if (entry.id !== resolvedId) return entry;
+              if (draftConnectionChanged(draft, draftFromServer(entry))) return next;
+              const approvals = new Map(Object.entries(entry.directToolApprovals ?? {}));
+              for (const [name, fingerprint] of Object.entries(draft.directToolChanges)) {
+                if (fingerprint === null) approvals.delete(name);
+                else approvals.set(name, fingerprint);
+              }
+              const reserved = getSettings().agentMode?.webSearch?.mcp;
+              if (reserved?.serverId === resolvedId) approvals.delete(reserved.toolName);
+              for (const tool of tools) {
+                if (isAdvertisedMcpWebSearch(next, tool)) approvals.delete(tool.name);
+              }
+              return approvals.size
+                ? { ...next, directToolApprovals: Object.fromEntries(approvals) }
+                : next;
+            })
           : [...servers, next]
       );
       onSaved?.();
@@ -301,6 +334,7 @@ const McpServerEditorBridge: React.FC<{
       saving={saving}
       liveActive={server?.isActive}
       deferred={isDeferredMcpLoadingActive(app)}
+      webSearchToolName={webSearch?.serverId === server?.id ? webSearch?.toolName : undefined}
       onToggleActive={server ? handleToggleActive : undefined}
       onSave={handleSave}
       onDelete={server ? handleDelete : undefined}
@@ -323,6 +357,7 @@ export interface McpServerEditorContentProps {
   saving?: boolean;
   deferred?: boolean;
   initialTab?: "general" | "tools";
+  webSearchToolName?: string;
   liveActive?: boolean;
   onToggleActive?: (checked: boolean) => void;
   onSave: (draft: McpServerDraft) => Promise<void> | void;
@@ -337,6 +372,7 @@ export const McpServerEditorContent: React.FC<McpServerEditorContentProps> = ({
   saving = false,
   deferred = false,
   initialTab = "general",
+  webSearchToolName,
   liveActive,
   onToggleActive,
   onSave,
@@ -352,6 +388,37 @@ export const McpServerEditorContent: React.FC<McpServerEditorContentProps> = ({
   const canSave = Object.keys(errors).length === 0 && dirty && !saving;
   const patch = (partial: Partial<McpServerDraft>): void =>
     setDraft((current) => ({ ...current, ...partial }));
+  const directToolStates = new Map<string, McpDirectToolState>();
+  if (tab === "tools" && server) {
+    const connectionChanged =
+      runtime.status !== "connected" || draftConnectionChanged(draft, draftFromServer(server));
+    for (const tool of runtime.tools) {
+      if (tool.name === webSearchToolName || isAdvertisedMcpWebSearch(server, tool)) {
+        directToolStates.set(tool.name, "web-search");
+      } else if (connectionChanged) {
+        directToolStates.set(tool.name, "connection-changed");
+      } else {
+        const approval = Object.hasOwn(draft.directToolChanges, tool.name)
+          ? draft.directToolChanges[tool.name]
+          : server.directToolApprovals?.[tool.name];
+        if (approval === mcpDirectToolFingerprint(server, tool))
+          directToolStates.set(tool.name, "approved");
+      }
+    }
+  }
+
+  const toggleDirectTool = (name: string, approved: boolean): void => {
+    const tool = runtime.tools.find((entry) => entry.name === name);
+    const state = directToolStates.get(name);
+    if (!server || !tool || state === "web-search" || state === "connection-changed") return;
+    const fingerprint = approved ? mcpDirectToolFingerprint(server, tool) : null;
+    setDraft((current) => {
+      const directToolChanges = { ...current.directToolChanges, [name]: fingerprint };
+      if (fingerprint === (server.directToolApprovals?.[name] ?? null))
+        delete directToolChanges[name];
+      return { ...current, directToolChanges };
+    });
+  };
 
   return (
     <div className="tw-group/settings tw-flex tw-min-h-0 tw-min-w-0 tw-flex-1 tw-flex-col tw-gap-4">
@@ -553,6 +620,8 @@ export const McpServerEditorContent: React.FC<McpServerEditorContentProps> = ({
             disabled={saving}
             disabledTools={draft.disabledTools}
             autoApprovedTools={draft.autoApprovedTools}
+            directToolStates={directToolStates}
+            onToggleDirect={toggleDirectTool}
             deferred={deferred}
             onToggleTool={(name, enabled) =>
               patch({

@@ -1,5 +1,6 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 import { DeferredMcpToolRegistry } from "@/agentMode/mcp/deferredMcpTools";
+import { mcpDirectToolFingerprint } from "@/agentMode/mcp/mcpDirectPolicy";
 import { createMcpTools } from "@/agentMode/mcp/mcpTools";
 import type { McpServerManager } from "@/agentMode/mcp/McpServerManager";
 import type { McpServerConfig, McpToolCallResult, McpToolInfo } from "@/agentMode/mcp/types";
@@ -17,8 +18,19 @@ interface ManagerStubInput {
 }
 
 function managerStub({ servers, toolsByServer, callTool }: ManagerStubInput): McpServerManager {
+  const approvedServers = servers.map((entry) => ({
+    ...entry,
+    directToolApprovals:
+      entry.directToolApprovals ??
+      Object.fromEntries(
+        (toolsByServer[entry.id] ?? []).map((tool) => [
+          tool.name,
+          mcpDirectToolFingerprint(entry, tool),
+        ])
+      ),
+  }));
   return {
-    listEnabledServers: () => servers.filter((entry) => entry.isActive),
+    listEnabledServers: () => approvedServers.filter((entry) => entry.isActive),
     getTools: (serverId: string) => toolsByServer[serverId] ?? [],
     callTool:
       callTool ??
@@ -305,6 +317,25 @@ describe("nativeToolSearch", () => {
       expect(registry.find("mcp__files__hidden")).toBeUndefined();
       const result = await toolSearch.execute("call-1", { query: "hidden" });
       expect(result.isError).toBe(true);
+    });
+
+    it("cannot register an unconfirmed tool alias by explicitly naming it in tool_search https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      const manager = managerStub({
+        servers: [server({ autoApprovedTools: ["lookup"], directToolApprovals: {} })],
+        toolsByServer: { "srv-1": [{ name: "lookup", inputSchema: {} }] },
+      });
+      const registerTool = jest.fn();
+      const select = jest.fn();
+      const toolSearch = createToolSearchTool({
+        catalog: DeferredMcpToolRegistry.fromManager(manager),
+        registerTool,
+        selections: { names: () => [], select },
+      });
+
+      const result = await toolSearch.execute("call-1", { select: "mcp__files__lookup" });
+      expect(textOf(result)).toContain('No deferred tool matches "mcp__files__lookup"');
+      expect(registerTool).not.toHaveBeenCalled();
+      expect(select).not.toHaveBeenCalled();
     });
   });
 });

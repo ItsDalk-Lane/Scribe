@@ -119,6 +119,20 @@ describe("discoverManagedSkills", () => {
       expect(result.accepted).toEqual([]);
       expect(result.rejected[0].reason).toContain("Multiple SKILL.md");
     });
+
+    it("includes the declared search script in the installed skill inventory", async () => {
+      const adapter = makeAdapter({
+        [`${SKILLS_ROOT}/review-prose/SKILL.md`]: validSkillMd({
+          "web-search-command": "scripts/search.py",
+        }),
+      });
+      const { accepted } = await discoverManagedSkills({
+        skillsFolderRelPath: SKILLS_ROOT,
+        skillsFolderAbsPath: null,
+        adapter,
+      });
+      expect(accepted[0]).toHaveProperty("webSearchCommand", "scripts/search.py");
+    });
     it("reads a previously bundled skill as an ordinary skill without changing its metadata or body https://github.com/ItsDalk-Lane/Scribe/issues/32", async () => {
       const content =
         '---\nname: obsidian-markdown\ndescription: Local skill\nmetadata:\n  scribe-builtin-version: "1"\n  scribe-enabled-agents: "native"\n  user-data: keep\n---\nExisting user-edited instructions';

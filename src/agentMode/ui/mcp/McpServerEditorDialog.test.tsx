@@ -10,11 +10,19 @@ import {
   validateMcpServerDraft,
   type McpServerEditorContentProps,
 } from "./McpServerEditorDialog";
-import type { McpServerConfig } from "@/agentMode/mcp/types";
+import type { McpServerConfig, McpToolInfo } from "@/agentMode/mcp/types";
+import { mcpDirectToolFingerprint } from "@/agentMode/mcp/mcpDirectPolicy";
 
 const mockSetSecret = jest.fn(async () => undefined);
 const mockDeleteSecret = jest.fn(async () => undefined);
 let mockConfirm!: () => Promise<void>;
+let mockRuntimeTools: readonly McpToolInfo[] = [];
+
+const READ_TOOL: McpToolInfo = {
+  name: "read_file",
+  description: "Read a local text file.",
+  inputSchema: { type: "object", properties: { path: { type: "string" } } },
+};
 jest.mock("@/components/modals/ConfirmModal", () => ({
   ConfirmModal: class {
     constructor(_app: unknown, onConfirm: () => Promise<void>) {
@@ -23,7 +31,10 @@ jest.mock("@/components/modals/ConfirmModal", () => ({
     open() {}
   },
 }));
-const mockSettings = { mcp: { servers: [] as McpServerConfig[] } };
+const mockSettings: {
+  mcp: { servers: McpServerConfig[] };
+  agentMode: { webSearch?: { mcp: { serverId: string; toolName: string } } };
+} = { mcp: { servers: [] }, agentMode: {} };
 const mockWrite = jest.fn(
   async (_app: unknown, update: (servers: McpServerConfig[]) => McpServerConfig[]) => {
     mockSettings.mcp.servers = update(mockSettings.mcp.servers);
@@ -37,7 +48,10 @@ jest.mock("@/settings/model", () => ({
 }));
 jest.mock("./mcpUiState", () => ({
   writeMcpServers: (...args: Parameters<typeof mockWrite>) => mockWrite(...args),
-  useMcpServerRuntime: () => ({ state: { status: "connected", version: "1.0" }, tools: [] }),
+  useMcpServerRuntime: () => ({
+    state: { status: "connected", version: "1.0" },
+    tools: mockRuntimeTools,
+  }),
 }));
 /* eslint-enable @eslint-react/hooks-extra/no-unnecessary-use-prefix */
 jest.mock("@/services/secretStore", () => ({
@@ -50,7 +64,7 @@ jest.mock("@/components/modals/ReactModal", () => ({ ReactModal: class {} }));
 function server(): McpServerConfig {
   return {
     id: "remote",
-    name: "search",
+    name: "remote",
     type: "streamableHttp",
     url: "https://example.com/mcp",
     isActive: true,
@@ -206,6 +220,36 @@ describe("McpServerEditorDialog", () => {
       );
     });
 
+    it("withholds direct approval for the configured search tool and when the connection draft is unsaved", () => {
+      mountEditor({
+        mode: "edit",
+        server: server(),
+        webSearchToolName: "lookup",
+        runtime: {
+          status: "connected",
+          tools: [READ_TOOL, { name: "lookup", inputSchema: {} }],
+        },
+      });
+      fireEvent.change(screen.getByLabelText("URL"), {
+        target: { value: "https://example.net/mcp" },
+      });
+      fireEvent.click(screen.getByRole("radio", { name: "Tools (2)" }));
+      const read = screen.getByRole("switch", {
+        name: "Allow direct calls for read_file (non-search)",
+      });
+      const lookup = screen.getByRole("switch", {
+        name: "Allow direct calls for lookup (non-search)",
+      });
+      expect(read.getAttribute("aria-disabled")).toBe("true");
+      expect(lookup.getAttribute("aria-disabled")).toBe("true");
+      expect(
+        screen.getByText(
+          "Save the connection changes and reopen the tool list before allowing direct calls."
+        )
+      ).toBeTruthy();
+      expect(screen.getByText("Web search tools use the configured search order.")).toBeTruthy();
+    });
+
     it("prevents changes to fields and live switches while saving the submitted configuration", () => {
       const onToggleActive = jest.fn();
       mountEditor({ mode: "edit", server: server(), saving: true, onToggleActive });
@@ -238,11 +282,56 @@ describe("McpServerEditorDialog", () => {
     describe("renderContent()", () => {
       beforeEach(() => {
         mockSettings.mcp.servers = [server()];
+        mockSettings.agentMode = {};
+        mockRuntimeTools = [READ_TOOL];
         mockSetSecret.mockClear();
         mockDeleteSecret.mockReset();
         mockDeleteSecret.mockImplementation(async () => undefined);
         jest.mocked(Notice).mockClear();
         mockWrite.mockClear();
+      });
+
+      it("saves and restores only the explicit non-search approval and clears it when revoked", async () => {
+        const close = jest.fn();
+        const opened = render(
+          new EditorModalFixture({} as App, { serverId: "remote" }).content(close)
+        );
+        fireEvent.click(screen.getByRole("radio", { name: "Tools (1)" }));
+        const toggle = () =>
+          screen.getByRole("switch", { name: "Allow direct calls for read_file (non-search)" });
+        expect(toggle().getAttribute("aria-checked")).toBe("false");
+        fireEvent.click(toggle());
+        expect(mockWrite).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
+        expect(mockSettings.mcp.servers[0].directToolApprovals).toEqual({
+          read_file: mcpDirectToolFingerprint(server(), READ_TOOL),
+        });
+        expect(mockSettings.mcp.servers[0].autoApprovedTools).toBeUndefined();
+
+        opened.unmount();
+        render(new EditorModalFixture({} as App, { serverId: "remote" }).content(close));
+        fireEvent.click(screen.getByRole("radio", { name: "Tools (1)" }));
+        expect(toggle().getAttribute("aria-checked")).toBe("true");
+        fireEvent.click(toggle());
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        await waitFor(() => expect(close).toHaveBeenCalledTimes(2));
+        expect(mockSettings.mcp.servers[0].directToolApprovals).toBeUndefined();
+      });
+
+      it("does not save a pending approval when the tool has since become the configured web search", async () => {
+        const close = jest.fn();
+        render(new EditorModalFixture({} as App, { serverId: "remote" }).content(close));
+        fireEvent.click(screen.getByRole("radio", { name: "Tools (1)" }));
+        fireEvent.click(
+          screen.getByRole("switch", { name: "Allow direct calls for read_file (non-search)" })
+        );
+        mockSettings.agentMode = {
+          webSearch: { mcp: { serverId: "remote", toolName: "read_file" } },
+        };
+        fireEvent.click(screen.getByRole("button", { name: "Save" }));
+        await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
+        expect(mockSettings.mcp.servers[0].directToolApprovals).toBeUndefined();
       });
 
       it("preserves a server's credential when removing its configuration cannot be saved", async () => {

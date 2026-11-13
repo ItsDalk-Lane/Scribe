@@ -29,6 +29,12 @@ import { getExcalidrawApi } from "@/excalidraw/excalidrawApi";
 import { htmlToMarkdown } from "@/services/webViewerService/webViewerServiceHelpers";
 import { isRecord } from "@/utils/obsidianInternals";
 import { safeFetchNoThrow } from "@/utils";
+import {
+  routeWebSearch,
+  WebSearchOutcomeUnknown,
+  type WebSearchRoute,
+} from "@/agentMode/sdk/webSearchRouter";
+import type { WebSearchSource } from "@/settings/webSearchProvider";
 import type { SceneElement } from "@/excalidraw/excalidrawOutline";
 import type { NativeObservedFileVersion } from "@/agentMode/sdk/nativeFileVersions";
 import { pageToolText, withToolExecution } from "@/utils/toolResultProjection";
@@ -70,6 +76,10 @@ export interface NativeAdvancedToolsOptions extends Omit<
   onSkillInvoked?: (name: string) => void;
   fetch?: typeof safeFetchNoThrow;
   searchUrlTemplate?: string;
+  getWebSearchRoutes?: () => {
+    preferred: WebSearchSource;
+    routes: Partial<Record<WebSearchSource, WebSearchRoute>>;
+  };
 }
 
 export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): AgentTool[] {
@@ -80,16 +90,15 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
   const vaultBase = getNativeVaultIdentity(adapter);
   const observed = options.observedFileVersions ?? new Map<string, NativeObservedFileVersion>();
 
-  async function readPage(
-    requested: string,
-    maxCharacters: number | undefined,
-    signal?: AbortSignal,
-    cursor?: string
-  ): Promise<AgentToolResult> {
+  const searchPages = new Map<
+    string,
+    { text: string; source: WebSearchSource; failures: string[] }
+  >();
+
+  async function fetchPage(requested: string, operationSignal: AbortSignal) {
     const url = new URL(requested);
     if (url.protocol !== "http:" && url.protocol !== "https:")
       throw new Error("Only HTTP and HTTPS URLs are supported.");
-    const operationSignal = signal ?? new AbortController().signal;
     operationSignal.throwIfAborted();
     const response = await raceWithAbortSignal(
       (options.fetch ?? safeFetchNoThrow)(url.href, { method: "GET", signal: operationSignal }),
@@ -102,6 +111,19 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
     if (contentType && !/^(text\/|application\/(?:json|xml|xhtml\+xml))/i.test(contentType))
       throw new Error(`Unsupported web content type: ${contentType}`);
     const content = /html/i.test(contentType) ? htmlToMarkdown(original, finalUrl) : original;
+    return { content, finalUrl, status: response.status };
+  }
+
+  async function readPage(
+    requested: string,
+    maxCharacters: number | undefined,
+    signal?: AbortSignal,
+    cursor?: string
+  ): Promise<AgentToolResult> {
+    const { content, finalUrl, status } = await fetchPage(
+      requested,
+      signal ?? new AbortController().signal
+    );
     const page = pageToolText(
       content,
       finalUrl,
@@ -113,7 +135,7 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
       content: [{ type: "text", text: pageText }],
       details: {
         url: finalUrl,
-        status: response.status,
+        status,
         ...pageDetails,
         characters: content.length,
         complete: !page.truncated,
@@ -314,16 +336,72 @@ export function createNativeAdvancedTools(options: NativeAdvancedToolsOptions): 
         max_characters: opt(int({ minimum: 1, maximum: 200000 })),
         cursor: opt(str()),
       }),
-      (_id, args, signal) => {
-        const template = options.searchUrlTemplate ?? "https://html.duckduckgo.com/html/?q={query}";
-        if (!template.includes("{query}"))
-          throw new Error("The search URL template must contain {query}.");
-        return readPage(
-          template.replaceAll("{query}", encodeURIComponent(args.query)),
-          args.max_characters,
-          signal,
-          args.cursor
+      async (id, args, signal) => {
+        const operationSignal = signal ?? new AbortController().signal;
+        const search = options.getWebSearchRoutes?.();
+        const result = args.cursor
+          ? searchPages.get(args.cursor.split(":")[1] ?? "")
+          : await routeWebSearch(
+              search?.preferred ?? "builtin",
+              {
+                builtin: async (_id, query, requestSignal) => {
+                  const template =
+                    options.searchUrlTemplate ?? "https://html.duckduckgo.com/html/?q={query}";
+                  if (!template.includes("{query}"))
+                    throw new Error("The search URL template must contain {query}.");
+                  try {
+                    const page = await fetchPage(
+                      template.replaceAll("{query}", encodeURIComponent(query)),
+                      requestSignal
+                    );
+                    return page.status === 202
+                      ? { failure: "The search engine returned a verification page (HTTP 202)." }
+                      : { text: page.content };
+                  } catch (error) {
+                    requestSignal.throwIfAborted();
+                    return { failure: error instanceof Error ? error.message : String(error) };
+                  }
+                },
+                ...search?.routes,
+              },
+              id,
+              args.query,
+              operationSignal,
+              () => options.assertCanExecute?.("web_search")
+            ).catch((error: unknown) => {
+              if (error instanceof WebSearchOutcomeUnknown) return error;
+              throw error;
+            });
+        if (result instanceof WebSearchOutcomeUnknown)
+          return withToolExecution(
+            { content: [{ type: "text", text: result.message }], details: undefined },
+            { status: "outcome_unknown", retry: "verify_before_retry", complete: false }
+          );
+        // 续读只读取原有结果，避免重复派发远程调用。https://github.com/ItsDalk-Lane/Scribe/issues/70
+        if (!result) throw new Error("This search continuation has expired.");
+        const page = pageToolText(
+          result.text,
+          args.query,
+          args.cursor,
+          args.max_characters ?? Math.max(1, result.text.length)
         );
+        if (page.nextCursor) {
+          searchPages.set(page.fingerprint, result);
+          if (searchPages.size > 8) {
+            const oldest = searchPages.keys().next();
+            if (!oldest.done) searchPages.delete(oldest.value);
+          }
+        }
+        return {
+          content: [{ type: "text", text: page.text }],
+          details: {
+            searchSource: result.source,
+            failedSearches: result.failures,
+            truncated: page.truncated,
+            complete: !page.truncated,
+            nextCursor: page.nextCursor,
+          },
+        };
       },
       { kind: "fetch", skillAuthoring: false }
     ),

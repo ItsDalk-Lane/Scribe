@@ -10,6 +10,7 @@ import {
   createNativeAdvancedTools,
   type NativeAdvancedToolsOptions,
 } from "@/agentMode/sdk/nativeAdvancedTools";
+import { WebSearchOutcomeUnknown } from "@/agentMode/sdk/webSearchRouter";
 import type { ScribeMode, PermissionDecision, SessionUpdate } from "@/agentMode/session/types";
 
 jest.mock("@/excalidraw/excalidrawApi");
@@ -792,6 +793,65 @@ describe("nativeAdvancedTools", () => {
       await expect(execute("fetch_url", { url: "file:///private/note.md" })).rejects.toThrow(
         "HTTP"
       );
+    });
+
+    it("uses the selected DeepSeek search in an open chat and continues without charging for another request", async () => {
+      const query = "Obsidian & drawings";
+      const content = JSON.stringify({
+        results: [{ title: "Drawings", url: "https://example.com" }],
+      });
+      const search = jest.fn(async () => ({ text: content }));
+      let selected = false;
+      options.getWebSearchRoutes = () => ({
+        preferred: "builtin",
+        routes: selected ? { builtin: search } : {},
+      });
+      const tool = createNativeAdvancedTools(options).find((entry) => entry.name === "web_search")!;
+
+      await tool.execute("duck", { query });
+      expect(options.fetch).toHaveBeenCalledWith(
+        "https://html.duckduckgo.com/html/?q=Obsidian%20%26%20drawings",
+        expect.objectContaining({ method: "GET" })
+      );
+      selected = true;
+      const first = await tool.execute("deepseek", { query, max_characters: 12 });
+      const cursor = (first.details as { nextCursor: string }).nextCursor;
+      expect(first.content[0]).toMatchObject({ text: expect.stringContaining(cursor) });
+      selected = false;
+      const rest = await tool.execute("next", { query, cursor });
+      expect(rest.content[0]).toEqual({ type: "text", text: content.slice(12) });
+      expect(options.fetch).toHaveBeenCalledTimes(1);
+      expect(search).toHaveBeenCalledTimes(1);
+      expect(search).toHaveBeenCalledWith("deepseek", query, expect.any(AbortSignal));
+    });
+
+    it("switches to the configured MCP search only after DuckDuckGo returns a verification page https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      options.fetch = jest.fn(async () => new Response("verification", { status: 202 }));
+      const mcp = jest.fn(async () => ({ text: "https://example.com/real-result" }));
+      options.getWebSearchRoutes = () => ({ preferred: "builtin", routes: { mcp } });
+      const result = await execute("web_search", { query: "Scribe" });
+      expect(result.content[0]).toMatchObject({ text: "https://example.com/real-result" });
+      expect(result.details).toMatchObject({
+        searchSource: "mcp",
+        failedSearches: [expect.stringContaining("HTTP 202")],
+      });
+      expect(mcp).toHaveBeenCalledWith("web_search", "Scribe", expect.any(AbortSignal));
+    });
+
+    it("reports an uncertain remote outcome without offering a safe retry or switching sources https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      options.getWebSearchRoutes = () => ({
+        preferred: "mcp",
+        routes: {
+          mcp: async () => {
+            throw new WebSearchOutcomeUnknown("Disconnected after dispatch");
+          },
+        },
+      });
+      const result = await execute("web_search", { query: "Scribe" });
+      expect(result.details).toMatchObject({
+        execution: { status: "outcome_unknown", retry: "verify_before_retry" },
+      });
+      expect(options.fetch).not.toHaveBeenCalled();
     });
 
     it("surfaces endpoint failures and stops local consumption of an uncancellable request", async () => {

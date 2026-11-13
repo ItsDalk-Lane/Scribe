@@ -16,6 +16,10 @@ import { DeferredMcpToolRegistry, resolveMcpLoadingState } from "@/agentMode/mcp
 import { createToolSearchTool } from "@/agentMode/sdk/nativeToolSearch";
 import { ScribeBrandIcon } from "@/components/ui/ScribeBrandIcon";
 import { t } from "@/lib/i18n";
+import { getDeepSeekSearchCredential } from "@/settings/webSearchProvider";
+import { searchDeepSeek } from "@/agentMode/backends/native/deepSeekWebSearch";
+import { searchWithMcp } from "@/agentMode/backends/native/mcpWebSearch";
+import { searchWithSkill } from "@/agentMode/backends/native/skillWebSearch";
 import { NativeBackendProcess } from "@/agentMode/sdk/NativeBackendProcess";
 import { SubagentScheduler } from "@/agentMode/sdk/subagentLimits";
 import { DEFAULT_SUBAGENT_LIMITS } from "@/constants";
@@ -76,12 +80,14 @@ function toExtensionMcpStatus(
 function createMcpToolsBundle(app: App, context: NativeToolContext) {
   const manager = getMcpServerManager(app);
   if (!manager) return { tools: EMPTY_MCP_TOOLS, autoApprovedTools: EMPTY_MCP_AUTO_APPROVE };
+  const settings = getSettings().agentMode;
+  const reserved = settings.webSearch?.mcp;
   // 子代理角色显式点名 MCP 工具时保持全量注册；延迟检索无法表达点名资格。https://github.com/ItsDalk-Lane/Scribe/issues/65
   if ((context.allowedTools ?? []).some((name) => name.startsWith(MCP_TOOL_NAME_PREFIX)))
-    return createMcpTools(manager);
-  const registry = DeferredMcpToolRegistry.fromManager(manager);
-  if (resolveMcpLoadingState(manager, getSettings().agentMode) === "full")
-    return createMcpTools(manager);
+    return createMcpTools(manager, undefined, reserved);
+  const registry = DeferredMcpToolRegistry.fromManager(manager, reserved);
+  if (resolveMcpLoadingState(manager, settings, reserved) === "full")
+    return createMcpTools(manager, undefined, reserved);
   const selections = context.mcpToolSelections;
   const bundle = createMcpTools(manager, { registry, selectedNames: selections.names() });
   return {
@@ -263,6 +269,8 @@ export const NativeBackendDescriptor: BackendDescriptor = {
           getExcalidrawApi(app) !== null,
           getSubagents().map(({ id, enabled, revision }) => [id, enabled, revision]),
           getMcpServerManager(app)?.signature() ?? "",
+          getSettings().agentMode.webSearch,
+          getSettings().agentMode.webSearchProviderId,
         ]),
       getSubagents,
       getManuallyInvokedSkill: (name, cwd) => {
@@ -321,6 +329,45 @@ export const NativeBackendDescriptor: BackendDescriptor = {
           ...context,
           skillCatalogLifecycle: context.skillCatalog,
           app,
+          getWebSearchRoutes: () => {
+            const { agentMode, providers } = getSettings();
+            const providerId = agentMode.webSearchProviderId;
+            const { preferred = "builtin", mcp, skill } = agentMode.webSearch ?? {};
+            return {
+              preferred,
+              routes: {
+                ...(providerId && {
+                  builtin: async (_id, query, signal) => {
+                    const credential = getDeepSeekSearchCredential(providers[providerId]);
+                    return credential
+                      ? searchDeepSeek(app, credential, query, signal, () =>
+                          context.assertCanExecute?.("web_search")
+                        )
+                      : {
+                          failure: t(
+                            "Set up the selected official DeepSeek account under Models, or change the web search engine in Agent configuration."
+                          ),
+                        };
+                  },
+                }),
+                ...(mcp && {
+                  mcp: (id, query, signal) =>
+                    searchWithMcp(getMcpServerManager(app), context, mcp, id, query, signal),
+                }),
+                ...(skill && {
+                  skill: (id, query, signal) =>
+                    searchWithSkill(
+                      app,
+                      context,
+                      getNativeScopedSkills(context.cwd).find((entry) => entry.name === skill),
+                      id,
+                      query,
+                      signal
+                    ),
+                }),
+              },
+            };
+          },
           reviewSkillDraft: (draft, signal) => reviewSkillDraft(app, draft, signal),
           skills: () => skillToolEntries(context.cwd),
           readSkillFile: (name, relativePath) => {

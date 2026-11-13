@@ -4,6 +4,7 @@ import { compile } from "@earendil-works/pi-schema";
 
 import { McpToolCallError, type McpServerManager } from "@/agentMode/mcp/McpServerManager";
 import { withToolExecution } from "@/utils/toolResultProjection";
+import { canCallMcpToolDirectly, type McpWebSearchTarget } from "./mcpDirectPolicy";
 import type { DeferredMcpToolRegistry } from "./deferredMcpTools";
 import type { McpServerConfig, McpToolContentPart, McpToolInfo } from "./types";
 
@@ -37,14 +38,19 @@ const EMPTY_MCP_TOOLS = Object.freeze([]) as unknown as AgentTool[];
 
 export function createMcpTools(
   manager: McpServerManager,
-  deferred?: McpToolsDeferredSelection
+  deferred?: McpToolsDeferredSelection,
+  reserved?: McpWebSearchTarget
 ): McpToolsBundle {
   if (deferred) return createDeferredSelectedTools(deferred);
   const tools: AgentTool[] = [];
   const autoApproved = new Set<string>();
   for (const server of manager.listEnabledServers()) {
     for (const tool of manager.getTools(server.id)) {
-      if (server.disabledTools?.includes(tool.name)) continue;
+      if (
+        server.disabledTools?.includes(tool.name) ||
+        !canCallMcpToolDirectly(server, tool, reserved)
+      )
+        continue;
       const name = buildMcpToolName(server.name, tool.name);
       tools.push(buildMcpAgentTool(server, tool, manager));
       if (server.autoApprovedTools?.includes(tool.name)) autoApproved.add(name);
@@ -85,7 +91,8 @@ export function normalizeMcpInputSchema(
 export function buildMcpAgentTool(
   server: McpServerConfig,
   tool: McpToolInfo,
-  manager: McpServerManager
+  manager: McpServerManager,
+  viaWebSearch = false
 ): AgentTool {
   const inputSchema = normalizeMcpInputSchema(tool.inputSchema);
   let checkArgs: ((args: unknown) => boolean) | null = null;
@@ -108,12 +115,10 @@ export function buildMcpAgentTool(
         signal?.throwIfAborted();
         if (checkArgs && !checkArgs(args)) throw new Error(`Invalid arguments for ${tool.name}.`);
         dispatchAttempted = true;
-        result = await manager.callTool(
-          server.id,
-          tool.name,
-          args as Record<string, unknown>,
-          signal
-        );
+        const input = args as Record<string, unknown>;
+        result = viaWebSearch
+          ? await manager.callWebSearchTool(server.id, tool.name, input, signal)
+          : await manager.callTool(server.id, tool.name, input, signal);
       } catch (error) {
         // 只有派发前的明确拒绝可安全重试，传输异常不能证明远端没有执行。https://github.com/ItsDalk-Lane/Scribe/issues/70
         const status =

@@ -1,5 +1,22 @@
 # Release Notes
 
+# v1.1.3 - Web search choices and safer MCP tools
+
+Agent Chat can use DeepSeek search and follows your preferred search source, with controlled fallback when a search fails.
+
+## ✨ Enhancements
+
+- **Choose a web search engine.** Use DuckDuckGo or DeepSeek with your existing official DeepSeek account. DeepSeek charges for successful searches that return results.
+- **Choose a preferred search source.** Select built-in search, an MCP search tool, or a compatible search skill. Other configured sources are tried only after a confirmed failure.
+- **Search tools follow the chosen order.** MCP search calls use the managed search entry, and ordinary MCP tools need confirmation before direct use.
+- **Smoother mixed tool batches.** Independent reads can run together while actions that require exclusive execution keep their order.
+
+## ⚠️ Compatibility Notes
+
+- Requires Obsidian 1.11.4 or newer.
+- Confirm non-search MCP tools for direct use in Settings → MCP. Existing enable and auto-approval settings remain separate.
+- Search skills require an enabled skill declaring a Python search script, and Python 3 on the computer.
+
 # v1.1.2 - Agent Chat without an external runtime, and steadier long answers
 
 Agent Chat now runs inside Scribe itself, model calls share one streaming engine with real deadlines, and long answers render progressively without losing text. This release also brings per-skill dependency checks, MCP tool loading that stays out of the model's way until needed, and a single `.scribe` folder for everything the plugin saves.

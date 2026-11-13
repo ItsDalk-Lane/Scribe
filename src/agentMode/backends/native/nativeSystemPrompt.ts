@@ -19,6 +19,7 @@ interface McpCatalogCacheEntry {
   revision: number;
   mode: string | undefined;
   threshold: number | undefined;
+  reserved: string;
   block: string | null;
 }
 
@@ -56,22 +57,27 @@ function deferredMcpCatalogBlock(app: App, input: OpenSessionInput): string | nu
   if (!manager) return null;
   const settings = getSettings().agentMode;
   const revision = manager.getRevision();
+  const reserved = JSON.stringify(settings.webSearch?.mcp ?? null);
   const cached = mcpCatalogCache.get(manager);
   // 能力或加载设置变化立即失效；连续变化只在下一请求渲染最终目录，避免每步重复扫描。https://github.com/ItsDalk-Lane/Scribe/issues/65
   if (
     cached?.revision === revision &&
     cached.mode === settings.mcpToolLoading &&
-    cached.threshold === settings.mcpToolLoadingThresholdChars
+    cached.threshold === settings.mcpToolLoadingThresholdChars &&
+    cached.reserved === reserved
   )
     return cached.block;
   const block =
-    resolveMcpLoadingState(manager, settings) === "full"
+    resolveMcpLoadingState(manager, settings, settings.webSearch?.mcp) === "full"
       ? null
-      : buildMcpToolCatalogBlock(DeferredMcpToolRegistry.fromManager(manager));
+      : buildMcpToolCatalogBlock(
+          DeferredMcpToolRegistry.fromManager(manager, settings.webSearch?.mcp)
+        );
   mcpCatalogCache.set(manager, {
     revision,
     mode: settings.mcpToolLoading,
     threshold: settings.mcpToolLoadingThresholdChars,
+    reserved,
     block,
   });
   return block;

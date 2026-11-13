@@ -16,9 +16,9 @@ const MODE_LABELS: Record<McpToolLoadingMode, string> = {
 };
 
 const MODE_HINTS: Record<McpToolLoadingMode, string> = {
-  auto: "Small setups register every MCP tool directly; large catalogs switch to tool search.",
-  always: "MCP tools are always listed as a catalog and registered through tool_search on demand.",
-  off: "Every enabled MCP tool is fully registered, matching previous behavior.",
+  auto: "Small setups register confirmed non-search tools directly; large catalogs use tool search.",
+  always: "Confirmed non-search tools are listed in the catalog and registered on demand.",
+  off: "All enabled and confirmed non-search tools are registered directly.",
 };
 
 export interface McpToolLoadingSettingProps {

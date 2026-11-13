@@ -189,6 +189,41 @@ export const settingsTranslations: Record<string, string> = {
   "MCP servers": "MCP服务器",
   Subagents: "子代理",
   "Agent configuration": "Agent 配置",
+  "Web search engine": "网页搜索引擎",
+  "Preferred web search source": "首选网页搜索来源",
+  "Built-in search": "内置搜索",
+  "MCP search": "MCP 搜索",
+  "Skill search": "技能搜索",
+  "Other configured sources are tried only when the previous source reports a failure.":
+    "只有前一个来源明确失败时，才会尝试其他已配置的来源。",
+  "MCP search tool": "MCP 搜索工具",
+  "Allow direct calls (non-search)": "允许直接调用（非网页搜索）",
+  "Allow direct calls for {name} (non-search)": "允许直接调用 {name}（非网页搜索）",
+  "Confirm this tool does not search the web before allowing direct calls.":
+    "确认此工具不会搜索网页，再允许直接调用。",
+  "Web search tools use the configured search order.": "网页搜索工具必须遵循已配置的搜索顺序。",
+  "Save the connection changes and reopen the tool list before allowing direct calls.":
+    "请先保存连接修改，再重新打开工具列表以允许直接调用。",
+  "Enable the tool before allowing direct calls.": "请先启用该工具，再允许直接调用。",
+  "Small setups register confirmed non-search tools directly; large catalogs use tool search.":
+    "工具较少时直接加载已确认的普通 MCP 工具；工具较多时改为按需查找。",
+  "Confirmed non-search tools are listed in the catalog and registered on demand.":
+    "已确认的普通 MCP 工具列入目录，模型按需查找并加载。",
+  "All enabled and confirmed non-search tools are registered directly.":
+    "直接加载全部已启用且确认可直调的普通 MCP 工具。",
+  "Choose a connected MCP tool and the field that accepts the search query.":
+    "选择已连接的 MCP 工具，以及接收搜索词的字段。",
+  "Search skill": "搜索技能",
+  "Choose an enabled skill that declares a search command. Use scripts you trust.":
+    "选择已启用且声明搜索命令的技能。只使用你信任的脚本。",
+  "Search source unavailable": "搜索来源不可用",
+  "Choose which service receives web search queries. DeepSeek charges per successful search with results.":
+    "选择接收网页搜索词的服务。DeepSeek 对返回结果的成功搜索按次收费。",
+  "To use DeepSeek, save an API key for the official DeepSeek provider under Models.":
+    "如需使用 DeepSeek，请先在「模型」中为官方 DeepSeek 供应商保存 API 密钥。",
+  "DeepSeek (account unavailable)": "DeepSeek（账号不可用）",
+  "Set up the selected official DeepSeek account under Models, or change the web search engine in Agent configuration.":
+    "请在「模型」中配置所选官方 DeepSeek 账号，或在「Agent 配置」中更换网页搜索引擎。",
   Plugins: "插件",
   Hooks: "钩子",
   "This agent does not expose a complete list for this category.": "此代理未提供这一类的完整清单。",
@@ -612,12 +647,6 @@ export const settingsTranslations: Record<string, string> = {
   "MCP tool loading": "MCP 工具加载",
   "Always deferred": "总是延迟",
   Off: "关闭",
-  "Small setups register every MCP tool directly; large catalogs switch to tool search.":
-    "工具较少时直接全量注册；目录较大时切换为工具检索。",
-  "MCP tools are always listed as a catalog and registered through tool_search on demand.":
-    "MCP 工具始终以目录形式列出，需要时经 tool_search 选取后才注册。",
-  "Every enabled MCP tool is fully registered, matching previous behavior.":
-    "所有启用的 MCP 工具全量注册，与既有行为一致。",
   "Threshold (characters, default {default}):": "阈值（字符，默认 {default}）：",
   "Deferral threshold in characters": "延迟加载字符数阈值",
   Deferred: "延迟",
