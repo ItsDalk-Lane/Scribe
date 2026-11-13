@@ -1,3 +1,6 @@
+import { WebSearchSetting } from "@/settings/v2/components/ui/WebSearchSetting";
+import { getDeepSeekSearchCredential } from "@/settings/webSearchProvider";
+import { isDesktopRuntime } from "@/utils/desktopRuntime";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { AgentStepLimitSetting } from "@/settings/v2/components/ui/AgentStepLimitSetting";
 import { SubagentLimitSettings } from "@/settings/v2/components/ui/SubagentLimitSettings";
@@ -17,6 +20,10 @@ import { clearDeviceUnlock } from "@/services/deviceUnlockStore";
 import { VaultInstructionsSetting } from "@/settings/v2/components/VaultInstructionsSetting";
 import { Notice } from "obsidian";
 import React, { useEffect, useMemo, useRef } from "react";
+
+const LazyWebSearchSources = React.lazy(() =>
+  import("@/agentMode").then((module) => ({ default: module.WebSearchSourcesPanel }))
+);
 
 export const BasicSettings: React.FC = () => {
   const app = useApp();
@@ -125,6 +132,24 @@ export const BasicSettings: React.FC = () => {
           }}
         />
 
+        {isDesktopRuntime() && (
+          <WebSearchSetting
+            providerId={settings.agentMode.webSearchProviderId}
+            providers={Object.values(settings.providers)
+              .filter((provider) => getDeepSeekSearchCredential(provider))
+              .map(({ providerId, displayName }) => ({ providerId, displayName }))}
+            onChange={(webSearchProviderId) =>
+              setSettings((current) => ({
+                agentMode: { ...current.agentMode, webSearchProviderId },
+              }))
+            }
+          />
+        )}
+        {isDesktopRuntime() && (
+          <React.Suspense fallback={null}>
+            <LazyWebSearchSources />
+          </React.Suspense>
+        )}
         <AgentStepLimitSetting
           maxSteps={settings.agentMode.backends.native?.maxSteps}
           onChange={(maxSteps) => updateAgentModeBackendFields("native", { maxSteps })}

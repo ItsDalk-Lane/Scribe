@@ -5,18 +5,22 @@ import { Button } from "@/components/ui/button";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { SettingSwitch } from "@/components/ui/setting-switch";
 import { ChevronDown } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import React, { useId, useMemo, useState } from "react";
 
 import type { McpToolInfo } from "@/agentMode/mcp/types";
+
+export type McpDirectToolState = "approved" | "web-search" | "connection-changed";
 
 export interface McpToolsSectionProps {
   tools: readonly McpToolInfo[];
   disabled?: boolean;
   disabledTools: readonly string[];
   autoApprovedTools: readonly string[];
+  directToolStates?: ReadonlyMap<string, McpDirectToolState>;
   deferred?: boolean;
   onToggleTool: (name: string, enabled: boolean) => void;
   onToggleAutoApprove: (name: string, approved: boolean) => void;
+  onToggleDirect: (name: string, approved: boolean) => void;
 }
 
 export const McpToolsSection: React.FC<McpToolsSectionProps> = ({
@@ -24,10 +28,13 @@ export const McpToolsSection: React.FC<McpToolsSectionProps> = ({
   disabled: controlsDisabled = false,
   disabledTools,
   autoApprovedTools,
+  directToolStates,
   deferred = false,
   onToggleTool,
   onToggleAutoApprove,
+  onToggleDirect,
 }) => {
+  const directReasonPrefix = useId();
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(() => new Set<string>());
   const disabled = useMemo(() => new Set(disabledTools), [disabledTools]);
@@ -87,10 +94,27 @@ export const McpToolsSection: React.FC<McpToolsSectionProps> = ({
             {t("No results.")}
           </div>
         ) : (
-          filtered.map((tool) => {
+          filtered.map((tool, index) => {
             const isEnabled = !disabled.has(tool.name);
             const isApproved = approved.has(tool.name);
             const isExpanded = expanded.has(tool.name);
+            const directState = directToolStates?.get(tool.name);
+            const directApproved = directState === "approved";
+            const directBlocked =
+              directState === "web-search" || directState === "connection-changed";
+            const directReason =
+              directState === "web-search"
+                ? t("Web search tools use the configured search order.")
+                : directState === "connection-changed"
+                  ? t(
+                      "Save the connection changes and reopen the tool list before allowing direct calls."
+                    )
+                  : !isEnabled && !directApproved
+                    ? t("Enable the tool before allowing direct calls.")
+                    : !directApproved
+                      ? t("Confirm this tool does not search the web before allowing direct calls.")
+                      : undefined;
+            const reasonId = `${directReasonPrefix}-${index}`;
             return (
               <div
                 key={tool.name}
@@ -115,7 +139,7 @@ export const McpToolsSection: React.FC<McpToolsSectionProps> = ({
                         )}
                       />
                       <span className="tw-truncate">{tool.name}</span>
-                      {isEnabled && (
+                      {isEnabled && directApproved && (
                         <span
                           className={cn(
                             "tw-shrink-0 tw-rounded tw-px-1.5 tw-py-0.5 tw-text-smallest tw-font-semibold",
@@ -165,6 +189,25 @@ export const McpToolsSection: React.FC<McpToolsSectionProps> = ({
                       />
                     </span>
                   </span>
+                </div>
+                <div className="tw-flex tw-items-start tw-gap-2 tw-px-3 tw-pb-2.5">
+                  <SettingSwitch
+                    checked={directApproved}
+                    disabled={controlsDisabled || directBlocked || (!isEnabled && !directApproved)}
+                    onCheckedChange={(checked) => onToggleDirect(tool.name, checked)}
+                    aria-label={t("Allow direct calls for {name} (non-search)", {
+                      name: tool.name,
+                    })}
+                    aria-describedby={directReason ? reasonId : undefined}
+                  />
+                  <div className="tw-min-w-0 tw-text-xs tw-leading-relaxed">
+                    <div className="tw-text-normal">{t("Allow direct calls (non-search)")}</div>
+                    {directReason && (
+                      <div id={reasonId} className="tw-text-muted">
+                        {directReason}
+                      </div>
+                    )}
+                  </div>
                 </div>
                 {isExpanded && (
                   <div className="tw-flex tw-flex-col tw-gap-3 tw-border-x-0 tw-border-b-0 tw-border-t tw-border-solid tw-border-border tw-bg-secondary tw-px-4 tw-py-3">

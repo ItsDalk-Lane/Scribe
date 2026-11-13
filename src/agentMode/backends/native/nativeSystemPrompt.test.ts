@@ -8,6 +8,7 @@ import {
 import { getMcpServerManager } from "@/agentMode/mcp/McpServerManager";
 import type { McpServerManager } from "@/agentMode/mcp/McpServerManager";
 import type { McpServerConfig, McpToolInfo } from "@/agentMode/mcp/types";
+import { mcpDirectToolFingerprint } from "@/agentMode/mcp/mcpDirectPolicy";
 import { readAgentsFile } from "@/instructions/agentsFile";
 import { getCachedProjectRecordById } from "@/projects/state";
 
@@ -33,7 +34,16 @@ function app(): App {
   } as unknown as App;
 }
 
-function mcpManagerStub(): McpServerManager {
+const NOTE_SEARCH_TOOL: McpToolInfo = {
+  name: "search",
+  description: "Search notes.",
+  inputSchema: { type: "object" },
+};
+
+function mcpManagerStub(
+  tools: McpToolInfo[] = [NOTE_SEARCH_TOOL],
+  confirmedTools: readonly McpToolInfo[] = tools
+): McpServerManager {
   const server: McpServerConfig = {
     id: "srv-1",
     name: "files",
@@ -43,9 +53,9 @@ function mcpManagerStub(): McpServerManager {
     createdAt: "",
     updatedAt: "",
   };
-  const tools: McpToolInfo[] = [
-    { name: "search", description: "Search notes.", inputSchema: { type: "object" } },
-  ];
+  server.directToolApprovals = Object.fromEntries(
+    confirmedTools.map((tool) => [tool.name, mcpDirectToolFingerprint(server, tool)])
+  );
   return {
     getRevision: () => 0,
     listEnabledServers: () => [server],
@@ -89,9 +99,11 @@ describe("nativeSystemPrompt", () => {
     });
 
     it("rebuilds the MCP catalog for a new capability revision and coalesces intervening revisions https://github.com/ItsDalk-Lane/Scribe/issues/65", async () => {
-      const manager = mcpManagerStub();
+      const old = { name: "old", inputSchema: {} };
+      const current = { name: "current", description: "Current schema", inputSchema: {} };
+      const manager = mcpManagerStub([old], [old, current]);
       let revision = 0;
-      let tools: McpToolInfo[] = [{ name: "old", inputSchema: {} }];
+      let tools: McpToolInfo[] = [old];
       jest.spyOn(manager, "getRevision").mockImplementation(() => revision);
       jest.spyOn(manager, "getTools").mockImplementation(() => tools);
       const scan = jest.spyOn(manager, "listEnabledServers");
@@ -105,7 +117,7 @@ describe("nativeSystemPrompt", () => {
         (await buildNativeSystemPromptState(target, { cwd: "/vault" })).sections.mcp_catalog
       ).toContain("mcp__files__old");
       revision += 3;
-      tools = [{ name: "current", description: "Current schema", inputSchema: {} }];
+      tools = [current];
       const updated = await buildNativeSystemPromptState(target, { cwd: "/vault" });
       expect(updated.sections.mcp_catalog).toContain("mcp__files__current");
       expect(updated.sections.mcp_catalog).not.toContain("mcp__files__old");
@@ -149,14 +161,44 @@ describe("nativeSystemPrompt", () => {
         (await buildNativeSystemPromptState(target, { cwd: "/vault", purpose: "skill-authoring" }))
           .sections.mcp_catalog
       ).toBeNull();
-      const replacement = mcpManagerStub();
-      jest
-        .spyOn(replacement, "getTools")
-        .mockReturnValue([{ name: "replacement", inputSchema: {} }]);
+      const replacement = mcpManagerStub([{ name: "replacement", inputSchema: {} }]);
       jest.mocked(getMcpServerManager).mockReturnValue(replacement);
       const updated = await buildNativeSystemPromptState(target, { cwd: "/vault" });
       expect(updated.sections.mcp_catalog).toContain("mcp__files__replacement");
       expect(updated.sections.mcp_catalog).not.toContain("mcp__files__search");
+    });
+
+    it("omits unconfirmed and advertised search tools and withdraws an alias selected for web search without a connection revision https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+      const web = { name: "web_search", inputSchema: {} };
+      const selected = { name: "retrieve", inputSchema: {} };
+      const unconfirmed = { name: "lookup", inputSchema: {} };
+      const manager = mcpManagerStub(
+        [NOTE_SEARCH_TOOL, web, selected, unconfirmed],
+        [NOTE_SEARCH_TOOL, web, selected]
+      );
+      jest.mocked(getMcpServerManager).mockReturnValue(manager);
+      const target = app();
+      const settings = { ...DEFAULT_SETTINGS.agentMode, mcpToolLoading: "always" as const };
+      setSettings({ ...DEFAULT_SETTINGS, agentMode: settings });
+      const initial = (await buildNativeSystemPromptState(target, { cwd: "/vault" })).sections
+        .mcp_catalog;
+      expect(initial).toContain("mcp__files__retrieve");
+      expect(initial).not.toContain("mcp__files__lookup");
+      expect(initial).not.toContain("mcp__files__web_search");
+
+      setSettings({
+        agentMode: {
+          ...settings,
+          webSearch: {
+            preferred: "builtin",
+            mcp: { serverId: "srv-1", toolName: "retrieve", queryParameter: "query" },
+          },
+        },
+      });
+      const updated = (await buildNativeSystemPromptState(target, { cwd: "/vault" })).sections
+        .mcp_catalog;
+      expect(updated).toContain("mcp__files__search");
+      expect(updated).not.toContain("mcp__files__retrieve");
     });
 
     it("returns stable named sections and explicit removals rather than merging rule files into the base", async () => {

@@ -45,6 +45,18 @@ describe("configSchema", () => {
       expect(server?.updatedAt).toBe("2026-01-02T00:00:00.000Z");
     });
 
+    it("retains only valid local non-search confirmations across settings reload", () => {
+      const approval = "a".repeat(64);
+      const server = sanitizeMcpServer(
+        stdioRaw({
+          directToolApprovals: { read_file: approval, search: "invalid", ping: true },
+        })
+      );
+      expect(sanitizeMcpServer(JSON.parse(JSON.stringify(server)))?.directToolApprovals).toEqual({
+        read_file: approval,
+      });
+    });
+
     it("returns null when id or name is missing", () => {
       expect(sanitizeMcpServer({ name: "files" })).toBeNull();
       expect(sanitizeMcpServer({ id: "srv-1" })).toBeNull();
@@ -331,6 +343,13 @@ describe("configSchema", () => {
   });
 
   describe("exportMcpServersJson()", () => {
+    it("does not export local direct-call confirmations to another installation", () => {
+      const server = sanitizeMcpServer(
+        stdioRaw({ directToolApprovals: { read: "b".repeat(64) } })
+      )!;
+      expect(exportMcpServersJson([server])).not.toContain("directToolApprovals");
+    });
+
     it("exports servers in the shared mcpServers JSON format", () => {
       const servers = [
         sanitizeMcpServer(

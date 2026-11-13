@@ -152,6 +152,7 @@ export function SettingItem(props: SettingItemProps) {
         return (
           <div className="tw-group tw-relative tw-w-full sm:tw-w-[200px]">
             <select
+              aria-label={title}
               value={props.value?.toString()}
               onChange={(e) => props.onChange?.(e.target.value)}
               disabled={disabled}

@@ -45,6 +45,7 @@ export interface SkillFrontmatter {
   enabledAgents: BackendId[];
   dependencies?: SkillDependency[];
   uiMetadata?: SkillUiMetadata;
+  webSearchCommand?: string;
 }
 
 function splitFrontmatter(content: string): { yaml: string; body: string } {
@@ -227,6 +228,20 @@ export function parseSkillFile(content: string, parentDirName?: string): ParsedS
   }
   validateDescription(description, frontmatterLine(doc, yaml, "description"));
 
+  const webSearchCommand = readString(doc, "web-search-command");
+  // 脚本入口只允许引用技能包内的文件，不能把设置变成任意命令。https://github.com/ItsDalk-Lane/Scribe/issues/70
+  if (
+    doc.has("web-search-command") &&
+    (!webSearchCommand?.endsWith(".py") ||
+      /[\\:\r\n]/.test(webSearchCommand) ||
+      webSearchCommand.includes("\0") ||
+      webSearchCommand.split("/").some((part) => !part || part === "." || part === ".."))
+  )
+    throw new SkillFormatError(
+      "The web-search-command must be a relative Python script inside the skill folder.",
+      frontmatterLine(doc, yaml, "web-search-command")
+    );
+
   const frontmatter: SkillFrontmatter = {
     name,
     description,
@@ -239,6 +254,7 @@ export function parseSkillFile(content: string, parentDirName?: string): ParsedS
     enabledAgents: readEnabledAgents(doc),
     dependencies: readDependencies(doc),
     uiMetadata: readUiMetadata(doc, yaml),
+    ...(webSearchCommand ? { webSearchCommand } : {}),
   };
 
   return { frontmatter, body, doc, yaml };

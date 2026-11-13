@@ -59,6 +59,9 @@ export function sanitizeMcpServer(raw: unknown): McpServerConfig | null {
   const type = isMcpServerType(record.type) ? record.type : inferMcpServerType(record);
   const url = asNonEmptyString(record.url);
   const command = asNonEmptyString(record.command);
+  const directToolApprovals = Object.entries(
+    sanitizeStringRecord(record.directToolApprovals) ?? {}
+  ).filter(([, fingerprint]) => /^[a-f0-9]{64}$/.test(fingerprint));
   return {
     id,
     name,
@@ -74,6 +77,9 @@ export function sanitizeMcpServer(raw: unknown): McpServerConfig | null {
     isActive: record.isActive === true,
     disabledTools: sanitizeStringArray(record.disabledTools),
     autoApprovedTools: sanitizeStringArray(record.autoApprovedTools),
+    ...(directToolApprovals.length > 0 && {
+      directToolApprovals: Object.fromEntries(directToolApprovals),
+    }),
     tags: sanitizeStringArray(record.tags),
     sortOrder:
       typeof record.sortOrder === "number" && Number.isSafeInteger(record.sortOrder)

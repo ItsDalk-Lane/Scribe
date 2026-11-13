@@ -4,6 +4,7 @@ import {
   type DeferredMcpToolEntry,
 } from "@/agentMode/mcp/deferredMcpTools";
 import type { McpServerManager } from "@/agentMode/mcp/McpServerManager";
+import { mcpDirectToolFingerprint } from "@/agentMode/mcp/mcpDirectPolicy";
 import type { McpServerConfig, McpToolCallResult, McpToolInfo } from "@/agentMode/mcp/types";
 
 interface ManagerStubInput {
@@ -17,8 +18,19 @@ interface ManagerStubInput {
 }
 
 function managerStub({ servers, toolsByServer, callTool }: ManagerStubInput): McpServerManager {
+  const approvedServers = servers.map((entry) => ({
+    ...entry,
+    directToolApprovals:
+      entry.directToolApprovals ??
+      Object.fromEntries(
+        (toolsByServer[entry.id] ?? []).map((tool) => [
+          tool.name,
+          mcpDirectToolFingerprint(entry, tool),
+        ])
+      ),
+  }));
   return {
-    listEnabledServers: () => servers.filter((entry) => entry.isActive),
+    listEnabledServers: () => approvedServers.filter((entry) => entry.isActive),
     getTools: (serverId: string) => toolsByServer[serverId] ?? [],
     callTool: callTool ?? (async () => ({ content: [{ type: "text", text: "done" }] })),
   } as unknown as McpServerManager;
@@ -95,6 +107,30 @@ describe("deferredMcpTools", () => {
           toolsByServer: { "srv-1": [SEARCH_TOOL, { name: "ping", inputSchema: {} }] },
         });
         expect(registry.list().map((entry) => entry.qualifiedName)).toEqual(["mcp__files__ping"]);
+      });
+
+      it("does not disclose an unconfirmed alias, an advertised web search, or the reserved route in the deferred catalog https://github.com/ItsDalk-Lane/Scribe/issues/70", () => {
+        const alias = { name: "lookup", inputSchema: {} };
+        const web = { name: "retrieve", description: "Search the public web", inputSchema: {} };
+        const direct = { name: "read_note", inputSchema: {} };
+        const config = server({});
+        config.directToolApprovals = Object.fromEntries(
+          [SEARCH_TOOL, web, direct].map((tool) => [
+            tool.name,
+            mcpDirectToolFingerprint(config, tool),
+          ])
+        );
+        const manager = managerStub({
+          servers: [config],
+          toolsByServer: { "srv-1": [alias, SEARCH_TOOL, web, direct] },
+        });
+        const registry = DeferredMcpToolRegistry.fromManager(manager, {
+          serverId: config.id,
+          toolName: SEARCH_TOOL.name,
+        });
+
+        expect(registry.catalogLines()).toEqual(["mcp__files__read_note — read_note"]);
+        expect(registry.search("search", 10).entries).toEqual([]);
       });
 
       it("only indexes servers that are active", () => {

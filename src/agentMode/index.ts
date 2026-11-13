@@ -138,4 +138,5 @@ export function createAgentSessionManager(app: App, plugin: ScribePlugin): Agent
 export { useBackendAuthState } from "./session/useBackendAuthState";
 
 export { AgentExtensionsSettings } from "./ui/AgentExtensionsSettings";
+export { WebSearchSourcesPanel } from "./ui/WebSearchSourcesPanel";
 export { McpSettingsPanel } from "./ui/mcp/McpSettingsPanel";

@@ -1,0 +1,65 @@
+diff --git a/node_modules/@earendil-works/pi-agent-core/dist/agent-loop.js b/node_modules/@earendil-works/pi-agent-core/dist/agent-loop.js
+index 48f56a2..ec7981b 100644
+--- a/node_modules/@earendil-works/pi-agent-core/dist/agent-loop.js
++++ b/node_modules/@earendil-works/pi-agent-core/dist/agent-loop.js
+@@ -371,11 +371,41 @@ async function failToolCallsFromTruncatedMessage(toolCalls, emit) {
+  */
+ async function executeToolCalls(currentContext, assistantMessage, config, signal, emit) {
+     const toolCalls = assistantMessage.content.filter((c) => c.type === "toolCall");
+-    const hasSequentialToolCall = toolCalls.some((tc) => currentContext.tools?.find((t) => t.name === tc.name)?.executionMode === "sequential");
+-    if (config.toolExecution === "sequential" || hasSequentialToolCall) {
++    if (config.toolExecution === "sequential") {
+         return executeToolCallsSequential(currentContext, assistantMessage, toolCalls, config, signal, emit);
+     }
+-    return executeToolCallsParallel(currentContext, assistantMessage, toolCalls, config, signal, emit);
++    const groups = [];
++    let openParallelGroup = null;
++    for (const toolCall of toolCalls) {
++        const sequential = currentContext.tools?.find((t) => t.name === toolCall.name)?.executionMode === "sequential";
++        if (sequential) {
++            openParallelGroup = null;
++            groups.push({ parallel: false, calls: [toolCall] });
++        }
++        else {
++            if (!openParallelGroup) {
++                openParallelGroup = { parallel: true, calls: [] };
++                groups.push(openParallelGroup);
++            }
++            openParallelGroup.calls.push(toolCall);
++        }
++    }
++    const messages = [];
++    const finalizedCalls = [];
++    for (const group of groups) {
++        if (signal?.aborted) {
++            break;
++        }
++        const outcome = group.parallel
++            ? await executeToolCallsParallel(currentContext, assistantMessage, group.calls, config, signal, emit)
++            : await executeToolCallsSequential(currentContext, assistantMessage, group.calls, config, signal, emit);
++        messages.push(...outcome.messages);
++        finalizedCalls.push(...outcome.finalizedCalls);
++    }
++    return {
++        messages,
++        terminate: shouldTerminateToolBatch(finalizedCalls),
++    };
+ }
+ async function executeToolCallsSequential(currentContext, assistantMessage, toolCalls, config, signal, emit) {
+     const finalizedCalls = [];
+@@ -411,6 +441,7 @@ async function executeToolCallsSequential(currentContext, assistantMessage, tool
+     }
+     return {
+         messages,
++        finalizedCalls,
+         terminate: shouldTerminateToolBatch(finalizedCalls),
+     };
+ }
+@@ -465,6 +496,7 @@ async function executeToolCallsParallel(currentContext, assistantMessage, toolCa
+     }
+     return {
+         messages,
++        finalizedCalls: orderedFinalizedCalls,
+         terminate: shouldTerminateToolBatch(orderedFinalizedCalls),
+     };
+ }

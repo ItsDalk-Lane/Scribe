@@ -68,6 +68,7 @@ export interface Skill {
   tags?: string[];
   dependencies?: SkillDependency[];
   uiMetadata?: SkillUiMetadata;
+  webSearchCommand?: string;
 }
 
 export interface RejectedSkill {

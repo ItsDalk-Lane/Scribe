@@ -71,6 +71,21 @@ describe("skillFormat", () => {
       expect(parsed.frontmatter.allowedTools).toBe("Read Grep");
     });
 
+    it("reads the skill's declared Python search script", () => {
+      expect(
+        parseSkillFile(minimalSkill({ "web-search-command": "scripts/search.py" })).frontmatter
+      ).toHaveProperty("webSearchCommand", "scripts/search.py");
+    });
+
+    it.each(["../search.py", "/search.py", "scripts/search.sh", "[scripts/search.py]"])(
+      "rejects a search command outside the skill or without a Python script path (%s) https://github.com/ItsDalk-Lane/Scribe/issues/70",
+      (command) => {
+        expect(() => parseSkillFile(minimalSkill({ "web-search-command": command }))).toThrow(
+          "The web-search-command must be a relative Python script inside the skill folder."
+        );
+      }
+    );
+
     it("reads metadata.scribe-enabled-agents as a comma-separated list", () => {
       const parsed = parseSkillFile(
         frontmatterOf(

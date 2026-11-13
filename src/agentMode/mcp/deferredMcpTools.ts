@@ -1,5 +1,6 @@
 import type { AgentTool } from "@earendil-works/pi-agent-core";
 
+import { canCallMcpToolDirectly, type McpWebSearchTarget } from "./mcpDirectPolicy";
 import type { McpServerManager } from "./McpServerManager";
 import {
   assertUniqueMcpToolNames,
@@ -38,13 +39,21 @@ export class DeferredMcpToolRegistry {
     private readonly entries: readonly DeferredMcpToolEntry[]
   ) {}
 
-  static fromManager(manager: McpServerManager): DeferredMcpToolRegistry {
+  static fromManager(
+    manager: McpServerManager,
+    reserved?: McpWebSearchTarget
+  ): DeferredMcpToolRegistry {
     const serversById = new Map<string, McpServerConfig>();
     const entries: DeferredMcpToolEntry[] = [];
     for (const server of manager.listEnabledServers()) {
       serversById.set(server.id, server);
       for (const tool of manager.getTools(server.id)) {
-        if (server.disabledTools?.includes(tool.name)) continue;
+        // 搜索由统一入口按优先级派发，目录不能同时提供绕过入口。https://github.com/ItsDalk-Lane/Scribe/issues/65
+        if (
+          server.disabledTools?.includes(tool.name) ||
+          !canCallMcpToolDirectly(server, tool, reserved)
+        )
+          continue;
         entries.push({
           qualifiedName: buildMcpToolName(server.name, tool.name),
           serverId: server.id,
@@ -123,11 +132,12 @@ function collapseDescription(description: string): string {
 // 注册、目录与设置 UI 共用同一延迟判定，避免三处阈值口径漂移。https://github.com/ItsDalk-Lane/Scribe/issues/65
 export function resolveMcpLoadingState(
   manager: McpServerManager,
-  settings: McpToolLoadingSettings
+  settings: McpToolLoadingSettings,
+  reserved?: McpWebSearchTarget
 ): "full" | "deferred" {
   const mode = settings.mcpToolLoading ?? "auto";
   if (mode === "off") return "full";
-  const registry = DeferredMcpToolRegistry.fromManager(manager);
+  const registry = DeferredMcpToolRegistry.fromManager(manager, reserved);
   const thresholdChars =
     settings.mcpToolLoadingThresholdChars ?? DEFAULT_MCP_TOOL_LOADING_THRESHOLD_CHARS;
   return resolveMcpToolRegistration(mode, thresholdChars, registry.estimateDefinitionChars());

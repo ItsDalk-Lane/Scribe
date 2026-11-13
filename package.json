@@ -1,6 +1,6 @@
 {
   "name": "obsidian-scribe",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "An AI notes assistant that runs inside Obsidian with your own models and tools.",
   "main": "main.js",
   "scripts": {
@@ -30,6 +30,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write 'src/**/*.{js,ts,tsx,md}'",
     "format:check": "prettier --check 'src/**/*.{js,ts,tsx,md}'",
+    "postinstall": "patch-package",
     "version": "node version-bump.mjs",
     "test": "jest",
     "test:mobile-load": "npm run build && node scripts/mobile-load-smoke.cjs",
@@ -83,6 +84,7 @@
     "nano-staged": "^0.8.0",
     "npm-run-all2": "^7.0.2",
     "obsidian": "^1.2.5",
+    "patch-package": "^8.0.1",
     "prettier": "3.8.3",
     "stylelint": "17.14.1",
     "stylelint-config-obsidianmd": "0.1.0",

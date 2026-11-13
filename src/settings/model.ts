@@ -7,6 +7,8 @@ import { isMcpToolLoadingMode, type McpToolLoadingMode } from "@/agentMode/mcp/t
 import { AGENT_BUILTIN_COMMANDS } from "@/agentMode/agentCommands/builtinAgentCommands";
 import type { McpSettingsSection } from "@/agentMode/mcp/types";
 import type { BackendConfig, BackendType, ConfiguredModel, Provider } from "@/modelManagement";
+import type { WebSearchSettings } from "@/settings/webSearchProvider";
+import { isRecord } from "@/utils/obsidianInternals";
 import { TOP_LEVEL_SECRET_FIELDS } from "@/services/settingsSecretTransforms";
 import { isNotificationSoundId, type NotificationSoundId } from "@/utils/notificationSoundCatalog";
 import { type SortStrategy, isSortStrategy } from "@/utils/recentUsageManager";
@@ -71,6 +73,8 @@ export interface ScribeSettings {
     notificationSound: boolean;
     notificationSoundId: NotificationSoundId;
     welcomeDismissed: boolean;
+    webSearchProviderId?: string;
+    webSearch?: WebSearchSettings;
     subagentChatOpenArea?: "left" | "right" | "floating";
     disabledBuiltinCommands: readonly string[];
     subagents?: {
@@ -475,12 +479,39 @@ function sanitizeAgentMode(raw: unknown): ScribeSettings["agentMode"] {
     notificationSound,
     notificationSoundId,
     welcomeDismissed,
+    webSearchProviderId:
+      typeof r.webSearchProviderId === "string" ? r.webSearchProviderId || undefined : undefined,
+    webSearch: sanitizeWebSearch(r.webSearch),
     subagentChatOpenArea,
     disabledBuiltinCommands,
     skills,
     subagents,
     mcpToolLoading,
     mcpToolLoadingThresholdChars,
+  };
+}
+
+function sanitizeWebSearch(raw: unknown): WebSearchSettings | undefined {
+  if (!isRecord(raw)) return undefined;
+  const { preferred, mcp, skill } = raw;
+  return {
+    preferred: preferred === "mcp" || preferred === "skill" ? preferred : "builtin",
+    ...(isRecord(mcp) &&
+    typeof mcp.serverId === "string" &&
+    mcp.serverId &&
+    typeof mcp.toolName === "string" &&
+    mcp.toolName &&
+    typeof mcp.queryParameter === "string" &&
+    mcp.queryParameter
+      ? {
+          mcp: {
+            serverId: mcp.serverId,
+            toolName: mcp.toolName,
+            queryParameter: mcp.queryParameter,
+          },
+        }
+      : {}),
+    ...(typeof skill === "string" && skill ? { skill } : {}),
   };
 }
 

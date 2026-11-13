@@ -5,6 +5,7 @@ import {
   McpToolCallError,
 } from "@/agentMode/mcp/McpServerManager";
 import { buildMcpAgentTool } from "@/agentMode/mcp/mcpTools";
+import { mcpDirectToolFingerprint } from "@/agentMode/mcp/mcpDirectPolicy";
 import { getSettings, subscribeToSettingsChange } from "@/settings/model";
 
 jest.mock("@/settings/model", () => ({
@@ -29,6 +30,12 @@ interface FakeConnection extends McpConnectionInstance {
   }[];
 }
 
+const SEARCH_TOOL: McpToolInfo = {
+  name: "search",
+  description: "Search things",
+  inputSchema: { type: "object" },
+};
+
 function createFakeConnection(): FakeConnection {
   const connection: FakeConnection = {
     input: null as unknown as McpConnectionInput,
@@ -38,9 +45,7 @@ function createFakeConnection(): FakeConnection {
       if (connection.startError) throw connection.startError;
       return {
         version: "2.1.0",
-        tools: [
-          { name: "search", description: "Search things", inputSchema: { type: "object" } },
-        ] satisfies McpToolInfo[],
+        tools: [SEARCH_TOOL],
       };
     },
     async callTool(name, args, timeoutSeconds, resetTimeoutOnProgress, signal) {
@@ -82,7 +87,10 @@ function waitForSettled(manager: McpServerManager, ids: string[]): Promise<void>
   });
 }
 
-function createHarness(queue: FakeConnection[] = []): Harness {
+function createHarness(
+  queue: FakeConnection[] = [],
+  getWebSearchSelection?: () => { serverId: string; toolName: string } | undefined
+): Harness {
   const connections: FakeConnection[] = [];
   const manager = new McpServerManager({
     createConnection: (input) => {
@@ -93,6 +101,7 @@ function createHarness(queue: FakeConnection[] = []): Harness {
     },
     resolveValues: async () => ({ env: {}, headers: {} }),
     clientInfo: { name: "Scribe", version: "1.0.0" },
+    getWebSearchSelection,
   });
   return {
     manager,
@@ -118,6 +127,14 @@ function stdioServer(overrides: Partial<McpServerConfig> = {}): McpServerConfig 
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
+  };
+}
+
+function approvedServer(overrides: Partial<McpServerConfig> = {}, tool = SEARCH_TOOL) {
+  const server = stdioServer(overrides);
+  return {
+    ...server,
+    directToolApprovals: { [tool.name]: mcpDirectToolFingerprint(server, tool) },
   };
 }
 
@@ -328,9 +345,64 @@ describe("McpServerManager", () => {
     });
 
     describe("callTool()", () => {
-      it("rejects dispatch as soon as manager shutdown begins https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+      it("does not dispatch a directly called MCP tool without a non-search confirmation https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
         const harness = createHarness();
         await harness.apply([stdioServer()]);
+        await expect(
+          harness.manager.callTool("srv-1", "search", {}, undefined)
+        ).rejects.toMatchObject({
+          outcome: "not_started",
+        });
+        expect(harness.connections[0].toolCalls).toEqual([]);
+      });
+
+      it("does not reuse a non-search confirmation after a tool changes its description and schema https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const connection = createFakeConnection();
+        connection.listTools = async () => [
+          {
+            ...SEARCH_TOOL,
+            description: "Retrieve different records",
+            inputSchema: { type: "object", required: ["q"] },
+          },
+        ];
+        const harness = createHarness([connection]);
+        await harness.apply([approvedServer()]);
+        connection.input.onToolsChanged?.();
+        await waitForSettled(harness.manager, ["srv-1"]);
+
+        expect(harness.manager.getTools("srv-1")[0].description).toBe("Retrieve different records");
+        await expect(harness.manager.callTool("srv-1", "search", {})).rejects.toMatchObject({
+          outcome: "not_started",
+        });
+        expect(connection.toolCalls).toEqual([]);
+      });
+
+      it("reserves a selected search route even when its alias was previously confirmed for direct use https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const harness = createHarness([], () => ({ serverId: "srv-1", toolName: "search" }));
+        await harness.apply([approvedServer()]);
+
+        await expect(harness.manager.callTool("srv-1", "search", {})).rejects.toMatchObject({
+          outcome: "not_started",
+        });
+        expect(harness.connections[0].toolCalls).toEqual([]);
+      });
+
+      it("does not dispatch an advertised web search directly even if its current definition was confirmed https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const connection = createFakeConnection();
+        const web = { ...SEARCH_TOOL, description: "Search public web pages" };
+        connection.start = async () => ({ tools: [web] });
+        const harness = createHarness([connection]);
+        await harness.apply([approvedServer({}, web)]);
+
+        await expect(harness.manager.callTool("srv-1", "search", {})).rejects.toMatchObject({
+          outcome: "not_started",
+        });
+        expect(connection.toolCalls).toEqual([]);
+      });
+
+      it("rejects dispatch as soon as manager shutdown begins https://github.com/ItsDalk-Lane/Scribe/issues/71", async () => {
+        const harness = createHarness();
+        await harness.apply([approvedServer()]);
         const shutdown = harness.manager.shutdown();
         try {
           await expect(harness.manager.callTool("srv-1", "search", {})).rejects.toMatchObject({
@@ -347,7 +419,7 @@ describe("McpServerManager", () => {
         async (failure) => {
           const connection = createFakeConnection();
           const harness = createHarness([connection]);
-          const config = stdioServer();
+          const config = approvedServer();
           await harness.apply([config]);
           const started = deferred<void>();
           const response = deferred<never>();
@@ -396,7 +468,7 @@ describe("McpServerManager", () => {
 
       it("refuses a configured but disabled tool at final dispatch rather than calling its live connection https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
         const harness = createHarness();
-        await harness.apply([stdioServer({ disabledTools: ["search"] })]);
+        await harness.apply([approvedServer({ disabledTools: ["search"] })]);
         await expect(harness.manager.callTool("srv-1", "search", {})).rejects.toMatchObject({
           outcome: "not_started",
         });
@@ -405,7 +477,7 @@ describe("McpServerManager", () => {
 
       it("refuses a tool that was not discovered on the current connection https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
         const harness = createHarness();
-        await harness.apply([stdioServer()]);
+        await harness.apply([approvedServer()]);
         await expect(harness.manager.callTool("srv-1", "missing", {})).rejects.toMatchObject({
           outcome: "not_started",
         });
@@ -414,7 +486,7 @@ describe("McpServerManager", () => {
 
       it("does not dispatch an already cancelled request https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
         const harness = createHarness();
-        await harness.apply([stdioServer()]);
+        await harness.apply([approvedServer()]);
         const controller = new AbortController();
         controller.abort();
         await expect(
@@ -425,7 +497,7 @@ describe("McpServerManager", () => {
 
       it("marks a thrown connection failure after dispatch as unknown without retrying https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
         const harness = createHarness();
-        await harness.apply([stdioServer()]);
+        await harness.apply([approvedServer()]);
         const call = jest
           .spyOn(harness.connections[0], "callTool")
           .mockRejectedValue(new Error("Connection lost after dispatch"));
@@ -438,7 +510,7 @@ describe("McpServerManager", () => {
 
       it("preserves a server-reported business failure as a definite response https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
         const harness = createHarness();
-        await harness.apply([stdioServer()]);
+        await harness.apply([approvedServer()]);
         const failure = {
           content: [{ type: "text", text: "The record was not changed." }],
           isError: true,
@@ -449,7 +521,7 @@ describe("McpServerManager", () => {
 
       it("routes the call to the live connection with the configured timeout", async () => {
         const harness = createHarness();
-        await harness.apply([stdioServer({ timeoutSeconds: 30 })]);
+        await harness.apply([approvedServer({ timeoutSeconds: 30 })]);
         const result = await harness.manager.callTool("srv-1", "search", { q: "notes" });
         expect(result).toEqual({ content: [{ type: "text", text: "ok" }] });
         expect(harness.connections[0].toolCalls[0]).toEqual({
@@ -463,7 +535,7 @@ describe("McpServerManager", () => {
 
       it("passes the caller's cancellation signal to the live request", async () => {
         const harness = createHarness();
-        await harness.apply([stdioServer()]);
+        await harness.apply([approvedServer()]);
         const controller = new AbortController();
         await harness.manager.callTool("srv-1", "search", { q: "notes" }, controller.signal);
         expect(harness.connections[0].toolCalls[0].signal).toBe(controller.signal);
@@ -471,7 +543,7 @@ describe("McpServerManager", () => {
 
       it("keeps the configured idle timeout while enabling progress-based resets for long-running servers", async () => {
         const harness = createHarness();
-        await harness.apply([stdioServer({ longRunning: true, timeoutSeconds: 30 })]);
+        await harness.apply([approvedServer({ longRunning: true, timeoutSeconds: 30 })]);
         await harness.manager.callTool("srv-1", "search", undefined);
         expect(harness.connections[0].toolCalls[0]).toMatchObject({
           timeoutSeconds: 30,
@@ -481,10 +553,39 @@ describe("McpServerManager", () => {
 
       it("throws when the server is not connected", async () => {
         const harness = createHarness();
-        await harness.apply([stdioServer({ isActive: false })]);
+        await harness.apply([approvedServer({ isActive: false })]);
         await expect(harness.manager.callTool("srv-1", "search", {})).rejects.toThrow(
           /not connected/
         );
+      });
+    });
+
+    describe("callWebSearchTool()", () => {
+      it("dispatches the current selected search tool without direct tool confirmation", async () => {
+        const harness = createHarness([], () => ({ serverId: "srv-1", toolName: "search" }));
+        await harness.apply([stdioServer()]);
+
+        const args = { query: "Obsidian documentation" };
+        await expect(harness.manager.callWebSearchTool("srv-1", "search", args)).resolves.toEqual({
+          content: [{ type: "text", text: "ok" }],
+        });
+        expect(harness.connections[0].toolCalls).toEqual([
+          expect.objectContaining({ name: "search", args }),
+        ]);
+      });
+
+      it("refuses a search call once a different route is selected https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const selection = { serverId: "srv-1", toolName: "search" };
+        const harness = createHarness([], () => selection);
+        await harness.apply([stdioServer()]);
+        selection.toolName = "other";
+
+        await expect(
+          harness.manager.callWebSearchTool("srv-1", "search", {})
+        ).rejects.toMatchObject({
+          outcome: "not_started",
+        });
+        expect(harness.connections[0].toolCalls).toEqual([]);
       });
     });
 
@@ -586,9 +687,19 @@ describe("McpServerManager", () => {
         await harness.apply([stdioServer({ name: "renamed" })]);
         expect(harness.manager.signature()).not.toBe(before);
         expect(harness.connections).toHaveLength(1);
-        const renamed = harness.manager.signature();
-        await harness.apply([stdioServer({ name: "renamed", description: "New description" })]);
-        expect(harness.manager.signature()).toBe(renamed);
+      });
+
+      it("refreshes chat capabilities after search classification or direct confirmation changes without reconnecting https://github.com/ItsDalk-Lane/Scribe/issues/70", async () => {
+        const harness = createHarness();
+        await harness.apply([stdioServer()]);
+        const unconfirmed = harness.manager.signature();
+        const confirmed = approvedServer();
+        await harness.apply([confirmed]);
+        expect(harness.manager.signature()).not.toBe(unconfirmed);
+        const afterConfirmation = harness.manager.signature();
+        await harness.apply([{ ...confirmed, description: "Search public web pages" }]);
+        expect(harness.manager.signature()).not.toBe(afterConfirmation);
+        expect(harness.connections).toHaveLength(1);
       });
 
       it("changes when status, tool count, or tool settings change", async () => {

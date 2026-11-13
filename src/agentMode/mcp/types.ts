@@ -29,6 +29,7 @@ export interface McpServerConfig {
   isActive: boolean;
   disabledTools?: string[];
   autoApprovedTools?: string[];
+  directToolApprovals?: Record<string, string>;
   tags?: string[];
   sortOrder?: number;
   secretRefs?: McpSecretRef[];

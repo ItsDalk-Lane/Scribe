@@ -19,6 +19,19 @@ Scribe includes [Agent Chat](agent-mode-and-tools.md). Quick Ask and Quick Comma
 | **上下文占比（百分比）** | 2          | 模型可见技能列表以模型上下文窗口的该比例封顶。技能页只显示预算状态提示；数值在此调整。                                                                                      |
 | **绝对 token 上限**      | 10000      | 即使上下文窗口很大，技能目录也不超过该 token 数。                                                                                                                           |
 
+### 网页搜索
+
+在桌面版 **设置 → Scribe → Agent 配置** 中选择：
+
+- **首选网页搜索来源**：默认是内置搜索，也可选已配置的 MCP 工具或搜索技能。Scribe 只在前一个来源明确失败或不可用时尝试其他已配置的来源。备选按内置、MCP、技能的顺序尝试，跳过已经尝试的来源。
+- **网页搜索引擎**：选择内置搜索使用的服务。DuckDuckGo 是默认选项。要用 DeepSeek，先在 **模型** 中给官方 DeepSeek 供应商保存 API 密钥，再在这里选择账号。搜索可以搭配任何聊天模型，返回结果的成功搜索由 [DeepSeek 按次计费](https://api-docs.deepseek.com/zh-cn/guides/search/#计费)。
+- **MCP 搜索工具**：从已连接的服务里选择工具和接收搜索词的字段。工具必须能只用这个文本字段发起搜索。选中的工具由网页搜索统一调用，仍遵循原有 MCP 权限。
+- **搜索技能**：从已启用、允许模型调用并声明了搜索命令的技能中选择。脚本需要本机 Python 3，只应使用你信任的技能。
+
+网页搜索类 MCP 工具只能通过统一搜索入口调用。在 **MCP → 编辑服务器 → 工具** 中，确认某个普通工具不会搜索网页后，才能开启 **允许直接调用（非网页搜索）**。现有的工具启用和自动批准开关仍各自生效。连接或工具定义变化后需重新确认。
+
+设置会在下次工具调用时使用。取消、拒绝授权、结果不明以及成功返回空结果，都不会触发备选。搜索词会发送给实际尝试的服务。
+
 Scribe uses the vault-root `.scribe` folder for all plugin material. The location is fixed. Only explicit configuration, lightweight preferences, storage metadata, and recovery identifiers remain in the plugin’s `data.json`. Vault and project `AGENTS.md` files stay at their respective workspace roots. Old locations are not imported, read, moved, or cleaned.
 
 插件资料统一保存在当前库根目录的 `.scribe`，位置不可修改；配置和轻量偏好等保存在插件的 `data.json`。库说明和项目说明保留原位置。旧位置的资料不导入、不迁移、不清理。

@@ -147,6 +147,29 @@ describe("settingsPersistence", () => {
   });
 
   describe("loadStoredSettings()", () => {
+    it("restores the preferred source and search accounts from disk", async () => {
+      const settings = configuredSettings();
+      const saved = serializeSettings({
+        ...settings,
+        agentMode: {
+          ...settings.agentMode,
+          webSearchProviderId: "service",
+          webSearch: {
+            preferred: "skill",
+            mcp: { serverId: "search-server", toolName: "search", queryParameter: "q" },
+            skill: "research",
+          },
+        },
+      });
+      const reopened = await loadStoredSettings(JSON.parse(JSON.stringify(saved)), jest.fn());
+      expect(reopened.agentMode.webSearchProviderId).toBe("service");
+      expect(reopened.agentMode.webSearch).toEqual({
+        preferred: "skill",
+        mcp: { serverId: "search-server", toolName: "search", queryParameter: "q" },
+        skill: "research",
+      });
+    });
+
     it.each([false, true])(
       "removes retired CORS=%s on reopening and keeps the saved endpoint, model and encrypted key reference https://github.com/ItsDalk-Lane/Scribe/issues/51",
       async (enableCors) => {
