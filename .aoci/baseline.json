@@ -1,7 +1,7 @@
 {
   "version": 1,
   "created_at": "2026-10-30T14:20:14Z",
-  "updated_at": "2026-11-13T01:00:45Z",
+  "updated_at": "2026-11-13T01:01:18Z",
   "files": {
     ".claude/agents/code-reviewer.md": {
       "role": "index",
@@ -611,9 +611,9 @@
     },
     "manifest.json": {
       "role": "index",
-      "sha256": "15de33e8986b00baa4c88ec7fa9becdc3730c3cc07d27c6fed2e553e34d32836",
-      "size": 288,
-      "normalized_sha256": "15de33e8986b00baa4c88ec7fa9becdc3730c3cc07d27c6fed2e553e34d32836"
+      "sha256": "6497b83a30e9727466484289d1f2a6d8230d2f83155ea8719eff487e4d6e880e",
+      "size": 296,
+      "normalized_sha256": "6497b83a30e9727466484289d1f2a6d8230d2f83155ea8719eff487e4d6e880e"
     },
     "nodeModuleShim.mjs": {
       "role": "index",
@@ -10199,9 +10199,9 @@
     },
     "versions.json": {
       "role": "index",
-      "sha256": "e6faa24bd691543f87aefbcd0d26e536a1eb638c235a2938cb4413de74a748a5",
-      "size": 103,
-      "normalized_sha256": "e6faa24bd691543f87aefbcd0d26e536a1eb638c235a2938cb4413de74a748a5"
+      "sha256": "069f44568ca522bd1819f4a62f63a8381cd6af9ecaed0a712fc2752003a4233c",
+      "size": 108,
+      "normalized_sha256": "069f44568ca522bd1819f4a62f63a8381cd6af9ecaed0a712fc2752003a4233c"
     },
     "wasmPlugin.mjs": {
       "role": "index",
